@@ -1,35 +1,44 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Stack } from "expo-router";
+import React from "react";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <Tabs
+    <Stack
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: "#fff",
+        },
+        headerTitleStyle: {
+          fontSize: 18,
+          fontWeight: "600",
+          color: "#1a1a1a",
+        },
+      }}
+    >
+      <Stack.Screen
+        name="dashboard"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Panel de Control",
+          headerTitle: "InventarioYa",
         }}
       />
-      <Tabs.Screen
-        name="explore"
+
+      <Stack.Screen
+        name="usuarios"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Gestión de Clientes",
+          headerTitle: "Clientes",
         }}
       />
-    </Tabs>
+
+      <Stack.Screen
+        name="database"
+        options={{
+          title: "Base de Datos",
+          headerTitle: "Base de Datos",
+        }}
+      />
+    </Stack>
   );
 }
