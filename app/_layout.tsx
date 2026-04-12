@@ -6,44 +6,25 @@ import {
   useAuth,
 } from "../contexts/ContextAuth";
 
-// Prevent the splash screen from auto-hiding
+// Bloqueamos que el splash screen desaparezca por defecto
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutContent() {
-  const { token, isLoading } = useAuth();
+  const { isLoading } = useAuth();
 
   useEffect(() => {
+    // Solo ocultamos el splash screen cuando el contexto termina de cargar la sesión
     if (!isLoading) {
-      // Hide the splash screen once loading is complete
       SplashScreen.hideAsync();
     }
   }, [isLoading]);
 
-  if (isLoading) {
-    // Keep the splash screen visible while loading
-    return null;
-  }
-
-  // Usar index redirection en lugar de condicionales
   return (
     <Stack
       screenOptions={{
-        headerShown: false,
+        headerShown: false, // Oculta la cabecera por defecto en toda la app
       }}
-    >
-      <Stack.Screen
-        name="(auth)"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="(tabs)"
-        options={{
-          headerShown: false,
-        }}
-      />
-    </Stack>
+    />
   );
 }
 

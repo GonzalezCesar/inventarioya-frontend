@@ -1,8 +1,7 @@
-import React, { createContext, useState, useCallback, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../services/api';
-import { Usuario, LoginResponse } from '../types';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
+import React, { createContext, useCallback, useEffect, useState } from "react";
+import api from "../services/api";
+import { Usuario } from "../types";
 
 interface ContextoAutenticacionType {
   usuario: Usuario | null;
@@ -10,11 +9,8 @@ interface ContextoAutenticacionType {
   isLoading: boolean;
   isSignout: boolean;
   signIn: (email: string, contrasena: string) => Promise<void>;
-  signUp: (userData: any) => Promise<void>;
   signOut: () => Promise<void>;
   restoreToken: () => Promise<void>;
-  validateToken: () => Promise<boolean>;
-  refreshToken: () => Promise<boolean>;
 }
 
 export const ContextoAutenticacion = createContext<ContextoAutenticacionType>({
@@ -23,18 +19,17 @@ export const ContextoAutenticacion = createContext<ContextoAutenticacionType>({
   isLoading: true,
   isSignout: false,
   signIn: async () => {},
-  signUp: async () => {},
   signOut: async () => {},
   restoreToken: async () => {},
-  validateToken: async () => false,
-  refreshToken: async () => false,
 });
 
 interface ContextoAutenticacionProviderProps {
   children: React.ReactNode;
 }
 
-export const ContextoAutenticacionProvider: React.FC<ContextoAutenticacionProviderProps> = ({ children }) => {
+export const ContextoAutenticacionProvider: React.FC<
+  ContextoAutenticacionProviderProps
+> = ({ children }) => {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,144 +40,75 @@ export const ContextoAutenticacionProvider: React.FC<ContextoAutenticacionProvid
     try {
       setIsLoading(true);
 
-      // Intenta obtener el token de SecureStore primero (más seguro)
-      let savedToken: string | null = null;
-      try {
-        savedToken = await SecureStore.getItemAsync('token');
-      } catch (error) {
-        console.log('[Auth] SecureStore no disponible, usando AsyncStorage');
-        savedToken = await AsyncStorage.getItem('token');
-      }
+      // Usamos EXCLUSIVAMENTE SecureStore
+      const savedToken = await SecureStore.getItemAsync("admin_token");
+      const savedUsuario = await SecureStore.getItemAsync("admin_usuario");
 
-      if (savedToken) {
-        // Valida que el token siga siendo válido
-        api.setToken(savedToken);
-        try {
-          const response = await api.validateToken();
-          setToken(savedToken);
-          setIsSignout(false);
-
-          // Obtén los datos del usuario
-          const meResponse = await api.getMe();
-          if (meResponse && meResponse.usuario) {
-            setUsuario(meResponse.usuario);
-          }
-        } catch (error) {
-          console.log('[Auth] Token no válido, eliminando...');
-          // Token no válido, limpia el almacenamiento
-          await AsyncStorage.removeItem('token');
-          try {
-            await SecureStore.deleteItemAsync('token');
-          } catch (e) {}
-          setToken(null);
-          setUsuario(null);
-          setIsSignout(true);
-        }
+      if (savedToken && savedUsuario) {
+        setToken(savedToken);
+        setUsuario(JSON.parse(savedUsuario));
+        setIsSignout(false);
       } else {
         setIsSignout(true);
       }
     } catch (error) {
-      console.log('[Auth] Error restaurando token:', error);
+      console.log("[Auth] Error restaurando sesión:", error);
       setIsSignout(true);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Al montar, restaurar token (solo una vez)
   useEffect(() => {
     restoreToken();
-  }, []); // Array vacío: ejecutar solo al montar
+  }, [restoreToken]);
 
   // Función para iniciar sesión
   const signIn = useCallback(async (email: string, contrasena: string) => {
     try {
       setIsLoading(true);
 
-      // MODO DESARROLLO: Login Mock sin backend
-      if (email === 'demo@test.com' && contrasena === '123456') {
-        console.log('[Auth] Usando login mock para desarrollo');
-        const mockToken = 'mock_token_' + Math.random().toString(36).substr(2, 9);
-        const mockUsuario: Usuario = {
-          id: 1,
-          nombre: 'Usuario Demo',
-          correo: 'demo@test.com',
-          rol: 'admin',
-        };
+      // 1. Petición real al backend PHP usando Axios
+      const response: any = await api.post("/auth/login", {
+        email,
+        contrasena,
+      });
 
-        // Guardar token en almacenamiento seguro
-        try {
-          await SecureStore.setItemAsync('token', mockToken);
-        } catch (error) {
-          console.log('[Auth] SecureStore no disponible, usando AsyncStorage');
-          await AsyncStorage.setItem('token', mockToken);
-        }
+      // 2. Extraemos la data (Axios ya parsea el JSON)
+      const userData = response.usuario;
+      const userToken = response.token;
 
-        // Guardar usuario
-        await AsyncStorage.setItem('usuario', JSON.stringify(mockUsuario));
-
-        api.setToken(mockToken);
-        setToken(mockToken);
-        setUsuario(mockUsuario);
-        setIsSignout(false);
-        return;
+      if (!userData || !userToken) {
+        throw new Error(
+          "El servidor no devolvió las credenciales correctamente.",
+        );
       }
 
-      // Intento real al backend
-      const response = await api.login(email, contrasena);
+      // 3. Lógica de seguridad original de tu app (Migrada de api.js)
+      const isOwner =
+        userData.email &&
+        userData.email.toLowerCase() === "litoramirez2005@gmail.com";
+      const isAdminID =
+        userData.id === "admin_001" || userData.id === "admin_init_001";
 
-      if (response && response.token && response.usuario) {
-        // Guardar token en almacenamiento seguro
-        try {
-          await SecureStore.setItemAsync('token', response.token);
-        } catch (error) {
-          console.log('[Auth] SecureStore no disponible, usando AsyncStorage');
-          await AsyncStorage.setItem('token', response.token);
-        }
-
-        // Guardar usuario
-        await AsyncStorage.setItem('usuario', JSON.stringify(response.usuario));
-
-        api.setToken(response.token);
-        setToken(response.token);
-        setUsuario(response.usuario);
-        setIsSignout(false);
-      } else {
-        throw new Error('Respuesta de login inválida');
+      // Si usabas roles en tu DB, podemos validarlo también. Por ahora validamos emails/IDs como tenías.
+      if (!isOwner && !isAdminID) {
+        throw new Error(
+          "Acceso denegado. Solo el dueño de la plataforma puede ingresar.",
+        );
       }
+
+      // 4. Guardamos en almacenamiento seguro nativo
+      await SecureStore.setItemAsync("admin_token", userToken);
+      await SecureStore.setItemAsync("admin_usuario", JSON.stringify(userData));
+
+      // 5. Actualizamos el estado global
+      setToken(userToken);
+      setUsuario(userData);
+      setIsSignout(false);
     } catch (error: any) {
-      console.log('[Auth] Error en signIn:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Función para registrarse
-  const signUp = useCallback(async (userData: any) => {
-    try {
-      setIsLoading(true);
-      const response = await api.register(userData);
-
-      if (response && response.token && response.usuario) {
-        try {
-          await SecureStore.setItemAsync('token', response.token);
-        } catch (error) {
-          await AsyncStorage.setItem('token', response.token);
-        }
-
-        await AsyncStorage.setItem('usuario', JSON.stringify(response.usuario));
-
-        api.setToken(response.token);
-        setToken(response.token);
-        setUsuario(response.usuario);
-        setIsSignout(false);
-      } else {
-        throw new Error('Respuesta de registro inválida');
-      }
-    } catch (error: any) {
-      console.log('[Auth] Error en signUp:', error);
-      throw error;
+      console.error("[Auth] Error en signIn:", error.message);
+      throw error; // Lanzamos el error para que el login.tsx lo muestre en rojo
     } finally {
       setIsLoading(false);
     }
@@ -193,54 +119,19 @@ export const ContextoAutenticacionProvider: React.FC<ContextoAutenticacionProvid
     try {
       setIsLoading(true);
 
-      // Limpia el almacenamiento
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('usuario');
+      // Limpia la bóveda segura
+      await SecureStore.deleteItemAsync("admin_token");
+      await SecureStore.deleteItemAsync("admin_usuario");
 
-      try {
-        await SecureStore.deleteItemAsync('token');
-      } catch (e) {}
-
-      api.clearToken();
       setToken(null);
       setUsuario(null);
       setIsSignout(true);
     } catch (error) {
-      console.log('[Auth] Error en signOut:', error);
+      console.log("[Auth] Error en signOut:", error);
     } finally {
       setIsLoading(false);
     }
   }, []);
-
-  // Función para validar token
-  const validateToken = useCallback(async (): Promise<boolean> => {
-    try {
-      if (!token) return false;
-
-      api.setToken(token);
-      const response = await api.validateToken();
-      return response && response.success !== false;
-    } catch (error) {
-      console.log('[Auth] Token validation failed:', error);
-      return false;
-    }
-  }, [token]);
-
-  // Función para refrescar token (heartbeat)
-  const refreshToken = useCallback(async (): Promise<boolean> => {
-    try {
-      if (!token) return false;
-
-      api.setToken(token);
-      const response = await api.heartbeat();
-      return response && response.success !== false;
-    } catch (error) {
-      console.log('[Auth] Token refresh failed:', error);
-      // Si falla el heartbeat, intenta cerrar sesión
-      await signOut();
-      return false;
-    }
-  }, [token, signOut]);
 
   const value = {
     usuario,
@@ -248,11 +139,8 @@ export const ContextoAutenticacionProvider: React.FC<ContextoAutenticacionProvid
     isLoading,
     isSignout,
     signIn,
-    signUp,
     signOut,
     restoreToken,
-    validateToken,
-    refreshToken,
   };
 
   return (
@@ -262,11 +150,12 @@ export const ContextoAutenticacionProvider: React.FC<ContextoAutenticacionProvid
   );
 };
 
-// Hook para usar el contexto
 export const useAuth = () => {
   const context = React.useContext(ContextoAutenticacion);
   if (!context) {
-    throw new Error('useAuth debe ser usado dentro de ContextoAutenticacionProvider');
+    throw new Error(
+      "useAuth debe ser usado dentro de ContextoAutenticacionProvider",
+    );
   }
   return context;
 };

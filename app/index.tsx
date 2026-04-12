@@ -4,10 +4,12 @@ import { useAuth } from "../contexts/ContextAuth";
 export default function Index() {
   const { token, isLoading } = useAuth();
 
+  // Mientras verifica el token en el storage, no renderiza nada
+  // (el _layout se encarga de mantener el Splash Screen visible)
   if (isLoading) {
-    return null; // Keep splash screen visible
+    return null;
   }
 
-  // Redirige basado en estado de autenticación
+  // Redirección dinámica y segura
   return <Redirect href={token ? "/(tabs)/dashboard" : "/(auth)/login"} />;
 }
