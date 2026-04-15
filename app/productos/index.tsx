@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
 import api from "../../services/api";
 
@@ -61,70 +61,19 @@ export default function PantallaProductos() {
   const cargarDatos = async () => {
     try {
       setCargando(true);
-      // Aquí harás la llamada a tu API real cuando el controlador esté listo
-      // const resProductos = await api.get('/productos');
-      // const resCategorias = await api.get('/categorias');
-      // setProductos(resProductos);
-      // setCategorias(resCategorias);
 
-      // --- MOCK DATA TEMPORAL PARA VER EL DISEÑO ---
-      setTimeout(() => {
-        setCategorias([
-          { id: "1", nombre: "Bebidas" },
-          { id: "2", nombre: "Snacks" },
-          { id: "3", nombre: "Limpieza" },
-        ]);
-        setProductos([
-          {
-            id: "101",
-            nombre: "Coca Cola 2L",
-            sku: "BEB-001",
-            precio: 2.5,
-            stock: 45,
-            stockMinimo: 10,
-            categoriaId: "1",
-          },
-          {
-            id: "102",
-            nombre: "Pepsi 2L",
-            sku: "BEB-002",
-            precio: 2.3,
-            stock: 4,
-            stockMinimo: 10,
-            categoriaId: "1",
-          }, // Stock bajo
-          {
-            id: "103",
-            nombre: "Doritos Mega",
-            sku: "SNK-001",
-            precio: 1.8,
-            stock: 20,
-            stockMinimo: 5,
-            categoriaId: "2",
-          },
-          {
-            id: "104",
-            nombre: "Jabón Líquido Ace",
-            sku: "LIM-001",
-            precio: 3.5,
-            stock: 15,
-            stockMinimo: 5,
-            categoriaId: "3",
-          },
-          {
-            id: "105",
-            nombre: "Agua Mineral 5L",
-            sku: "BEB-003",
-            precio: 1.5,
-            stock: 0,
-            stockMinimo: 5,
-            categoriaId: "1",
-          }, // Sin stock
-        ]);
-        setCargando(false);
-      }, 500);
+      const resProductos: any = await api.get("/productos");
+      setProductos(resProductos || []);
+
+      setCategorias([
+        { id: "1", nombre: "Bebids" },
+        { id: "2", nombre: "Snacks" },
+        { id: "3", nombre: "Limpieza" },
+        { id: "4", nombre: "Dulce" },
+      ]);
     } catch (error) {
       console.error("Error cargando productos:", error);
+    } finally {
       setCargando(false);
     }
   };
@@ -162,7 +111,7 @@ export default function PantallaProductos() {
           if (!bloqueado) {
             // Aquí enrutaremos a la pantalla de edición más adelante
             Alert.alert("Editar", `Abriendo edición para: ${item.nombre}`);
-            // router.push(`/productos/editar/${item.id}`);
+            router.push(`/productos/editar/${item.id}`);
           } else {
             Alert.alert(
               "Acceso Restringido",
@@ -218,7 +167,7 @@ export default function PantallaProductos() {
           />
         </TouchableOpacity>
         <Text style={estilos.titulo}>Productos</Text>
-        <View style={{ width: 40 }} />{" "}
+        <View style={{ width: 40 }} />
         {/* Espaciador invisible para centrar título */}
       </View>
 
