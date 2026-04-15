@@ -11,5 +11,5 @@ export default function Index() {
   }
 
   // Redirección dinámica y segura
-  return <Redirect href={token ? "/(tabs)/dashboard" : "/(auth)/login"} />;
+  return <Redirect href={token ? "/(tabs)" : "/(auth)/login"} />;
 }
