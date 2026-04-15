@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
 
 // --- TEMA HARDCODEADO ---
@@ -208,9 +208,7 @@ export default function PantallaGestionarProductos() {
             <TouchableOpacity
               key={producto.id}
               style={estilos.productoItem}
-              onPress={() =>
-                Alert.alert("Editar", `Editar producto ${producto.nombre}`)
-              }
+              onPress={() => router.push(`/productos/editar/${producto.id}`)}
             >
               <View style={estilos.productoInfo}>
                 <Text style={estilos.productoNombre}>{producto.nombre}</Text>
