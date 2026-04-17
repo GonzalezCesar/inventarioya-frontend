@@ -33,7 +33,7 @@ const COLORES = {
   error: "#FF3B30",
 };
 
-const API_URL_UPLOADS = "http://192.168.1.104:8000/uploads/";
+const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 interface Producto {
   id: string;

@@ -1,33 +1,36 @@
-import { Tabs } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
 import React from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // <-- IMPORTACIÓN CLAVE
 
-// Reutilizamos tus colores para que todo combine a la perfección
 const COLORES = {
   fondoOscuro: "#1C1C1E",
   fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00", // Tu Verde Neón
+  primario: "#D4FF00",
   textoGris: "#8E8E93",
 };
 
 export default function TabLayout() {
+  // Obtenemos las medidas de las barras del sistema (notificaciones arriba, botones de navegación abajo)
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
-        // Ocultamos el header feo de arriba porque tu Dashboard ya tiene su propio encabezado hermoso
         headerShown: false,
 
-        // Estilos de la barra inferior (Bottom Tab Bar)
         tabBarStyle: {
           backgroundColor: COLORES.fondoOscuro,
           borderTopWidth: 1,
           borderTopColor: COLORES.fondoTarjeta,
-          height: 65,
-          paddingBottom: 10,
-          paddingTop: 5,
+          // 🔥 EL TRUCO: Altura base (60) + el espacio que ocupan los botones de Android (insets.bottom)
+          height: 60 + insets.bottom,
+          // Añadimos el espacio extra al padding para que los íconos queden centrados
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 5 : 10,
+          paddingTop: 10,
         },
-        tabBarActiveTintColor: COLORES.primario, // Se pone verde neón cuando está seleccionado
-        tabBarInactiveTintColor: COLORES.textoGris, // Se pone gris cuando no lo estás viendo
+        tabBarActiveTintColor: COLORES.primario,
+        tabBarInactiveTintColor: COLORES.textoGris,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "600",
@@ -35,7 +38,6 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* 1. Pestaña de Inicio (index.tsx) */}
       <Tabs.Screen
         name="index"
         options={{
@@ -46,7 +48,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 2. Pestaña de Inventario (inventario.tsx) */}
       <Tabs.Screen
         name="inventario"
         options={{
@@ -57,7 +58,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 3. Pestaña de Ventas (vender.tsx) */}
       <Tabs.Screen
         name="vender"
         options={{
@@ -68,7 +68,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. Pestaña de Reportes (reportes.tsx) */}
       <Tabs.Screen
         name="reportes"
         options={{
@@ -79,7 +78,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 5. Pestaña de Cuenta (cuenta.tsx) */}
       <Tabs.Screen
         name="cuenta"
         options={{
