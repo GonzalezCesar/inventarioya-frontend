@@ -83,7 +83,7 @@ export default function PantallaProductos() {
       producto.sku.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria =
       categoriaSeleccionada === "__todas__" ||
-      producto.categoria_id === categoriaSeleccionada;
+      String(producto.categoria_id) === String(categoriaSeleccionada);
     return coincideBusqueda && coincideCategoria;
   });
 
