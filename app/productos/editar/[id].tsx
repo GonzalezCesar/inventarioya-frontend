@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import api from "../../../services/api";
 
 // --- TEMA HARDCODEADO ---
@@ -30,7 +30,7 @@ const COLORES = {
 };
 
 // Asumiendo tu IP local para las fotos
-const API_URL_UPLOADS = "http://192.168.1.105:8000/uploads/";
+const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 export default function PantallaEditarProducto() {
   const router = useRouter();
@@ -122,8 +122,8 @@ export default function PantallaEditarProducto() {
         nombre: nombre.trim(),
         sku: sku.trim(),
         descripcion: descripcion.trim(),
-        costo: parseFloat(costo) || 0,
-        precio: parseFloat(precio) || 0,
+        costo: parseFloat(costo.toString().replace(",", ".")) || 0,
+        precio: parseFloat(precio.toString().replace(",", ".")) || 0,
         stock_minimo: parseInt(stockMinimo) || 0,
         codigo_barras: codigoBarras.trim(),
       };

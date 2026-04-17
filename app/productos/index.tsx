@@ -1,6 +1,6 @@
 import { FontAwesome5 } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,7 +28,7 @@ const COLORES = {
 };
 
 // URL base para las imágenes (ajustada a tu IP local)
-const API_URL = "http://192.168.1.105:8000";
+const API_URL = "http://192.168.1.111:8000";
 
 interface Producto {
   id: string;
@@ -37,7 +37,7 @@ interface Producto {
   precio: number;
   stock: number;
   stockMinimo: number;
-  categoriaId: string;
+  categoria_id: string;
   imagen?: string;
 }
 
@@ -54,25 +54,24 @@ export default function PantallaProductos() {
   const [categoriaSeleccionada, setCategoriaSeleccionada] =
     useState<string>("__todas__");
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
+  useFocusEffect(
+    useCallback(() => {
+      cargarDatos();
+    }, []),
+  );
   const cargarDatos = async () => {
     try {
       setCargando(true);
-
-      const resProductos: any = await api.get("/productos");
-      setProductos(resProductos || []);
-
-      setCategorias([
-        { id: "1", nombre: "Bebids" },
-        { id: "2", nombre: "Snacks" },
-        { id: "3", nombre: "Limpieza" },
-        { id: "4", nombre: "Dulce" },
+      // Hacemos las dos peticiones al mismo tiempo
+      const [resProductos, resCategorias]: any = await Promise.all([
+        api.get("/productos"),
+        api.get("/categorias"),
       ]);
+
+      setProductos(resProductos || []);
+      setCategorias(resCategorias || []); // <-- Ahora usamos las reales de MySQL
     } catch (error) {
-      console.error("Error cargando productos:", error);
+      console.error("Error cargando datos del catálogo:", error);
     } finally {
       setCargando(false);
     }
@@ -84,7 +83,7 @@ export default function PantallaProductos() {
       producto.sku.toLowerCase().includes(busqueda.toLowerCase());
     const coincideCategoria =
       categoriaSeleccionada === "__todas__" ||
-      producto.categoriaId === categoriaSeleccionada;
+      producto.categoria_id === categoriaSeleccionada;
     return coincideBusqueda && coincideCategoria;
   });
 

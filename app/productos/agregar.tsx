@@ -1,33 +1,39 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Modal,
+  FlatList,
 } from "react-native";
 import api from "../../services/api";
 
-// --- TEMA HARDCODEADO ---
 const COLORES = {
   fondoOscuro: "#1C1C1E",
   fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00", // Verde Neón
+  primario: "#D4FF00",
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
   textoOscuro: "#1C1C1E",
   borde: "#38383A",
   error: "#FF3B30",
 };
+
+interface Categoria {
+  id: string;
+  nombre: string;
+}
 
 export default function PantallaAgregarProducto() {
   const router = useRouter();
@@ -43,7 +49,26 @@ export default function PantallaAgregarProducto() {
   const [codigoBarras, setCodigoBarras] = useState("");
   const [imagen, setImagen] = useState<string | null>(null);
 
+  // Estados para Categorías
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] =
+    useState<Categoria | null>(null);
+  const [modalCategoriasVisible, setModalCategoriasVisible] = useState(false);
+
   const [cargando, setCargando] = useState(false);
+
+  // Cargar categorías al inicio
+  useEffect(() => {
+    const cargarCategorias = async () => {
+      try {
+        const res: any = await api.get("/categorias");
+        setCategorias(res || []);
+      } catch (error) {
+        console.error("Error cargando categorías:", error);
+      }
+    };
+    cargarCategorias();
+  }, []);
 
   // Funciones de Imagen
   const seleccionarImagen = async () => {
@@ -96,72 +121,40 @@ export default function PantallaAgregarProducto() {
       return;
     }
 
+    // Convertir comas a puntos para evitar problemas con decimales
+    const costoFinal = parseFloat(costo.toString().replace(",", ".")) || 0;
+    const precioFinal = parseFloat(precio.toString().replace(",", ".")) || 0;
+
     setCargando(true);
     try {
       const nuevoProducto = {
         nombre,
         sku,
         descripcion,
-        costo: parseFloat(costo) || 0,
-        precio: parseFloat(precio) || 0,
+        costo: costoFinal,
+        precio: precioFinal,
         stock: parseInt(stock) || 0,
         stock_minimo: parseInt(stockMinimo) || 5,
         codigo_barras: codigoBarras,
-        imagen_base64: imagen, // Tu backend procesará esto
+        imagen: imagen, // CORRECCIÓN CRÍTICA: Se envía como "imagen", no "imagen_base64"
+        categoria_id: categoriaSeleccionada?.id || null, // SE AÑADE CATEGORÍA
       };
 
-      // Simulación de guardado (Descomentaremos la API en el siguiente paso)
       await api.post("/productos", nuevoProducto);
 
-      setTimeout(() => {
-        Alert.alert("Éxito", "Producto agregado correctamente", [
-          { text: "OK", onPress: () => router.back() },
-        ]);
-        setCargando(false);
-      }, 1000);
+      Alert.alert("Éxito", "Producto agregado correctamente", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
     } catch (error: any) {
       Alert.alert("Error", error.message || "No se pudo guardar el producto");
+    } finally {
       setCargando(false);
     }
   };
-//   const guardarProducto = async () => {
-//     if (!nombre.trim() || !precio) {
-//       Alert.alert("Error", "El nombre y el precio son obligatorios.");
-//       return;
-//     }
-
-//     setCargando(true);
-//     try {
-//       const nuevoProducto = {
-//         nombre,
-//         sku,
-//         descripcion,
-//         costo: parseFloat(costo) || 0,
-//         precio: parseFloat(precio) || 0,
-//         stock: parseInt(stock) || 0,
-//         stock_minimo: parseInt(stockMinimo) || 5,
-//         codigo_barras: codigoBarras,
-//         imagen_base64: imagen, // Tu backend procesará esto
-//       };
-
-//       // Simulación de guardado (Descomentaremos la API en el siguiente paso)
-//       await api.post("/productos", nuevoProducto);
-
-//       setTimeout(() => {
-//         Alert.alert("Éxito", "Producto agregado correctamente", [
-//           { text: "OK", onPress: () => router.back() },
-//         ]);
-//         setCargando(false);
-//       }, 1000);
-//     } catch (error: any) {
-//       Alert.alert("Error", error.message || "No se pudo guardar el producto");
-//       setCargando(false);
-//     }
-//   };
 
   const calcularMargen = () => {
-    const c = parseFloat(costo) || 0;
-    const p = parseFloat(precio) || 0;
+    const c = parseFloat(costo.toString().replace(",", ".")) || 0;
+    const p = parseFloat(precio.toString().replace(",", ".")) || 0;
     if (c === 0) return "0%";
     return `${(((p - c) / c) * 100).toFixed(1)}%`;
   };
@@ -171,7 +164,6 @@ export default function PantallaAgregarProducto() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={estilos.contenedor}
     >
-      {/* Encabezado */}
       <View style={estilos.encabezado}>
         <TouchableOpacity
           style={estilos.botonVolver}
@@ -216,6 +208,37 @@ export default function PantallaAgregarProducto() {
           placeholder="Ej. Coca Cola 2L"
           placeholderTextColor={COLORES.textoGris}
         />
+
+        {/* --- NUEVO: SELECTOR DE CATEGORÍA --- */}
+        <Text style={estilos.label}>Categoría</Text>
+        <TouchableOpacity
+          style={[
+            estilos.input,
+            {
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            },
+          ]}
+          onPress={() => setModalCategoriasVisible(true)}
+        >
+          <Text
+            style={{
+              color: categoriaSeleccionada
+                ? COLORES.textoBlanco
+                : COLORES.textoGris,
+            }}
+          >
+            {categoriaSeleccionada
+              ? categoriaSeleccionada.nombre
+              : "Seleccionar categoría (Opcional)"}
+          </Text>
+          <FontAwesome5
+            name="chevron-down"
+            size={14}
+            color={COLORES.textoGris}
+          />
+        </TouchableOpacity>
 
         <Text style={estilos.label}>SKU</Text>
         <TextInput
@@ -319,7 +342,6 @@ export default function PantallaAgregarProducto() {
         </View>
       </ScrollView>
 
-      {/* Footer Guardar */}
       <View style={estilos.footer}>
         <TouchableOpacity
           style={[estilos.botonGuardar, cargando && { opacity: 0.7 }]}
@@ -333,6 +355,76 @@ export default function PantallaAgregarProducto() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* --- MODAL PARA SELECCIONAR CATEGORÍA --- */}
+      <Modal
+        visible={modalCategoriasVisible}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={estilos.modalOverlay}>
+          <View style={estilos.modalContent}>
+            <View style={estilos.modalHeader}>
+              <Text style={estilos.modalTitulo}>Seleccionar Categoría</Text>
+              <TouchableOpacity
+                onPress={() => setModalCategoriasVisible(false)}
+              >
+                <FontAwesome5
+                  name="times"
+                  size={24}
+                  color={COLORES.textoGris}
+                />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={categorias}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={estilos.itemCategoria}
+                  onPress={() => {
+                    setCategoriaSeleccionada(item);
+                    setModalCategoriasVisible(false);
+                  }}
+                >
+                  <Text style={estilos.textoCategoria}>{item.nombre}</Text>
+                  {categoriaSeleccionada?.id === item.id && (
+                    <FontAwesome5
+                      name="check"
+                      size={16}
+                      color={COLORES.primario}
+                    />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListHeaderComponent={
+                <TouchableOpacity
+                  style={estilos.itemCategoria}
+                  onPress={() => {
+                    setCategoriaSeleccionada(null);
+                    setModalCategoriasVisible(false);
+                  }}
+                >
+                  <Text style={estilos.textoCategoria}>
+                    Sin Categoría (Ninguna)
+                  </Text>
+                </TouchableOpacity>
+              }
+              ListEmptyComponent={
+                <Text
+                  style={{
+                    color: COLORES.textoGris,
+                    textAlign: "center",
+                    padding: 20,
+                  }}
+                >
+                  No hay categorías. Crea una en el menú de Categorías.
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -356,9 +448,7 @@ const estilos = StyleSheet.create({
     alignItems: "flex-start",
   },
   titulo: { fontSize: 20, fontWeight: "bold", color: COLORES.textoBlanco },
-
   contenido: { padding: 20, paddingBottom: 40 },
-
   imagenContainer: {
     width: "100%",
     aspectRatio: 1,
@@ -376,7 +466,6 @@ const estilos = StyleSheet.create({
     alignItems: "center",
   },
   imagenTexto: { color: COLORES.textoGris, fontSize: 14, marginTop: 10 },
-
   seccionTitulo: {
     color: COLORES.primario,
     fontSize: 12,
@@ -400,10 +489,8 @@ const estilos = StyleSheet.create({
     color: COLORES.textoBlanco,
     fontSize: 16,
   },
-
   row: { flexDirection: "row", gap: 15 },
   inputGroup: { flex: 1 },
-
   margenContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -417,7 +504,6 @@ const estilos = StyleSheet.create({
   },
   margenLabel: { color: COLORES.textoBlanco, fontSize: 14 },
   margenValor: { color: COLORES.primario, fontSize: 20, fontWeight: "bold" },
-
   botonEscanear: {
     backgroundColor: COLORES.primario,
     width: 55,
@@ -425,7 +511,6 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   footer: {
     padding: 20,
     backgroundColor: COLORES.fondoTarjeta,
@@ -444,4 +529,37 @@ const estilos = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+
+  // Estilos del Modal de Categorías
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: COLORES.fondoOscuro,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "60%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORES.borde,
+  },
+  modalTitulo: { fontSize: 18, fontWeight: "bold", color: COLORES.textoBlanco },
+  itemCategoria: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORES.borde,
+  },
+  textoCategoria: { fontSize: 16, color: COLORES.textoBlanco },
 });
