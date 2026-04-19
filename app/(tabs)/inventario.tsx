@@ -1,73 +1,85 @@
-import React, { useState, useEffect } from "react";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/ContextAuth";
 import api from "../../services/api";
 
-// --- TEMA HARDCODEADO ---
+// --- TEMA HARDCODEADO (Pixel Perfect basado en tu imagen) ---
 const COLORES = {
   fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
-  primario: "#C4FF0D", // Tu VERDE_PERSONALIZADO exacto
+  fondoTarjeta: "#212124", // Ligeramente más claro que el fondo
+  primario: "#C4FF0D", // Verde Neón exacto de la foto
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
   textoOscuro: "#1C1C1E",
   borde: "#38383A",
-  error: "#FF6B6B",
+  error: "#FF3B30",
 };
 
-interface DatosInventario {
-  valor_total: number;
-  cantidad_productos: number;
-  bajo_stock: number;
+interface Producto {
+  id: string;
+  costo: number;
+  precio: number;
+  stock: number;
+  stockMinimo: number;
 }
 
 export default function PantallaInventario() {
   const router = useRouter();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
-  const [cargando, setCargando] = useState(false);
-  const [datos, setDatos] = useState<DatosInventario>({
-    valor_total: 0,
-    cantidad_productos: 0,
-    bajo_stock: 0, // Añadimos esto para la alerta roja
-  });
+  const [cargando, setCargando] = useState(true);
+  const [productos, setProductos] = useState<Producto[]>([]);
 
   // Función de seguridad
-  const esAdmin = () => user?.rol === "admin" || user?.rol === "administrador";
+  const esAdmin = () =>
+    user?.rol === "admin" ||
+    user?.rol === "administrador" ||
+    user?.rol === "superadmin";
 
-  useEffect(() => {
-    cargarResumenInventario();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      cargarResumenInventario();
+    }, []),
+  );
 
   const cargarResumenInventario = async () => {
     try {
       setCargando(true);
-      // Cuando crees el backend para esto, descomenta estas líneas:
-      // const respuesta: any = await api.get('/inventario/resumen');
-      // setDatos(respuesta);
-
-      // Simulamos que hay 2 productos con stock bajo para que veas el diseño
-      setDatos({
-        valor_total: 0,
-        cantidad_productos: 0,
-        bajo_stock: 2,
-      });
+      // Pedimos la lista de productos a tu API real
+      const respuesta: any = await api.get("/productos");
+      setProductos(respuesta || []);
     } catch (error) {
-      console.error("Error cargando resumen de inventario:", error);
+      console.error("Error cargando inventario:", error);
     } finally {
       setCargando(false);
     }
   };
+
+  // Cálculos en tiempo real basados en los productos obtenidos
+  const productosBajoStock = productos.filter((p) => p.stock <= p.stockMinimo);
+  const valorTotalInventario = productos.reduce((acc, curr) => {
+    // Si tu API devuelve el costo como string, lo parseamos
+    const costo =
+      typeof curr.costo === "string" ? parseFloat(curr.costo) : curr.costo || 0;
+    const stock =
+      typeof curr.stock === "string"
+        ? parseInt(curr.stock, 10)
+        : curr.stock || 0;
+    return acc + costo * stock;
+  }, 0);
 
   const formatearMoneda = (monto: number) => `$${monto.toFixed(2)}`;
 
@@ -91,7 +103,10 @@ export default function PantallaInventario() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={estilos.scrollContent}
+        contentContainerStyle={[
+          estilos.scrollContent,
+          { paddingBottom: insets.bottom + 100 },
+        ]}
       >
         {/* TARJETAS SUPERIORES (KPIs) */}
         <View style={estilos.filaTarjetas}>
@@ -105,13 +120,13 @@ export default function PantallaInventario() {
                 />
               ) : (
                 <Text style={estilos.valorTarjetaNeon}>
-                  {formatearMoneda(datos.valor_total)}
+                  {formatearMoneda(valorTotalInventario)}
                 </Text>
               )}
             </View>
             <FontAwesome5
               name="dollar-sign"
-              size={80}
+              size={90}
               color="rgba(0,0,0,0.05)"
               style={estilos.marcaAgua}
             />
@@ -126,9 +141,7 @@ export default function PantallaInventario() {
                   style={{ marginTop: 5 }}
                 />
               ) : (
-                <Text style={estilos.valorTarjetaNeon}>
-                  {datos.cantidad_productos}
-                </Text>
+                <Text style={estilos.valorTarjetaNeon}>{productos.length}</Text>
               )}
             </View>
             <FontAwesome5
@@ -140,8 +153,8 @@ export default function PantallaInventario() {
           </View>
         </View>
 
-        {/* ALERTA DE STOCK BAJO */}
-        {datos.bajo_stock > 0 && (
+        {/* ALERTA DE STOCK BAJO (Solo visible si hay > 0) */}
+        {!cargando && productosBajoStock.length > 0 && (
           <View style={estilos.alertaContainer}>
             <View style={estilos.alertaHeader}>
               <FontAwesome5
@@ -150,8 +163,8 @@ export default function PantallaInventario() {
                 color={COLORES.error}
               />
               <Text style={estilos.alertaTitulo}>
-                {datos.bajo_stock} producto{datos.bajo_stock > 1 ? "s" : ""} con
-                stock bajo
+                {productosBajoStock.length} producto
+                {productosBajoStock.length > 1 ? "s" : ""} con stock bajo
               </Text>
             </View>
           </View>
@@ -189,14 +202,20 @@ export default function PantallaInventario() {
 
           {/* Botón Gestionar Productos (Solo Administradores) */}
           <TouchableOpacity
-            style={[estilos.botonLista, !esAdmin() && { opacity: 0.5 }]}
+            style={[
+              estilos.botonLista,
+              !esAdmin() && {
+                opacity: 0.5,
+                backgroundColor: COLORES.fondoOscuro,
+              },
+            ]}
             activeOpacity={!esAdmin() ? 1 : 0.7}
             onPress={manejarGestionarProductos}
           >
             <View style={estilos.iconoContenedor}>
               <FontAwesome5
                 name="cog"
-                size={20}
+                size={22}
                 color={!esAdmin() ? COLORES.textoGris : COLORES.primario}
               />
             </View>
@@ -229,8 +248,8 @@ const estilos = StyleSheet.create({
   contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === "ios" ? 60 : 50,
+    paddingBottom: 25,
     backgroundColor: COLORES.fondoOscuro,
   },
   tituloPantalla: {
@@ -238,12 +257,12 @@ const estilos = StyleSheet.create({
     fontWeight: "bold",
     color: COLORES.textoBlanco,
   },
-  scrollContent: { padding: 20, paddingTop: 0, paddingBottom: 40 },
+  scrollContent: { padding: 20, paddingTop: 0 },
 
   filaTarjetas: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 25,
   },
   tarjetaNeon: {
     width: "48%",
@@ -253,23 +272,23 @@ const estilos = StyleSheet.create({
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 100,
+    minHeight: 110,
   },
   tituloTarjetaNeon: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORES.textoOscuro,
-    marginBottom: 5,
+    marginBottom: 8,
   },
   valorTarjetaNeon: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "bold",
     color: COLORES.textoOscuro,
   },
-  marcaAgua: { position: "absolute", right: -15, bottom: -15 },
+  marcaAgua: { position: "absolute", right: -15, bottom: -20 },
 
   alertaContainer: {
-    backgroundColor: "rgba(255, 107, 107, 0.1)",
-    padding: 15,
+    backgroundColor: "rgba(255, 59, 48, 0.1)", // Rojo con 10% opacidad
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORES.error,
@@ -285,7 +304,8 @@ const estilos = StyleSheet.create({
 
   seccion: { marginBottom: 30 },
   tituloSeccion: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "bold",
     color: COLORES.textoGris,
     marginBottom: 15,
     letterSpacing: 1,
@@ -299,15 +319,12 @@ const estilos = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
   },
   iconoContenedor: {
     width: 40,
-    height: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
+    marginRight: 10,
   },
   textosBotonLista: { flex: 1 },
   tituloBotonLista: {

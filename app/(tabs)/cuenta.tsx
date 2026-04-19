@@ -1,20 +1,21 @@
 import { FontAwesome5 } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useState, useCallback } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/ContextAuth";
 import api from "../../services/api";
 
@@ -35,20 +36,77 @@ const COLORES = {
 export default function PantallaCuenta() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
 
-  // Estados de UI (Temporales hasta migrar los contextos)
+  const esAdmin = () =>
+    user?.rol === "admin" ||
+    user?.rol === "administrador" ||
+    user?.rol === "superadmin";
+
+  // --- ESTADOS DE CONFIGURACIÓN ---
   const [modoOscuro, setModoOscuro] = useState(true);
   const [cobrarIVA, setCobrarIVA] = useState(false);
+  const [tasaIVA, setTasaIVA] = useState(16);
   const [cobrarIGTF, setCobrarIGTF] = useState(false);
+  const [tasaIGTF, setTasaIGTF] = useState(3);
+  const [cargandoConfig, setCargandoConfig] = useState(false);
 
-  // Estados del Modal de Contraseña
+  // --- ESTADOS DEL MODAL DE CONTRASEÑA ---
   const [modalVisible, setModalVisible] = useState(false);
   const [passwordActual, setPasswordActual] = useState("");
   const [passwordNueva, setPasswordNueva] = useState("");
   const [passwordConfirmar, setPasswordConfirmar] = useState("");
   const [cargandoPassword, setCargandoPassword] = useState(false);
 
-  const esAdmin = () => user?.rol === "admin" || user?.rol === "administrador";
+  // Cargar configuración de impuestos desde el backend
+  useFocusEffect(
+    useCallback(() => {
+      if (esAdmin()) {
+        cargarConfiguracion();
+      }
+    }, []),
+  );
+
+  const cargarConfiguracion = async () => {
+    try {
+      setCargandoConfig(true);
+      const res: any = await api.get("/configuracion");
+      if (res) {
+        setCobrarIVA(
+          res.impuestos_habilitados === 1 || res.impuestos_habilitados === true,
+        );
+        setTasaIVA(res.tasa_iva ? parseFloat(res.tasa_iva) : 16);
+        setCobrarIGTF(
+          res.igtf_habilitado === 1 || res.igtf_habilitado === true,
+        );
+        setTasaIGTF(res.tasa_igtf ? parseFloat(res.tasa_igtf) : 3);
+      }
+    } catch (error) {
+      console.log("No se pudo cargar la configuración o no existe aún.");
+    } finally {
+      setCargandoConfig(false);
+    }
+  };
+
+  const guardarConfiguracion = async (tipo: "iva" | "igtf", valor: boolean) => {
+    try {
+      const payload = {
+        impuestos_habilitados: tipo === "iva" ? valor : cobrarIVA,
+        tasa_iva: tasaIVA,
+        igtf_habilitado: tipo === "igtf" ? valor : cobrarIGTF,
+        tasa_igtf: tasaIGTF,
+      };
+      await api.post("/configuracion", payload);
+
+      if (tipo === "iva") setCobrarIVA(valor);
+      if (tipo === "igtf") setCobrarIGTF(valor);
+    } catch (error) {
+      Alert.alert("Error", "No se pudo guardar la configuración");
+      // Revertir el switch visual si falla
+      if (tipo === "iva") setCobrarIVA(!valor);
+      if (tipo === "igtf") setCobrarIGTF(!valor);
+    }
+  };
 
   const manejarCerrarSesion = () => {
     Alert.alert("Cerrar Sesión", "¿Estás seguro que deseas salir?", [
@@ -77,9 +135,10 @@ export default function PantallaCuenta() {
 
     setCargandoPassword(true);
     try {
-      await api.post("/auth/cambiar-password", {
-        actual: passwordActual,
-        nueva: passwordNueva,
+      // Usamos el endpoint PUT /usuarios/{id} que está en tu UsuarioController
+      await api.put(`/usuarios/${user?.id}`, {
+        password_actual: passwordActual, // Tu backend debe verificar esto
+        password: passwordNueva,
       });
       Alert.alert("Éxito", "Contraseña actualizada correctamente");
       setModalVisible(false);
@@ -89,11 +148,23 @@ export default function PantallaCuenta() {
     } catch (error: any) {
       Alert.alert(
         "Error",
-        error.response?.data?.error || "La contraseña actual es incorrecta",
+        error.response?.data?.error ||
+          "Error al cambiar la contraseña. Verifica tu contraseña actual.",
       );
     } finally {
       setCargandoPassword(false);
     }
+  };
+
+  const formatearFecha = (fechaString?: string) => {
+    if (!fechaString) return "Desconocida";
+    const fecha = new Date(fechaString);
+    const opciones: Intl.DateTimeFormatOptions = {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    };
+    return fecha.toLocaleDateString("es-ES", opciones);
   };
 
   const opciones = [
@@ -102,7 +173,7 @@ export default function PantallaCuenta() {
           {
             titulo: "Gestionar Vendedores",
             icono: "users",
-            onPress: () => router.push("/(tabs)/usuarios"),
+            onPress: () => router.push("/admin/usuarios"), // Corregida la ruta
             destacado: true,
           },
         ]
@@ -122,7 +193,7 @@ export default function PantallaCuenta() {
       onPress: () =>
         Alert.alert(
           "INVENTARIO YA",
-          "Versión 1.0.0\n\nSistema de gestión de inventario y ventas.\n\n© 2026",
+          "Versión 2.0.0\n\nSistema de gestión de inventario y ventas.\n\n© 2026",
           [{ text: "Aceptar" }],
         ),
     },
@@ -132,20 +203,21 @@ export default function PantallaCuenta() {
     <View style={estilos.contenedor}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={estilos.scrollContent}
+        contentContainerStyle={[
+          estilos.scrollContent,
+          { paddingBottom: insets.bottom + 100 },
+        ]}
       >
         {/* ENCABEZADO Y AVATAR */}
         <View style={estilos.encabezado}>
           <View style={estilos.avatar}>
             <Text style={estilos.iniciales}>
-              {user?.nombre ? user.nombre.charAt(0).toUpperCase() : "A"}
+              {user?.nombre ? user.nombre.charAt(0).toUpperCase() : "U"}
             </Text>
           </View>
-          <Text style={estilos.nombre}>
-            {user?.nombre || "Administrador Principal"}
-          </Text>
+          <Text style={estilos.nombre}>{user?.nombre || "Usuario"}</Text>
           <Text style={estilos.email}>
-            {user?.email || "admin@inventarioya.com"}
+            {user?.email || "correo@inventarioya.com"}
           </Text>
 
           <View style={estilos.badgeRol}>
@@ -153,10 +225,12 @@ export default function PantallaCuenta() {
               name={esAdmin() ? "star" : "shopping-cart"}
               size={12}
               color={COLORES.primario}
-              regular={!esAdmin()}
+              solid={esAdmin()}
             />
             <Text style={estilos.textoRol}>
-              {esAdmin() ? "Administrador" : "Vendedor"}
+              {user?.rol
+                ? user.rol.charAt(0).toUpperCase() + user.rol.slice(1)
+                : "Vendedor"}
             </Text>
           </View>
         </View>
@@ -165,7 +239,10 @@ export default function PantallaCuenta() {
         <View style={estilos.tarjetaInfo}>
           <View style={estilos.filaInfo}>
             <Text style={estilos.etiquetaInfo}>Miembro desde</Text>
-            <Text style={estilos.valorInfo}>12 de abril de 2026</Text>
+            {/* Usa la fecha real de creación del usuario */}
+            <Text style={estilos.valorInfo}>
+              {formatearFecha(user?.fecha_creacion || user?.created_at)}
+            </Text>
           </View>
           <View style={estilos.divisor} />
           <View style={estilos.filaInfo}>
@@ -185,7 +262,7 @@ export default function PantallaCuenta() {
                 name="moon"
                 size={18}
                 color={COLORES.primario}
-                regular
+                solid={modoOscuro}
               />
             </View>
             <Text style={estilos.tituloOpcionSwitch}>Modo Oscuro</Text>
@@ -203,9 +280,27 @@ export default function PantallaCuenta() {
         {/* CONFIGURACIÓN DE IMPUESTOS (Solo Admin) */}
         {esAdmin() && (
           <View style={estilos.seccionOpciones}>
-            <Text style={estilos.tituloSeccion}>
-              Configuración de Impuestos
-            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+                marginLeft: 5,
+              }}
+            >
+              <Text
+                style={[
+                  estilos.tituloSeccion,
+                  { marginBottom: 0, marginLeft: 0 },
+                ]}
+              >
+                Configuración de Impuestos
+              </Text>
+              {cargandoConfig && (
+                <ActivityIndicator size="small" color={COLORES.primario} />
+              )}
+            </View>
 
             <View style={estilos.opcionSwitch}>
               <View style={estilos.iconoOpcion}>
@@ -215,14 +310,17 @@ export default function PantallaCuenta() {
                   color={COLORES.primario}
                 />
               </View>
-              <Text style={estilos.tituloOpcionSwitch}>Cobrar IVA (16%)</Text>
+              <Text style={estilos.tituloOpcionSwitch}>
+                Cobrar IVA ({tasaIVA}%)
+              </Text>
               <Switch
                 value={cobrarIVA}
-                onValueChange={setCobrarIVA}
+                onValueChange={(val) => guardarConfiguracion("iva", val)}
                 trackColor={{ false: "#4A4A4C", true: COLORES.primario }}
                 thumbColor={
                   cobrarIVA ? COLORES.textoOscuro : COLORES.textoBlanco
                 }
+                disabled={cargandoConfig}
               />
             </View>
 
@@ -234,18 +332,20 @@ export default function PantallaCuenta() {
                   color={COLORES.primario}
                 />
               </View>
-              <Text style={estilos.tituloOpcionSwitch}>Cobrar IGTF (3%)</Text>
+              <Text style={estilos.tituloOpcionSwitch}>
+                Cobrar IGTF ({tasaIGTF}%)
+              </Text>
               <Switch
                 value={cobrarIGTF}
-                onValueChange={setCobrarIGTF}
+                onValueChange={(val) => guardarConfiguracion("igtf", val)}
                 trackColor={{ false: "#4A4A4C", true: COLORES.primario }}
                 thumbColor={
                   cobrarIGTF ? COLORES.textoOscuro : COLORES.textoBlanco
                 }
+                disabled={cargandoConfig}
               />
             </View>
 
-            {/* Aviso SENIAT */}
             <View style={estilos.contendorDisclaimer}>
               <FontAwesome5
                 name="exclamation-triangle"
@@ -257,8 +357,7 @@ export default function PantallaCuenta() {
                 El cálculo de impuestos en esta aplicación es exclusivamente
                 para fines de control interno y estimación de costos. Esta
                 aplicación NO sustituye las obligaciones legales de facturación
-                fiscal ante el SENIAT ni emite documentos con validez
-                tributaria.
+                fiscal ante el SENIAT.
               </Text>
             </View>
           </View>
@@ -393,7 +492,7 @@ export default function PantallaCuenta() {
 
 const estilos = StyleSheet.create({
   contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  scrollContent: { padding: 20, paddingTop: 40, paddingBottom: 60 },
+  scrollContent: { padding: 20, paddingTop: 60 },
   encabezado: { alignItems: "center", marginBottom: 30 },
   avatar: {
     width: 100,
@@ -428,7 +527,6 @@ const estilos = StyleSheet.create({
     color: COLORES.primario,
     marginLeft: 8,
   },
-
   tarjetaInfo: {
     backgroundColor: COLORES.fondoTarjeta,
     padding: 20,
@@ -453,7 +551,6 @@ const estilos = StyleSheet.create({
     alignItems: "center",
   },
   textoActivo: { fontSize: 13, fontWeight: "bold", color: COLORES.textoOscuro },
-
   seccionOpciones: { marginBottom: 30 },
   tituloSeccion: {
     fontSize: 15,
@@ -490,7 +587,6 @@ const estilos = StyleSheet.create({
   },
   tituloOpcion: { flex: 1, fontSize: 16, color: COLORES.textoBlanco },
   tituloOpcionSwitch: { flex: 1, fontSize: 16, color: COLORES.textoBlanco },
-
   contendorDisclaimer: {
     flexDirection: "row",
     backgroundColor: COLORES.fondoTarjeta,
@@ -508,7 +604,6 @@ const estilos = StyleSheet.create({
     fontStyle: "italic",
     marginLeft: 10,
   },
-
   botonCerrarSesion: {
     backgroundColor: COLORES.peligro,
     padding: 16,
@@ -522,8 +617,6 @@ const estilos = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-
-  // Modal Styles
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
@@ -534,7 +627,6 @@ const estilos = StyleSheet.create({
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     padding: 25,
-    paddingBottom: Platform.OS === "ios" ? 40 : 25,
   },
   modalHeader: {
     flexDirection: "row",

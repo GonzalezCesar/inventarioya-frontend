@@ -1,39 +1,39 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-  Modal,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Animated,
-  ActivityIndicator,
-  Image,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import api from "../../services/api";
-import { useAuth } from "../../contexts/ContextAuth";
 
-// --- TEMA HARDCODEADO ---
+// --- TEMA HARDCODEADO (Pixel Perfect) ---
 const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00",
+  fondoOscuro: "#121212", // Negro profundo
+  fondoTarjeta: "#1E1E1E", // Gris oscuro para tarjetas
+  fondoInput: "#1A1A1A", // Gris aún más oscuro para inputs
+  primario: "#D4FF00", // Verde Neón
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
+  textoOscuro: "#121212",
+  borde: "#2C2C2E",
   exito: "#34C759",
   error: "#FF3B30",
 };
 
-const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
+const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/"; // Ajusta tu IP si es necesario
 
 interface Producto {
   id: string;
@@ -95,7 +95,6 @@ export default function PantallaNuevaVenta() {
 
   const cargarDatos = async () => {
     try {
-      // Cargamos Productos y Clientes al mismo tiempo
       const [resProds, resClis]: any = await Promise.all([
         api.get("/productos"),
         api.get("/clientes"),
@@ -128,18 +127,18 @@ export default function PantallaNuevaVenta() {
 
   // --- LÓGICA DEL CARRITO ---
   const agregarAlCarrito = (producto: Producto) => {
-    if (producto.stock <= 0) {
-      Alert.alert("Agotado", "Este producto no tiene stock disponible.");
-      return;
-    }
+    if (producto.stock <= 0)
+      return Alert.alert("Agotado", "Este producto no tiene stock disponible.");
+
     const itemExistente = carrito.find(
       (item) => item.producto.id === producto.id,
     );
     if (itemExistente) {
-      if (itemExistente.cantidad >= producto.stock) {
-        Alert.alert("Stock Máximo", `Solo hay ${producto.stock} en stock.`);
-        return;
-      }
+      if (itemExistente.cantidad >= producto.stock)
+        return Alert.alert(
+          "Stock Máximo",
+          `Solo hay ${producto.stock} en stock.`,
+        );
       setCarrito(
         carrito.map((item) =>
           item.producto.id === producto.id
@@ -169,10 +168,9 @@ export default function PantallaNuevaVenta() {
       setCarrito(carrito.filter((i) => i.producto.id !== id));
       return;
     }
-    if (nuevaCantidad > item.producto.stock) {
-      Alert.alert("Límite", `Solo hay ${item.producto.stock} en stock.`);
-      return;
-    }
+    if (nuevaCantidad > item.producto.stock)
+      return Alert.alert("Límite", `Solo hay ${item.producto.stock} en stock.`);
+
     setCarrito(
       carrito.map((i) =>
         i.producto.id === id
@@ -188,17 +186,15 @@ export default function PantallaNuevaVenta() {
 
   // --- LÓGICA DE CLIENTES ---
   const crearClienteRapido = async () => {
-    if (!nuevoCliente.nombre.trim()) {
-      Alert.alert("Error", "El nombre es obligatorio");
-      return;
-    }
+    if (!nuevoCliente.nombre.trim())
+      return Alert.alert("Error", "El nombre es obligatorio");
+
     setCargando(true);
     try {
       const res: any = await api.post("/clientes", nuevoCliente);
-      // Recargar clientes para obtener el ID real
       const resClis: any = await api.get("/clientes");
       setClientesBD(resClis || []);
-      setClienteSeleccionado(res.id); // Seleccionamos el recién creado
+      setClienteSeleccionado(res.id);
       setMostrarNuevoCliente(false);
       setNuevoCliente({ nombre: "", cedula: "", telefono: "" });
       Alert.alert("Éxito", "Cliente guardado correctamente");
@@ -223,22 +219,21 @@ export default function PantallaNuevaVenta() {
     const recibidoFloat = parseFloat(montoRecibido.replace(",", ".")) || total;
 
     if (metodoPago === "efectivo" && montoRecibido && recibidoFloat < total) {
-      Alert.alert(
+      return Alert.alert(
         "Error",
         "El dinero recibido no alcanza para cubrir el total.",
       );
-      return;
     }
 
     setCargando(true);
     try {
       const payload = {
-        cliente_id: clienteSeleccionado, // <--- AHORA SE ENVÍA EL CLIENTE REAL
+        cliente_id: clienteSeleccionado,
         total: total,
         subtotal: total,
         metodo_pago: metodoPago,
         monto_recibido: recibidoFloat,
-        estado_pago: "completo",
+        estado_pago: metodoPago === "credito" ? "pendiente" : "completo", // Manejo básico de crédito
         items: carrito.map((item) => ({
           productoId: item.producto.id,
           cantidad: item.cantidad,
@@ -257,7 +252,7 @@ export default function PantallaNuevaVenta() {
         useNativeDriver: true,
       }).start();
       setCarrito([]);
-      cargarDatos(); // Refrescamos inventario en el fondo
+      cargarDatos();
     } catch (error: any) {
       Alert.alert("Error", error.message || "Error procesando venta.");
     } finally {
@@ -272,7 +267,7 @@ export default function PantallaNuevaVenta() {
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: "rgba(28,28,30,0.8)",
+              backgroundColor: "rgba(18,18,18,0.8)",
               zIndex: 1000,
               justifyContent: "center",
               alignItems: "center",
@@ -311,12 +306,11 @@ export default function PantallaNuevaVenta() {
           />
         </View>
 
-        {/* ¡AQUÍ ESTÁ EL Z-INDEX MÁGICO PARA EL DESPLEGABLE! */}
         {mostrarProductos && busqueda.length > 0 && (
           <View style={estilos.listaProductos}>
             <FlatList
               data={productosFiltrados}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
                 const source = getImageSource(item.imagen);
@@ -367,7 +361,7 @@ export default function PantallaNuevaVenta() {
       {/* Lista del Carrito */}
       <FlatList
         data={carrito}
-        keyExtractor={(item) => item.producto.id}
+        keyExtractor={(item) => item.producto.id.toString()}
         contentContainerStyle={{ paddingHorizontal: 20, flexGrow: 1 }}
         renderItem={({ item }) => {
           const source = getImageSource(item.producto.imagen);
@@ -459,7 +453,7 @@ export default function PantallaNuevaVenta() {
         </TouchableOpacity>
       </View>
 
-      {/* MODAL DE PAGO Y CLIENTES */}
+      {/* MODAL DE PAGO / CONFIRMACIÓN */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -471,6 +465,7 @@ export default function PantallaNuevaVenta() {
           style={estilos.modalContainer}
         >
           <View style={estilos.modalContent}>
+            {/* Header del Modal (Excepto Éxito) */}
             {faseModal !== "exito" && (
               <View style={estilos.modalHeader}>
                 <Text
@@ -481,29 +476,28 @@ export default function PantallaNuevaVenta() {
                   }}
                 >
                   {faseModal === "confirmacion"
-                    ? "Confirmar Venta"
-                    : "Caja Registradora"}
+                    ? "Confirmar"
+                    : "Completar Venta"}
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
                   <FontAwesome5
                     name="times"
-                    size={24}
+                    size={20}
                     color={COLORES.textoGris}
                   />
                 </TouchableOpacity>
               </View>
             )}
 
+            {/* --- FASE 1: COMPLETAR VENTA (Selección de Método) --- */}
             {faseModal === "pago" && (
               <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Total a Cobrar (Estilo Neon) */}
                 <View style={estilos.totalDisplay}>
-                  <Text style={{ color: COLORES.textoGris, fontSize: 14 }}>
-                    Total a Cobrar
-                  </Text>
                   <Text
                     style={{
                       color: COLORES.primario,
-                      fontSize: 36,
+                      fontSize: 40,
                       fontWeight: "900",
                     }}
                   >
@@ -528,9 +522,13 @@ export default function PantallaNuevaVenta() {
                       }
                     >
                       <Text
-                        style={{ color: COLORES.primario, fontWeight: "bold" }}
+                        style={{
+                          color: COLORES.primario,
+                          fontWeight: "bold",
+                          fontSize: 13,
+                        }}
                       >
-                        {mostrarNuevoCliente ? "Cancelar" : "+ Nuevo"}
+                        {mostrarNuevoCliente ? "Cancelar" : "+ Nuevo Cliente"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -584,79 +582,100 @@ export default function PantallaNuevaVenta() {
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={{ marginBottom: 10 }}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          estilos.chipCliente,
-                          clienteSeleccionado === null &&
-                            estilos.chipClienteActivo,
-                        ]}
-                        onPress={() => setClienteSeleccionado(null)}
+                    <>
+                      <View style={estilos.buscadorClientes}>
+                        <FontAwesome5
+                          name="search"
+                          size={14}
+                          color={COLORES.textoGris}
+                        />
+                        <TextInput
+                          style={estilos.inputBuscador}
+                          placeholder="Buscar por nombre o cédula..."
+                          placeholderTextColor={COLORES.textoGris}
+                        />
+                      </View>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ marginBottom: 10 }}
                       >
-                        <Text
-                          style={[
-                            estilos.textoChipCliente,
-                            clienteSeleccionado === null && {
-                              color: COLORES.textoOscuro,
-                            },
-                          ]}
-                        >
-                          Mostrador (Anónimo)
-                        </Text>
-                      </TouchableOpacity>
-                      {clientesBD.map((c) => (
                         <TouchableOpacity
-                          key={c.id}
                           style={[
                             estilos.chipCliente,
-                            clienteSeleccionado === c.id &&
+                            clienteSeleccionado === null &&
                               estilos.chipClienteActivo,
                           ]}
-                          onPress={() => setClienteSeleccionado(c.id)}
+                          onPress={() => setClienteSeleccionado(null)}
                         >
                           <Text
                             style={[
                               estilos.textoChipCliente,
-                              clienteSeleccionado === c.id && {
+                              clienteSeleccionado === null && {
                                 color: COLORES.textoOscuro,
                               },
                             ]}
                           >
-                            {c.nombre}
+                            Mostrador
                           </Text>
                         </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                        {clientesBD.map((c) => (
+                          <TouchableOpacity
+                            key={c.id}
+                            style={[
+                              estilos.chipCliente,
+                              clienteSeleccionado === c.id &&
+                                estilos.chipClienteActivo,
+                            ]}
+                            onPress={() => setClienteSeleccionado(c.id)}
+                          >
+                            <Text
+                              style={[
+                                estilos.textoChipCliente,
+                                clienteSeleccionado === c.id && {
+                                  color: COLORES.textoOscuro,
+                                },
+                              ]}
+                            >
+                              {c.nombre}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </>
                   )}
                 </View>
 
-                {/* MÉTODOS DE PAGO */}
+                {/* MÉTODOS DE PAGO (4 Opciones en Grid 2x2) */}
                 <Text style={estilos.seccionTitulo}>Método de Pago</Text>
                 <View style={estilos.gridPagos}>
-                  {["efectivo", "tarjeta", "pago_movil"].map((metodo) => (
+                  {[
+                    {
+                      id: "efectivo",
+                      nombre: "Efectivo",
+                      icono: "dollar-sign",
+                    },
+                    { id: "tarjeta", nombre: "Tarjeta", icono: "credit-card" },
+                    { id: "credito", nombre: "Crédito", icono: "chart-line" },
+                    {
+                      id: "pago_movil",
+                      nombre: "Pago Móvil",
+                      icono: "mobile-alt",
+                    },
+                  ].map((metodo) => (
                     <TouchableOpacity
-                      key={metodo}
+                      key={metodo.id}
                       style={[
                         estilos.opcionPago,
-                        metodoPago === metodo && estilos.opcionPagoActivo,
+                        metodoPago === metodo.id && estilos.opcionPagoActivo,
                       ]}
-                      onPress={() => setMetodoPago(metodo)}
+                      onPress={() => setMetodoPago(metodo.id)}
                     >
                       <FontAwesome5
-                        name={
-                          metodo === "efectivo"
-                            ? "dollar-sign"
-                            : metodo === "tarjeta"
-                              ? "credit-card"
-                              : "mobile-alt"
-                        }
+                        name={metodo.icono}
                         size={20}
                         color={
-                          metodoPago === metodo
+                          metodoPago === metodo.id
                             ? COLORES.primario
                             : COLORES.textoGris
                         }
@@ -664,15 +683,15 @@ export default function PantallaNuevaVenta() {
                       <Text
                         style={{
                           color:
-                            metodoPago === metodo
+                            metodoPago === metodo.id
                               ? COLORES.primario
                               : COLORES.textoGris,
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: "bold",
                           marginTop: 8,
                         }}
                       >
-                        {metodo.replace("_", " ").toUpperCase()}
+                        {metodo.nombre}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -705,127 +724,88 @@ export default function PantallaNuevaVenta() {
               </ScrollView>
             )}
 
-            {/* FASE CONFIRMACIÓN Y ÉXITO OMITIDAS POR BREVEDAD (Son iguales a tu versión anterior, solo usan procesarVenta) */}
+            {/* --- FASE 2: CONFIRMAR VENTA (IDÉNTICO A LA FOTO) --- */}
             {faseModal === "confirmacion" && (
-              <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                <FontAwesome5
-                  name="exclamation-circle"
-                  size={60}
-                  color={COLORES.primario}
-                />
+              <View style={{ alignItems: "center", paddingVertical: 10 }}>
                 <Text
                   style={{
                     fontSize: 24,
                     color: COLORES.textoBlanco,
                     fontWeight: "bold",
-                    marginVertical: 15,
+                    marginVertical: 20,
                   }}
                 >
                   ¿Confirmar Venta?
                 </Text>
-                <View
-                  style={{
-                    width: "100%",
-                    backgroundColor: COLORES.fondoTarjeta,
-                    padding: 20,
-                    borderRadius: 15,
-                    marginBottom: 25,
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      marginBottom: 10,
-                    }}
-                  >
-                    <Text style={{ color: COLORES.textoGris }}>Cliente:</Text>
-                    <Text
-                      style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
-                    >
+
+                {/* Cuadro Oscuro de Resumen */}
+                <View style={estilos.cuadroResumen}>
+                  <View style={estilos.filaResumen}>
+                    <Text style={estilos.labelResumen}>Cliente:</Text>
+                    <Text style={estilos.valorResumen}>
                       {clienteSeleccionado
                         ? clientesBD.find((c) => c.id === clienteSeleccionado)
                             ?.nombre
                         : "Mostrador"}
                     </Text>
                   </View>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      marginBottom: 10,
-                    }}
-                  >
-                    <Text style={{ color: COLORES.textoGris }}>Método:</Text>
-                    <Text
-                      style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
-                    >
-                      {metodoPago.toUpperCase()}
+
+                  <View style={estilos.filaResumen}>
+                    <Text style={estilos.labelResumen}>Productos:</Text>
+                    <Text style={estilos.valorResumen} numberOfLines={1}>
+                      {carrito
+                        .map(
+                          (item) => `${item.cantidad}x ${item.producto.nombre}`,
+                        )
+                        .join(", ")}
                     </Text>
                   </View>
-                  <View
-                    style={{
-                      height: 1,
-                      backgroundColor: COLORES.borde,
-                      marginVertical: 10,
-                    }}
-                  />
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: COLORES.textoBlanco,
-                        fontWeight: "bold",
-                        fontSize: 18,
-                      }}
-                    >
-                      Total:
+
+                  <View style={estilos.filaResumen}>
+                    <Text style={estilos.labelResumen}>Método:</Text>
+                    <Text style={estilos.valorResumen}>
+                      {metodoPago.replace("_", " ").toUpperCase()}
                     </Text>
-                    <Text
-                      style={{
-                        color: COLORES.primario,
-                        fontWeight: "bold",
-                        fontSize: 22,
-                      }}
-                    >
+                  </View>
+
+                  <View style={estilos.divisorResumen} />
+
+                  <View style={estilos.filaResumenTotal}>
+                    <Text style={estilos.textoTotalResumen}>
+                      TOTAL A PAGAR:
+                    </Text>
+                    <Text style={estilos.valorTotalResumen}>
                       {formatearMoneda(calcularTotal())}
                     </Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: "row", gap: 15, width: "100%" }}>
+
+                {/* Botones de Acción */}
+                <View style={estilos.filaBotonesAccion}>
                   <TouchableOpacity
-                    style={[estilos.botonSecundario, { flex: 1 }]}
+                    style={estilos.botonVolverAccion}
                     onPress={() => setFaseModal("pago")}
                   >
-                    <Text
-                      style={{
-                        color: COLORES.textoBlanco,
-                        fontWeight: "bold",
-                        textAlign: "center",
-                      }}
-                    >
-                      Volver
-                    </Text>
+                    <Text style={estilos.textoBotonVolverAccion}>Volver</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[estilos.botonPrimario, { flex: 1 }]}
+                    style={estilos.botonConfirmarAccion}
                     onPress={procesarVenta}
                     disabled={cargando}
                   >
                     {cargando ? (
                       <ActivityIndicator color={COLORES.textoOscuro} />
                     ) : (
-                      <Text style={estilos.textoBotonPrimario}>Confirmar</Text>
+                      <Text style={estilos.textoBotonConfirmarAccion}>
+                        Confirmar
+                      </Text>
                     )}
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
+            {/* --- FASE 3: ÉXITO --- */}
             {faseModal === "exito" && (
               <View style={{ alignItems: "center", paddingVertical: 40 }}>
                 <Animated.View
@@ -881,7 +861,7 @@ const estilos = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
   titulo: { fontSize: 28, fontWeight: "bold", color: COLORES.textoBlanco },
   botonEscanear: {
@@ -918,7 +898,6 @@ const estilos = StyleSheet.create({
     color: COLORES.textoBlanco,
   },
 
-  // Z-INDEX APLICADO PARA QUE SE VEA EL BUSCADOR
   listaProductos: {
     position: "absolute",
     top: 65,
@@ -1045,14 +1024,6 @@ const estilos = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  botonSecundario: {
-    backgroundColor: "transparent",
-    padding: 18,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORES.textoGris,
-  },
 
   modalContainer: {
     flex: 1,
@@ -1072,25 +1043,43 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     marginBottom: 25,
   },
+
+  // Total Neón del Modal de Completar
   totalDisplay: {
     alignItems: "center",
-    padding: 20,
-    backgroundColor: COLORES.fondoTarjeta,
+    paddingVertical: 25,
+    backgroundColor: COLORES.fondoInput,
     borderRadius: 15,
     borderWidth: 1,
     borderColor: COLORES.primario,
-    marginBottom: 20,
+    marginBottom: 25,
   },
 
-  seccion: { marginBottom: 20 },
+  seccion: { marginBottom: 25 },
   seccionTitulo: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORES.textoBlanco,
     fontWeight: "bold",
-    marginBottom: 10,
+    marginBottom: 15,
   },
-  chipCliente: {
+
+  buscadorClientes: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORES.fondoInput,
+    borderRadius: 10,
     paddingHorizontal: 15,
+    marginBottom: 15,
+  },
+  inputBuscador: {
+    flex: 1,
+    paddingVertical: 12,
+    marginLeft: 10,
+    color: COLORES.textoBlanco,
+  },
+
+  chipCliente: {
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: COLORES.fondoTarjeta,
@@ -1110,27 +1099,37 @@ const estilos = StyleSheet.create({
     gap: 10,
   },
   input: {
-    backgroundColor: COLORES.fondoOscuro,
+    backgroundColor: COLORES.fondoInput,
     color: COLORES.textoBlanco,
-    padding: 12,
+    padding: 15,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORES.borde,
   },
 
-  gridPagos: { flexDirection: "row", justifyContent: "space-between" },
+  // Grid 2x2 Métodos de Pago
+  gridPagos: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   opcionPago: {
-    width: "31%",
-    padding: 15,
+    width: "48%",
+    paddingVertical: 20,
     backgroundColor: COLORES.fondoTarjeta,
     borderRadius: 12,
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    marginBottom: 5,
   },
-  opcionPagoActivo: { borderColor: COLORES.primario },
+  opcionPagoActivo: {
+    borderColor: COLORES.primario,
+    backgroundColor: "rgba(212, 255, 0, 0.05)",
+  },
   inputGrande: {
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: COLORES.fondoInput,
     color: COLORES.textoBlanco,
     fontSize: 24,
     padding: 15,
@@ -1138,5 +1137,77 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORES.borde,
     textAlign: "center",
+  },
+
+  // --- NUEVOS ESTILOS FASE CONFIRMACIÓN ---
+  cuadroResumen: {
+    width: "100%",
+    backgroundColor: COLORES.fondoInput,
+    padding: 25,
+    borderRadius: 16,
+    marginBottom: 30,
+  },
+  filaResumen: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
+  labelResumen: { color: COLORES.textoGris, fontSize: 16 },
+  valorResumen: {
+    color: COLORES.textoBlanco,
+    fontSize: 16,
+    fontWeight: "bold",
+    flex: 1,
+    textAlign: "right",
+    marginLeft: 10,
+  },
+  divisorResumen: {
+    height: 1,
+    backgroundColor: COLORES.borde,
+    marginVertical: 15,
+  },
+  filaResumenTotal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 5,
+  },
+  textoTotalResumen: {
+    color: COLORES.textoOscuro,
+    backgroundColor: COLORES.fondoOscuro,
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#333",
+  }, // Letras grises/oscuras en "TOTAL A PAGAR:"
+  valorTotalResumen: {
+    color: COLORES.primario,
+    fontWeight: "900",
+    fontSize: 24,
+  },
+
+  filaBotonesAccion: { flexDirection: "row", gap: 15, width: "100%" },
+  botonVolverAccion: {
+    flex: 1,
+    backgroundColor: COLORES.fondoTarjeta,
+    padding: 18,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  textoBotonVolverAccion: {
+    color: COLORES.textoBlanco,
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  botonConfirmarAccion: {
+    flex: 1,
+    backgroundColor: COLORES.primario,
+    padding: 18,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  textoBotonConfirmarAccion: {
+    color: COLORES.textoOscuro,
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

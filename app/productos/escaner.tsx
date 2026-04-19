@@ -6,6 +6,7 @@ import {
   Alert,
   TouchableOpacity,
   Dimensions,
+  DeviceEventEmitter,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -64,8 +65,7 @@ export default function PantallaEscaner() {
       {
         text: "Usar este código",
         onPress: () => {
-          // Aquí en el futuro podríamos guardar el código en un estado global
-          // o pasarlo por parámetros al volver.
+          DeviceEventEmitter.emit("onCodigoEscaneado", data);
           router.back();
         },
       },

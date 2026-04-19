@@ -5,36 +5,43 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
+  FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import api from "../../../services/api";
 
-// --- TEMA HARDCODEADO ---
 const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00",
+  fondoOscuro: "#121212", // Negro profundo de la foto
+  fondoTarjeta: "#1E1E1E", // Gris oscuro para inputs
+  primario: "#D4FF00", // Verde Neón
+  secundarioVerde: "#8FBF13", // Verde oliva de los títulos de sección
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
+  textoOscuro: "#121212",
+  borde: "#2C2C2E",
   error: "#FF3B30",
 };
 
 // Asumiendo tu IP local para las fotos
 const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
+interface Categoria {
+  id: string;
+  nombre: string;
+}
+
 export default function PantallaEditarProducto() {
   const router = useRouter();
-  // MAGIA EXPO ROUTER: Extraemos el ID directamente de la URL
   const { id } = useLocalSearchParams();
 
   const [cargandoInicial, setCargandoInicial] = useState(true);
@@ -47,29 +54,53 @@ export default function PantallaEditarProducto() {
   const [costo, setCosto] = useState("");
   const [precio, setPrecio] = useState("");
   const [stock, setStock] = useState("0");
-  const [stockMinimo, setStockMinimo] = useState("0");
+  const [stockMinimo, setStockMinimo] = useState("10");
   const [codigoBarras, setCodigoBarras] = useState("");
+  const [proveedor, setProveedor] = useState("");
   const [imagen, setImagen] = useState<string | null>(null);
   const [imagenNuevaBase64, setImagenNuevaBase64] = useState<string | null>(
     null,
   );
 
-  // 1. Cargar datos del producto al abrir la pantalla
-  useEffect(() => {
-    const cargarProducto = async () => {
-      try {
-        const data: any = await api.get(`/productos/${id}`);
-        setNombre(data.nombre || "");
-        setSku(data.sku || "");
-        setDescripcion(data.descripcion || "");
-        setCosto(data.costo?.toString() || "0");
-        setPrecio(data.precio?.toString() || "0");
-        setStock(data.stock?.toString() || "0");
-        setStockMinimo(data.stock_minimo?.toString() || "0");
-        setCodigoBarras(data.codigo_barras || "");
+  // Estados para Categorías
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] =
+    useState<Categoria | null>(null);
+  const [modalCategoriasVisible, setModalCategoriasVisible] = useState(false);
 
-        if (data.imagen) {
-          setImagen(`${API_URL_UPLOADS}${data.imagen}`);
+  // 1. Cargar datos del producto y categorías al abrir
+  useEffect(() => {
+    const cargarDatos = async () => {
+      try {
+        const [resProducto, resCategorias]: any = await Promise.all([
+          api.get(`/productos/${id}`),
+          api.get("/categorias"),
+        ]);
+
+        // Poblar Categorías
+        setCategorias(resCategorias || []);
+
+        // Poblar Producto
+        setNombre(resProducto.nombre || "");
+        setSku(resProducto.sku || "");
+        setDescripcion(resProducto.descripcion || "");
+        setCosto(resProducto.costo?.toString() || "0");
+        setPrecio(resProducto.precio?.toString() || "0");
+        setStock(resProducto.stock?.toString() || "0");
+        setStockMinimo(resProducto.stock_minimo?.toString() || "10");
+        setCodigoBarras(resProducto.codigo_barras || "");
+        setProveedor(resProducto.proveedor || "");
+
+        if (resProducto.imagen) {
+          setImagen(`${API_URL_UPLOADS}${resProducto.imagen}`);
+        }
+
+        // Buscar si el producto tenía una categoría y setearla
+        if (resProducto.categoria_id && resCategorias) {
+          const catEncontrada = resCategorias.find(
+            (c: any) => String(c.id) === String(resProducto.categoria_id),
+          );
+          if (catEncontrada) setCategoriaSeleccionada(catEncontrada);
         }
       } catch (error: any) {
         Alert.alert(
@@ -81,13 +112,46 @@ export default function PantallaEditarProducto() {
         setCargandoInicial(false);
       }
     };
-    if (id) cargarProducto();
+
+    if (id) cargarDatos();
+
+    const suscripcion = DeviceEventEmitter.addListener(
+      "onCodigoEscaneado",
+      (codigo) => {
+        setCodigoBarras(codigo);
+      },
+    );
+
+    // Limpiamos la escucha cuando la pantalla se cierra
+    return () => suscripcion.remove();
   }, [id]);
 
   // 2. Manejar Imagen
   const seleccionarImagen = async () => {
     Alert.alert("Imagen", "¿De dónde quieres obtener la imagen?", [
       { text: "Cancelar", style: "cancel" },
+      {
+        text: "Tomar Foto",
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") {
+            Alert.alert("Permiso denegado", "Necesitamos acceso a la cámara.");
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+            base64: true,
+          });
+          if (!result.canceled && result.assets[0].base64) {
+            setImagen(result.assets[0].uri);
+            setImagenNuevaBase64(
+              `data:image/jpeg;base64,${result.assets[0].base64}`,
+            );
+          }
+        },
+      },
       {
         text: "Galería",
         onPress: async () => {
@@ -98,10 +162,10 @@ export default function PantallaEditarProducto() {
             base64: true,
           });
           if (!result.canceled && result.assets[0].base64) {
-            setImagen(result.assets[0].uri); // Para previsualizar
+            setImagen(result.assets[0].uri);
             setImagenNuevaBase64(
               `data:image/jpeg;base64,${result.assets[0].base64}`,
-            ); // Para enviar a PHP
+            );
           }
         },
       },
@@ -124,16 +188,16 @@ export default function PantallaEditarProducto() {
         descripcion: descripcion.trim(),
         costo: parseFloat(costo.toString().replace(",", ".")) || 0,
         precio: parseFloat(precio.toString().replace(",", ".")) || 0,
-        stock_minimo: parseInt(stockMinimo) || 0,
+        stock_minimo: parseInt(stockMinimo) || 10,
         codigo_barras: codigoBarras.trim(),
+        proveedor: proveedor.trim(),
+        categoria_id: categoriaSeleccionada?.id || null,
       };
 
       if (imagenNuevaBase64) {
         payload.imagen = imagenNuevaBase64;
       }
 
-      // PHP espera PUT o POST para actualizar? Como en tu controlador no vi PUT explícito, usualmente PHP con fetch() json usa PUT.
-      // Asumiremos que tu enrutador php acepta PUT para update()
       await api.put(`/productos/${id}`, payload);
 
       Alert.alert("Éxito", "Producto actualizado", [
@@ -146,7 +210,7 @@ export default function PantallaEditarProducto() {
     }
   };
 
-  // 4. Eliminar Producto (Destroy)
+  // 4. Eliminar Producto
   const manejarEliminar = () => {
     Alert.alert(
       "Eliminar Producto",
@@ -171,6 +235,13 @@ export default function PantallaEditarProducto() {
         },
       ],
     );
+  };
+
+  const calcularMargen = () => {
+    const c = parseFloat(costo.toString().replace(",", ".")) || 0;
+    const p = parseFloat(precio.toString().replace(",", ".")) || 0;
+    if (c === 0) return "0%";
+    return `${(((p - c) / c) * 100).toFixed(0)}%`;
   };
 
   if (cargandoInicial) {
@@ -201,29 +272,86 @@ export default function PantallaEditarProducto() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={estilos.contenido}>
+      <ScrollView
+        contentContainerStyle={estilos.contenido}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* IMAGEN DEL PRODUCTO */}
         <TouchableOpacity
           style={estilos.imagenContainer}
           onPress={seleccionarImagen}
+          activeOpacity={0.8}
         >
           {imagen ? (
             <Image source={{ uri: imagen }} style={estilos.imagen} />
           ) : (
             <View style={estilos.imagenPlaceholder}>
-              <FontAwesome5 name="camera" size={40} color={COLORES.textoGris} />
+              <FontAwesome5 name="camera" size={32} color={COLORES.textoGris} />
               <Text style={estilos.imagenTexto}>Cambiar foto</Text>
             </View>
           )}
         </TouchableOpacity>
+
+        {/* INFO BÁSICA */}
+        <Text style={estilos.seccionTitulo}>INFORMACIÓN BÁSICA</Text>
 
         <Text style={estilos.label}>Nombre *</Text>
         <TextInput
           style={estilos.input}
           value={nombre}
           onChangeText={setNombre}
+          placeholder="Nombre del producto"
           placeholderTextColor={COLORES.textoGris}
         />
 
+        <Text style={estilos.label}>SKU</Text>
+        <TextInput
+          style={estilos.input}
+          value={sku}
+          onChangeText={setSku}
+          placeholder="Código SKU"
+          placeholderTextColor={COLORES.textoGris}
+          autoCapitalize="characters"
+        />
+
+        <Text style={estilos.label}>Descripción</Text>
+        <TextInput
+          style={[estilos.input, { minHeight: 60, textAlignVertical: "top" }]}
+          value={descripcion}
+          onChangeText={setDescripcion}
+          placeholder="Descripción del producto"
+          placeholderTextColor={COLORES.textoGris}
+          multiline
+        />
+
+        <Text style={estilos.label}>Categoría</Text>
+        <TouchableOpacity
+          style={[
+            estilos.input,
+            {
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            },
+          ]}
+          onPress={() => setModalCategoriasVisible(true)}
+        >
+          <Text
+            style={{
+              color: categoriaSeleccionada
+                ? COLORES.textoBlanco
+                : COLORES.textoGris,
+              fontSize: 16,
+            }}
+          >
+            {categoriaSeleccionada
+              ? categoriaSeleccionada.nombre
+              : "Sin Categoría"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* PRECIOS */}
+        <Text style={estilos.seccionTitulo}>PRECIOS</Text>
         <View style={estilos.row}>
           <View style={estilos.inputGroup}>
             <Text style={estilos.label}>Costo ($)</Text>
@@ -231,6 +359,8 @@ export default function PantallaEditarProducto() {
               style={estilos.input}
               value={costo}
               onChangeText={setCosto}
+              placeholder="0.00"
+              placeholderTextColor={COLORES.textoGris}
               keyboardType="decimal-pad"
             />
           </View>
@@ -240,21 +370,30 @@ export default function PantallaEditarProducto() {
               style={estilos.input}
               value={precio}
               onChangeText={setPrecio}
+              placeholder="0.00"
+              placeholderTextColor={COLORES.textoGris}
               keyboardType="decimal-pad"
             />
           </View>
         </View>
 
+        <View style={estilos.margenContainer}>
+          <Text style={estilos.margenLabel}>Margen de ganancia:</Text>
+          <Text style={estilos.margenValor}>{calcularMargen()}</Text>
+        </View>
+
+        {/* INVENTARIO */}
+        <Text style={estilos.seccionTitulo}>INVENTARIO</Text>
         <View style={estilos.row}>
           <View style={estilos.inputGroup}>
             <Text style={estilos.label}>Stock Actual</Text>
             <TextInput
               style={[
                 estilos.input,
-                { backgroundColor: COLORES.secundario, opacity: 0.7 },
+                { backgroundColor: "#1A1A1A", opacity: 0.8 },
               ]}
               value={stock}
-              editable={false}
+              editable={false} // El stock no se debe editar aquí, se edita en Ajuste de Stock
             />
           </View>
           <View style={estilos.inputGroup}>
@@ -263,24 +402,41 @@ export default function PantallaEditarProducto() {
               style={estilos.input}
               value={stockMinimo}
               onChangeText={setStockMinimo}
-              keyboardType="number-pad"
+              placeholder="10"
+              placeholderTextColor={COLORES.textoGris}
+              keyboardType="numeric"
             />
           </View>
         </View>
 
+        {/* INFORMACIÓN ADICIONAL */}
+        <Text style={estilos.seccionTitulo}>INFORMACIÓN ADICIONAL</Text>
+
         <Text style={estilos.label}>Código de Barras</Text>
+        <View style={estilos.row}>
+          <TextInput
+            style={[estilos.input, { flex: 1 }]}
+            value={codigoBarras}
+            onChangeText={setCodigoBarras}
+            placeholder="Escanear o ingresar"
+            placeholderTextColor={COLORES.textoGris}
+            keyboardType="numeric"
+          />
+          <TouchableOpacity
+            style={estilos.botonEscanear}
+            onPress={() => router.push("/productos/escaner")}
+          >
+            <FontAwesome5 name="camera" size={20} color={COLORES.textoOscuro} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={estilos.label}>Proveedor</Text>
         <TextInput
           style={estilos.input}
-          value={codigoBarras}
-          onChangeText={setCodigoBarras}
-          keyboardType="numeric"
-        />
-        <Text style={estilos.label}>SKU</Text>
-        <TextInput
-          style={estilos.input}
-          value={sku}
-          onChangeText={setSku}
-          autoCapitalize="characters"
+          value={proveedor}
+          onChangeText={setProveedor}
+          placeholder="Nombre del proveedor"
+          placeholderTextColor={COLORES.textoGris}
         />
 
         <TouchableOpacity
@@ -290,8 +446,11 @@ export default function PantallaEditarProducto() {
           <FontAwesome5 name="trash" size={16} color={COLORES.error} />
           <Text style={estilos.textoEliminar}>Eliminar Producto</Text>
         </TouchableOpacity>
+
+        <View style={{ height: 80 }} />
       </ScrollView>
 
+      {/* FOOTER (Botón Guardar) */}
       <View style={estilos.footer}>
         <TouchableOpacity
           style={[estilos.botonGuardar, guardando && { opacity: 0.7 }]}
@@ -305,6 +464,76 @@ export default function PantallaEditarProducto() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* --- MODAL PARA SELECCIONAR CATEGORÍA --- */}
+      <Modal
+        visible={modalCategoriasVisible}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={estilos.modalOverlay}>
+          <View style={estilos.modalContent}>
+            <View style={estilos.modalHeader}>
+              <Text style={estilos.modalTitulo}>Seleccionar Categoría</Text>
+              <TouchableOpacity
+                onPress={() => setModalCategoriasVisible(false)}
+              >
+                <FontAwesome5
+                  name="times"
+                  size={24}
+                  color={COLORES.textoGris}
+                />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={categorias}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={estilos.itemCategoria}
+                  onPress={() => {
+                    setCategoriaSeleccionada(item);
+                    setModalCategoriasVisible(false);
+                  }}
+                >
+                  <Text style={estilos.textoCategoria}>{item.nombre}</Text>
+                  {categoriaSeleccionada?.id === item.id && (
+                    <FontAwesome5
+                      name="check"
+                      size={16}
+                      color={COLORES.primario}
+                    />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListHeaderComponent={
+                <TouchableOpacity
+                  style={estilos.itemCategoria}
+                  onPress={() => {
+                    setCategoriaSeleccionada(null);
+                    setModalCategoriasVisible(false);
+                  }}
+                >
+                  <Text style={estilos.textoCategoria}>
+                    Sin Categoría (Ninguna)
+                  </Text>
+                </TouchableOpacity>
+              }
+              ListEmptyComponent={
+                <Text
+                  style={{
+                    color: COLORES.textoGris,
+                    textAlign: "center",
+                    padding: 20,
+                  }}
+                >
+                  No hay categorías registradas.
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -316,10 +545,8 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
   },
   botonVolver: {
     width: 40,
@@ -329,14 +556,14 @@ const estilos = StyleSheet.create({
   },
   titulo: { fontSize: 20, fontWeight: "bold", color: COLORES.textoBlanco },
   contenido: { padding: 20, paddingBottom: 40 },
+
   imagenContainer: {
-    width: 120,
-    height: 120,
-    alignSelf: "center",
+    width: "100%",
+    aspectRatio: 1,
     backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 60,
+    borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 20,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: COLORES.borde,
   },
@@ -346,24 +573,54 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  imagenTexto: { color: COLORES.textoGris, fontSize: 10, marginTop: 5 },
+  imagenTexto: { color: COLORES.textoGris, fontSize: 16, marginTop: 10 },
+
+  seccionTitulo: {
+    color: COLORES.secundarioVerde, // Verde apagado/oliva de tu foto
+    fontSize: 14,
+    fontWeight: "bold",
+    marginTop: 25,
+    marginBottom: 15,
+    letterSpacing: 1,
+  },
   label: {
-    color: COLORES.textoBlanco,
+    color: COLORES.textoGris,
     fontSize: 14,
     marginBottom: 8,
-    marginTop: 15,
+    marginTop: 10,
   },
   input: {
     backgroundColor: COLORES.fondoTarjeta,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
     borderRadius: 12,
-    padding: 15,
+    padding: 16,
     color: COLORES.textoBlanco,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
   },
   row: { flexDirection: "row", gap: 15 },
   inputGroup: { flex: 1 },
+
+  margenContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: COLORES.secundarioVerde, // Fondo sólido verde completo
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  margenLabel: { color: COLORES.textoBlanco, fontSize: 16 },
+  margenValor: { color: COLORES.textoOscuro, fontSize: 20, fontWeight: "bold" },
+
+  botonEscanear: {
+    backgroundColor: COLORES.primario,
+    width: 55,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   botonEliminar: {
     flexDirection: "row",
     alignItems: "center",
@@ -377,11 +634,14 @@ const estilos = StyleSheet.create({
     backgroundColor: "rgba(255, 59, 48, 0.1)",
   },
   textoEliminar: { color: COLORES.error, fontSize: 16, fontWeight: "bold" },
+
   footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 20,
-    backgroundColor: COLORES.fondoTarjeta,
-    borderTopWidth: 1,
-    borderTopColor: COLORES.borde,
+    backgroundColor: COLORES.fondoOscuro, // Se funde con el fondo
     paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   botonGuardar: {
@@ -395,4 +655,37 @@ const estilos = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+
+  // Modal de Categorías
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: COLORES.fondoOscuro,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "60%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORES.borde,
+  },
+  modalTitulo: { fontSize: 18, fontWeight: "bold", color: COLORES.textoBlanco },
+  itemCategoria: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORES.borde,
+  },
+  textoCategoria: { fontSize: 16, color: COLORES.textoBlanco },
 });

@@ -7,7 +7,7 @@ import {
 } from "../contexts/ContextAuth";
 
 // Bloqueamos que el splash screen desaparezca por defecto
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => []);
 
 function RootLayoutContent() {
   const { isLoading, token } = useAuth(); // Ahora escuchamos también el token
@@ -29,9 +29,10 @@ function RootLayoutContent() {
       router.replace("/(auth)/login");
     }
 
-    // Una vez que decidimos a dónde va, ocultamos la pantalla de carga
-    SplashScreen.hideAsync();
-  }, [isLoading, token, segments]); // Este useEffect se dispara automáticamente cada vez que el token cambia
+    try {
+      SplashScreen.hideAsync();
+    } catch (error) {}
+  }, [isLoading, token, segments, router]);
 
   return (
     <Stack

@@ -1,12 +1,13 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,19 +15,19 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Modal,
-  FlatList,
 } from "react-native";
 import api from "../../services/api";
+import { DeviceEventEmitter } from "react-native";
 
 const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
+  fondoOscuro: "#121212",
+  fondoTarjeta: "#1E1E1E",
   primario: "#D4FF00",
+  secundarioVerde: "#8FBF13",
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
+  textoOscuro: "#121212",
+  borde: "#2C2C2E",
   error: "#FF3B30",
 };
 
@@ -45,43 +46,87 @@ export default function PantallaAgregarProducto() {
   const [costo, setCosto] = useState("");
   const [precio, setPrecio] = useState("");
   const [stock, setStock] = useState("");
-  const [stockMinimo, setStockMinimo] = useState("5");
+  const [stockMinimo, setStockMinimo] = useState("10");
   const [codigoBarras, setCodigoBarras] = useState("");
+  const [proveedor, setProveedor] = useState("");
   const [imagen, setImagen] = useState<string | null>(null);
-
-  // Estados para Categorías
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] =
-    useState<Categoria | null>(null);
-  const [modalCategoriasVisible, setModalCategoriasVisible] = useState(false);
 
   const [cargando, setCargando] = useState(false);
 
-  // Cargar categorías al inicio
+  // Estados para Categorías (Desplegable y Creación Rápida)
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] =
+    useState<Categoria | null>(null);
+  const [desplegableCategoria, setDesplegableCategoria] = useState(false);
+
+  // Modal chiquito para escribir la nueva categoría
+  const [modalNuevaCatVisible, setModalNuevaCatVisible] = useState(false);
+  const [nuevoNombreCategoria, setNuevoNombreCategoria] = useState("");
+  const [creandoCategoria, setCreandoCategoria] = useState(false);
+
   useEffect(() => {
-    const cargarCategorias = async () => {
-      try {
-        const res: any = await api.get("/categorias");
-        setCategorias(res || []);
-      } catch (error) {
-        console.error("Error cargando categorías:", error);
-      }
-    };
     cargarCategorias();
+
+    const suscripcion = DeviceEventEmitter.addListener("onCodigoEscaneado", (codigo) => {
+      setCodigoBarras(codigo);
+    });
+
+    // Limpiamos la escucha cuando la pantalla se cierra
+    return () => suscripcion.remove();
   }, []);
 
-  // Funciones de Imagen
+  const cargarCategorias = async () => {
+    try {
+      const res: any = await api.get("/categorias");
+      setCategorias(res || []);
+    } catch (error) {
+      console.error("Error cargando categorías:", error);
+    }
+  };
+
+  // Función para crear categoría en el momento
+  const guardarNuevaCategoria = async () => {
+    if (!nuevoNombreCategoria.trim()) {
+      Alert.alert("Error", "Ingresa un nombre para la categoría");
+      return;
+    }
+    setCreandoCategoria(true);
+    try {
+      // Creamos la categoría en el backend
+      const res: any = await api.post("/categorias", {
+        nombre: nuevoNombreCategoria.trim(),
+      });
+
+      // Recargamos la lista para que aparezca
+      await cargarCategorias();
+
+      // Asumimos que la API devuelve la categoría creada (ajusta según tu backend)
+      // Si no la devuelve completa, al menos tenemos el nombre para seleccionarla visualmente
+      const catCreada = res.categoria || res;
+
+      setCategoriaSeleccionada({
+        id: catCreada.id || res.id,
+        nombre: catCreada.nombre || nuevoNombreCategoria.trim(),
+      });
+
+      setModalNuevaCatVisible(false);
+      setDesplegableCategoria(false);
+      setNuevoNombreCategoria("");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo crear la categoría");
+    } finally {
+      setCreandoCategoria(false);
+    }
+  };
+
   const seleccionarImagen = async () => {
-    Alert.alert("Imagen del Producto", "¿De dónde quieres obtener la imagen?", [
+    Alert.alert("Imagen", "¿De dónde quieres obtener la imagen?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Tomar Foto",
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") {
-            Alert.alert("Permiso denegado", "Necesitamos acceso a la cámara.");
-            return;
-          }
+          if (status !== "granted") return Alert.alert("Permiso denegado");
           const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
             aspect: [1, 1],
@@ -97,10 +142,7 @@ export default function PantallaAgregarProducto() {
         onPress: async () => {
           const { status } =
             await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== "granted") {
-            Alert.alert("Permiso denegado", "Necesitamos acceso a la galería.");
-            return;
-          }
+          if (status !== "granted") return Alert.alert("Permiso denegado");
           const result = await ImagePicker.launchImageLibraryAsync({
             allowsEditing: true,
             aspect: [1, 1],
@@ -114,14 +156,12 @@ export default function PantallaAgregarProducto() {
     ]);
   };
 
-  // Guardar Producto
   const guardarProducto = async () => {
     if (!nombre.trim() || !precio) {
       Alert.alert("Error", "El nombre y el precio son obligatorios.");
       return;
     }
 
-    // Convertir comas a puntos para evitar problemas con decimales
     const costoFinal = parseFloat(costo.toString().replace(",", ".")) || 0;
     const precioFinal = parseFloat(precio.toString().replace(",", ".")) || 0;
 
@@ -134,14 +174,14 @@ export default function PantallaAgregarProducto() {
         costo: costoFinal,
         precio: precioFinal,
         stock: parseInt(stock) || 0,
-        stock_minimo: parseInt(stockMinimo) || 5,
+        stock_minimo: parseInt(stockMinimo) || 10,
         codigo_barras: codigoBarras,
-        imagen: imagen, // CORRECCIÓN CRÍTICA: Se envía como "imagen", no "imagen_base64"
-        categoria_id: categoriaSeleccionada?.id || null, // SE AÑADE CATEGORÍA
+        proveedor: proveedor,
+        imagen: imagen,
+        categoria_id: categoriaSeleccionada?.id || null,
       };
 
       await api.post("/productos", nuevoProducto);
-
       Alert.alert("Éxito", "Producto agregado correctamente", [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -156,7 +196,7 @@ export default function PantallaAgregarProducto() {
     const c = parseFloat(costo.toString().replace(",", ".")) || 0;
     const p = parseFloat(precio.toString().replace(",", ".")) || 0;
     if (c === 0) return "0%";
-    return `${(((p - c) / c) * 100).toFixed(1)}%`;
+    return `${(((p - c) / c) * 100).toFixed(0)}%`;
   };
 
   return (
@@ -175,7 +215,7 @@ export default function PantallaAgregarProducto() {
             color={COLORES.textoBlanco}
           />
         </TouchableOpacity>
-        <Text style={estilos.titulo}>Nuevo Producto</Text>
+        <Text style={estilos.titulo}>Agregar Producto</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -183,88 +223,154 @@ export default function PantallaAgregarProducto() {
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
       >
-        {/* Imagen del Producto */}
         <TouchableOpacity
           style={estilos.imagenContainer}
           onPress={seleccionarImagen}
+          activeOpacity={0.8}
         >
           {imagen ? (
             <Image source={{ uri: imagen }} style={estilos.imagen} />
           ) : (
             <View style={estilos.imagenPlaceholder}>
-              <FontAwesome5 name="camera" size={40} color={COLORES.textoGris} />
+              <FontAwesome5 name="camera" size={32} color={COLORES.textoGris} />
               <Text style={estilos.imagenTexto}>Tocar para agregar imagen</Text>
             </View>
           )}
         </TouchableOpacity>
 
-        {/* Info Básica */}
         <Text style={estilos.seccionTitulo}>INFORMACIÓN BÁSICA</Text>
+
         <Text style={estilos.label}>Nombre *</Text>
         <TextInput
           style={estilos.input}
           value={nombre}
           onChangeText={setNombre}
-          placeholder="Ej. Coca Cola 2L"
           placeholderTextColor={COLORES.textoGris}
         />
-
-        {/* --- NUEVO: SELECTOR DE CATEGORÍA --- */}
-        <Text style={estilos.label}>Categoría</Text>
-        <TouchableOpacity
-          style={[
-            estilos.input,
-            {
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            },
-          ]}
-          onPress={() => setModalCategoriasVisible(true)}
-        >
-          <Text
-            style={{
-              color: categoriaSeleccionada
-                ? COLORES.textoBlanco
-                : COLORES.textoGris,
-            }}
-          >
-            {categoriaSeleccionada
-              ? categoriaSeleccionada.nombre
-              : "Seleccionar categoría (Opcional)"}
-          </Text>
-          <FontAwesome5
-            name="chevron-down"
-            size={14}
-            color={COLORES.textoGris}
-          />
-        </TouchableOpacity>
 
         <Text style={estilos.label}>SKU</Text>
         <TextInput
           style={estilos.input}
           value={sku}
           onChangeText={setSku}
-          placeholder="Código interno (Ej. BEB-001)"
           placeholderTextColor={COLORES.textoGris}
           autoCapitalize="characters"
         />
 
         <Text style={estilos.label}>Descripción</Text>
         <TextInput
-          style={[estilos.input, { minHeight: 80, textAlignVertical: "top" }]}
+          style={[estilos.input, { minHeight: 60, textAlignVertical: "top" }]}
           value={descripcion}
           onChangeText={setDescripcion}
-          placeholder="Detalles del producto..."
           placeholderTextColor={COLORES.textoGris}
           multiline
         />
 
-        {/* Precios */}
+        {/* --- ACORDEÓN DE CATEGORÍAS (Idéntico a tu foto) --- */}
+        <Text style={estilos.label}>Categoría</Text>
+        <View style={{ zIndex: 10 }}>
+          <TouchableOpacity
+            style={[
+              estilos.input,
+              estilos.selectorCategoria,
+              desplegableCategoria && estilos.selectorActivo,
+            ]}
+            onPress={() => setDesplegableCategoria(!desplegableCategoria)}
+            activeOpacity={1}
+          >
+            <Text
+              style={{
+                color: categoriaSeleccionada
+                  ? COLORES.textoBlanco
+                  : COLORES.textoGris,
+                fontSize: 16,
+              }}
+            >
+              {categoriaSeleccionada
+                ? categoriaSeleccionada.nombre
+                : "Sin Categoría"}
+            </Text>
+            <FontAwesome5
+              name={desplegableCategoria ? "chevron-up" : "chevron-down"}
+              size={14}
+              color={COLORES.textoGris}
+            />
+          </TouchableOpacity>
+
+          {desplegableCategoria && (
+            <View style={estilos.desplegableContenedor}>
+              <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                <TouchableOpacity
+                  style={[
+                    estilos.itemCategoria,
+                    !categoriaSeleccionada && estilos.itemCategoriaActiva,
+                  ]}
+                  onPress={() => {
+                    setCategoriaSeleccionada(null);
+                    setDesplegableCategoria(false);
+                  }}
+                >
+                  <Text style={estilos.textoCategoria}>Sin Categoría</Text>
+                  {!categoriaSeleccionada && (
+                    <FontAwesome5
+                      name="check-circle"
+                      size={16}
+                      color={COLORES.primario}
+                      regular
+                    />
+                  )}
+                </TouchableOpacity>
+
+                {categorias.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      estilos.itemCategoria,
+                      categoriaSeleccionada?.id === item.id &&
+                        estilos.itemCategoriaActiva,
+                    ]}
+                    onPress={() => {
+                      setCategoriaSeleccionada(item);
+                      setDesplegableCategoria(false);
+                    }}
+                  >
+                    <Text style={estilos.textoCategoria}>{item.nombre}</Text>
+                    {categoriaSeleccionada?.id === item.id && (
+                      <FontAwesome5
+                        name="check-circle"
+                        size={16}
+                        color={COLORES.primario}
+                        regular
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={estilos.botonRapidoCrear}
+                onPress={() => {
+                  setDesplegableCategoria(false);
+                  setModalNuevaCatVisible(true);
+                }}
+              >
+                <FontAwesome5
+                  name="plus"
+                  size={14}
+                  color={COLORES.primario}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={estilos.textoBotonRapido}>Crear Categoría</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* PRECIOS */}
         <Text style={estilos.seccionTitulo}>PRECIOS</Text>
         <View style={estilos.row}>
           <View style={estilos.inputGroup}>
-            <Text style={estilos.label}>Costo ($)</Text>
+            <Text style={estilos.label}>Costo</Text>
             <TextInput
               style={estilos.input}
               value={costo}
@@ -275,7 +381,7 @@ export default function PantallaAgregarProducto() {
             />
           </View>
           <View style={estilos.inputGroup}>
-            <Text style={estilos.label}>Precio Venta ($) *</Text>
+            <Text style={estilos.label}>Precio</Text>
             <TextInput
               style={estilos.input}
               value={precio}
@@ -292,7 +398,7 @@ export default function PantallaAgregarProducto() {
           <Text style={estilos.margenValor}>{calcularMargen()}</Text>
         </View>
 
-        {/* Inventario */}
+        {/* INVENTARIO */}
         <Text style={estilos.seccionTitulo}>INVENTARIO</Text>
         <View style={estilos.row}>
           <View style={estilos.inputGroup}>
@@ -312,13 +418,15 @@ export default function PantallaAgregarProducto() {
               style={estilos.input}
               value={stockMinimo}
               onChangeText={setStockMinimo}
-              placeholder="5"
+              placeholder="10"
               placeholderTextColor={COLORES.textoGris}
               keyboardType="numeric"
             />
           </View>
         </View>
 
+        {/* INFORMACIÓN ADICIONAL */}
+        <Text style={estilos.seccionTitulo}>INFORMACIÓN ADICIONAL</Text>
         <Text style={estilos.label}>Código de Barras</Text>
         <View style={estilos.row}>
           <TextInput
@@ -333,15 +441,23 @@ export default function PantallaAgregarProducto() {
             style={estilos.botonEscanear}
             onPress={() => router.push("/productos/escaner")}
           >
-            <FontAwesome5
-              name="barcode"
-              size={20}
-              color={COLORES.textoOscuro}
-            />
+            <FontAwesome5 name="camera" size={20} color={COLORES.textoOscuro} />
           </TouchableOpacity>
         </View>
+
+        <Text style={estilos.label}>Proveedor</Text>
+        <TextInput
+          style={estilos.input}
+          value={proveedor}
+          onChangeText={setProveedor}
+          placeholder="Nombre del proveedor"
+          placeholderTextColor={COLORES.textoGris}
+        />
+
+        <View style={{ height: 80 }} />
       </ScrollView>
 
+      {/* FOOTER */}
       <View style={estilos.footer}>
         <TouchableOpacity
           style={[estilos.botonGuardar, cargando && { opacity: 0.7 }]}
@@ -356,74 +472,57 @@ export default function PantallaAgregarProducto() {
         </TouchableOpacity>
       </View>
 
-      {/* --- MODAL PARA SELECCIONAR CATEGORÍA --- */}
+      {/* MODAL CREACIÓN RÁPIDA DE CATEGORÍA */}
       <Modal
-        visible={modalCategoriasVisible}
+        visible={modalNuevaCatVisible}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
+        onRequestClose={() => setModalNuevaCatVisible(false)}
       >
-        <View style={estilos.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={estilos.modalOverlay}
+        >
           <View style={estilos.modalContent}>
             <View style={estilos.modalHeader}>
-              <Text style={estilos.modalTitulo}>Seleccionar Categoría</Text>
-              <TouchableOpacity
-                onPress={() => setModalCategoriasVisible(false)}
-              >
+              <Text style={estilos.modalTitulo}>Nueva Categoría</Text>
+              <TouchableOpacity onPress={() => setModalNuevaCatVisible(false)}>
                 <FontAwesome5
                   name="times"
-                  size={24}
+                  size={20}
                   color={COLORES.textoGris}
                 />
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={categorias}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={estilos.itemCategoria}
-                  onPress={() => {
-                    setCategoriaSeleccionada(item);
-                    setModalCategoriasVisible(false);
-                  }}
-                >
-                  <Text style={estilos.textoCategoria}>{item.nombre}</Text>
-                  {categoriaSeleccionada?.id === item.id && (
-                    <FontAwesome5
-                      name="check"
-                      size={16}
-                      color={COLORES.primario}
-                    />
-                  )}
-                </TouchableOpacity>
-              )}
-              ListHeaderComponent={
-                <TouchableOpacity
-                  style={estilos.itemCategoria}
-                  onPress={() => {
-                    setCategoriaSeleccionada(null);
-                    setModalCategoriasVisible(false);
-                  }}
-                >
-                  <Text style={estilos.textoCategoria}>
-                    Sin Categoría (Ninguna)
-                  </Text>
-                </TouchableOpacity>
-              }
-              ListEmptyComponent={
-                <Text
-                  style={{
-                    color: COLORES.textoGris,
-                    textAlign: "center",
-                    padding: 20,
-                  }}
-                >
-                  No hay categorías. Crea una en el menú de Categorías.
-                </Text>
-              }
+
+            <Text style={estilos.label}>Nombre</Text>
+            <TextInput
+              style={estilos.inputModal}
+              placeholder="Ej: Snacks, Bebidas..."
+              placeholderTextColor={COLORES.textoGris}
+              value={nuevoNombreCategoria}
+              onChangeText={setNuevoNombreCategoria}
+              autoFocus
             />
+
+            <TouchableOpacity
+              style={[
+                estilos.botonGuardar,
+                creandoCategoria && { opacity: 0.7 },
+              ]}
+              onPress={guardarNuevaCategoria}
+              disabled={creandoCategoria}
+            >
+              {creandoCategoria ? (
+                <ActivityIndicator color={COLORES.textoOscuro} />
+              ) : (
+                <Text style={estilos.textoBotonGuardar}>
+                  Crear y Seleccionar
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -436,10 +535,8 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
   },
   botonVolver: {
     width: 40,
@@ -449,13 +546,14 @@ const estilos = StyleSheet.create({
   },
   titulo: { fontSize: 20, fontWeight: "bold", color: COLORES.textoBlanco },
   contenido: { padding: 20, paddingBottom: 40 },
+
   imagenContainer: {
     width: "100%",
     aspectRatio: 1,
     backgroundColor: COLORES.fondoTarjeta,
     borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 20,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: COLORES.borde,
   },
@@ -465,45 +563,92 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  imagenTexto: { color: COLORES.textoGris, fontSize: 14, marginTop: 10 },
+  imagenTexto: { color: COLORES.textoGris, fontSize: 16, marginTop: 10 },
+
   seccionTitulo: {
-    color: COLORES.primario,
-    fontSize: 12,
+    color: COLORES.secundarioVerde,
+    fontSize: 14,
     fontWeight: "bold",
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 25,
+    marginBottom: 15,
     letterSpacing: 1,
   },
   label: {
-    color: COLORES.textoBlanco,
+    color: COLORES.textoGris,
     fontSize: 14,
     marginBottom: 8,
     marginTop: 10,
   },
   input: {
     backgroundColor: COLORES.fondoTarjeta,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
     borderRadius: 12,
-    padding: 15,
+    padding: 16,
     color: COLORES.textoBlanco,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
   },
   row: { flexDirection: "row", gap: 15 },
   inputGroup: { flex: 1 },
+
+  // Estilos del Acordeón de Categorías
+  selectorCategoria: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  selectorActivo: {
+    borderColor: COLORES.primario,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  desplegableContenedor: {
+    backgroundColor: COLORES.fondoTarjeta,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: COLORES.primario,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    overflow: "hidden",
+  },
+  itemCategoria: {
+    padding: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORES.borde,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  itemCategoriaActiva: { backgroundColor: "rgba(212, 255, 0, 0.05)" },
+  textoCategoria: { color: COLORES.textoBlanco, fontSize: 16 },
+  botonRapidoCrear: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    backgroundColor: "rgba(212, 255, 0, 0.08)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(212, 255, 0, 0.2)",
+  },
+  textoBotonRapido: {
+    color: COLORES.primario,
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+
   margenContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "rgba(212, 255, 0, 0.1)",
-    padding: 15,
+    backgroundColor: COLORES.secundarioVerde,
+    padding: 16,
     borderRadius: 12,
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: "rgba(212, 255, 0, 0.3)",
+    marginTop: 20,
   },
-  margenLabel: { color: COLORES.textoBlanco, fontSize: 14 },
-  margenValor: { color: COLORES.primario, fontSize: 20, fontWeight: "bold" },
+  margenLabel: { color: COLORES.textoBlanco, fontSize: 16 },
+  margenValor: { color: COLORES.textoOscuro, fontSize: 20, fontWeight: "bold" },
+
   botonEscanear: {
     backgroundColor: COLORES.primario,
     width: 55,
@@ -511,11 +656,14 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 20,
-    backgroundColor: COLORES.fondoTarjeta,
-    borderTopWidth: 1,
-    borderTopColor: COLORES.borde,
+    backgroundColor: COLORES.fondoOscuro,
     paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   botonGuardar: {
@@ -530,36 +678,35 @@ const estilos = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // Estilos del Modal de Categorías
+  // Modal Pequeño
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    padding: 20,
   },
   modalContent: {
-    backgroundColor: COLORES.fondoOscuro,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: "60%",
+    backgroundColor: "#1E1E1E",
+    borderRadius: 20,
+    padding: 25,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
+    marginBottom: 20,
   },
-  modalTitulo: { fontSize: 18, fontWeight: "bold", color: COLORES.textoBlanco },
-  itemCategoria: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
+  modalTitulo: { color: COLORES.textoBlanco, fontSize: 20, fontWeight: "bold" },
+  inputModal: {
+    backgroundColor: COLORES.fondoOscuro,
+    borderRadius: 12,
+    padding: 16,
+    color: COLORES.textoBlanco,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    marginBottom: 25,
   },
-  textoCategoria: { fontSize: 16, color: COLORES.textoBlanco },
 });

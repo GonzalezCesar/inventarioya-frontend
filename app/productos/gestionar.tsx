@@ -1,9 +1,15 @@
+import { exportarCatalogoPDF, exportarInventarioExcel } from "@/utils";
+import {
+  descargarPlantillaExcel,
+  procesarExcelImportacion,
+} from "@/utils/excel";
 import { FontAwesome5 } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,12 +17,13 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
+import api from "../../services/api";
 
-// --- TEMA HARDCODEADO ---
+// --- TEMA HARDCODEADO (Pixel Perfect) ---
 const COLORES = {
   fondoOscuro: "#1C1C1E",
   fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00", // Verde Neón
+  primario: "#C4FF0D", // Verde exacto de la UI
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
   textoOscuro: "#1C1C1E",
@@ -24,13 +31,24 @@ const COLORES = {
   error: "#FF3B30",
 };
 
+interface Producto {
+  id: string;
+  nombre: string;
+  sku: string;
+  stock: number;
+  stockMinimo: number;
+}
+
 // --- COMPONENTE REUTILIZABLE: OPCIÓN DE MENÚ ---
 const OpcionMenu = ({ titulo, subtitulo, icono, onPress, esAdmin }: any) => {
   const bloqueado = !esAdmin;
 
   return (
     <TouchableOpacity
-      style={[estilos.opcion, bloqueado && { opacity: 0.5 }]}
+      style={[
+        estilos.opcion,
+        bloqueado && { opacity: 0.5, backgroundColor: COLORES.fondoOscuro },
+      ]}
       onPress={() => {
         if (bloqueado) {
           Alert.alert("Acceso Restringido", "Solo para administradores");
@@ -43,7 +61,7 @@ const OpcionMenu = ({ titulo, subtitulo, icono, onPress, esAdmin }: any) => {
       <View style={estilos.iconoContenedor}>
         <FontAwesome5
           name={icono}
-          size={22}
+          size={24}
           color={bloqueado ? COLORES.textoGris : COLORES.primario}
         />
       </View>
@@ -71,42 +89,91 @@ export default function PantallaGestionarProductos() {
   const router = useRouter();
   const { user } = useAuth();
   const [procesando, setProcesando] = useState(false);
-  const [productos, setProductos] = useState<any[]>([]);
+  const [productos, setProductos] = useState<Producto[]>([]);
 
-  const esAdmin = user?.rol === "admin" || user?.rol === "administrador";
+  const esAdmin = () =>
+    user?.rol === "admin" ||
+    user?.rol === "administrador" ||
+    user?.rol === "superadmin";
 
-  useEffect(() => {
-    // Mock de productos para ver el diseño (luego lo conectaremos a la API)
-    setProductos([
-      {
-        id: "101",
-        nombre: "Coca Cola 2L",
-        sku: "BEB-001",
-        stock: 45,
-        stockMinimo: 10,
-      },
-      {
-        id: "102",
-        nombre: "Pepsi 2L",
-        sku: "BEB-002",
-        stock: 4,
-        stockMinimo: 10,
-      },
-    ]);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      cargarProductos();
+    }, []),
+  );
 
-  // --- MOCKS DE FUNCIONES (Hasta migrar utilidades) ---
-  const manejarDescargaPlantilla = () => {
-    Alert.alert("Descargar", "Descargando plantilla Excel...");
+  const cargarProductos = async () => {
+    try {
+      setProcesando(true);
+      const res: any = await api.get("/productos");
+      setProductos(res || []);
+    } catch (error) {
+      console.log("Error cargando lista rápida de productos", error);
+    } finally {
+      setProcesando(false);
+    }
   };
-  const manejarImportacion = () => {
-    Alert.alert("Importar", "Abriendo selector de archivos...");
+
+  // --- MOCKS DE FUNCIONES DE EXPORTACIÓN ---
+  // (Aquí luego conectaremos con tus utilidades de Excel/PDF)
+  const manejarDescargaPlantilla = async () => {
+    setProcesando(true);
+    const exito = await descargarPlantillaExcel();
+    setProcesando(false);
+    if (exito)
+      Alert.alert(
+        "Éxito",
+        "Plantilla descargada. Llénala y usa la opción de importar.",
+      );
   };
-  const manejarExportarExcel = () => {
-    Alert.alert("Exportar", "Generando Excel del inventario...");
+
+  const manejarImportacion = async () => {
+    setProcesando(true);
+    try {
+      // Necesitamos las categorías para mapearlas
+      const resCategorias: any = await api.get("/categorias");
+      const resultado = await procesarExcelImportacion(resCategorias || []);
+
+      if (!resultado.success || !resultado.data) {
+        if (resultado.error !== "Cancelado")
+          Alert.alert("Error", resultado.error);
+        return;
+      }
+
+      // Enviar el array de productos a tu backend (Bulk Insert)
+      await api.post("/productos", resultado.data);
+
+      Alert.alert(
+        "Éxito",
+        `${resultado.data.length} productos importados correctamente.`,
+      );
+      cargarProductos(); // Recargar la lista de la pantalla
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.message || "Ocurrió un error en la importación.",
+      );
+    } finally {
+      setProcesando(false);
+    }
   };
-  const manejarExportarPDF = () => {
-    Alert.alert("Exportar", "Generando Catálogo PDF...");
+
+  const manejarExportarExcel = async () => {
+    if (productos.length === 0)
+      return Alert.alert("Aviso", "No hay productos.");
+    setProcesando(true);
+    const categorias: any = await api.get("/categorias").catch(() => []);
+    await exportarInventarioExcel(productos, categorias);
+    setProcesando(false);
+  };
+
+  const manejarExportarPDF = async () => {
+    if (productos.length === 0)
+      return Alert.alert("Aviso", "No hay productos.");
+    setProcesando(true);
+    const categorias: any = await api.get("/categorias").catch(() => []);
+    await exportarCatalogoPDF(productos, categorias);
+    setProcesando(false);
   };
 
   return (
@@ -137,22 +204,23 @@ export default function PantallaGestionarProductos() {
           titulo="Agregar Producto"
           subtitulo="Crear nuevo producto"
           icono="plus"
-          onPress={() => router.push("/productos/agregar")} // Ruta preparada para el siguiente paso
-          esAdmin={esAdmin}
+          onPress={() => router.push("/productos/agregar")} // Ruta corregida a tu estructura
+          esAdmin={esAdmin()}
         />
         <OpcionMenu
           titulo="Ajuste de Stock"
           subtitulo="Entradas y salidas de inventario"
           icono="clipboard-list"
-          onPress={() => Alert.alert("Navegar", "Ir a Ajuste de Stock")}
-          esAdmin={esAdmin}
+          // Mantenemos esto pendiente hasta que pasemos la pantalla de AjusteStock
+          onPress={() => router.push("/productos/ajuste-stock")}
+          esAdmin={esAdmin()}
         />
         <OpcionMenu
           titulo="Gestionar Categorías"
           subtitulo="Crear y editar categorías"
           icono="tags"
-          onPress={() => Alert.alert("Navegar", "Ir a Categorías")}
-          esAdmin={esAdmin}
+          onPress={() => router.push("/productos/categorias")} // Navegación a categorías
+          esAdmin={esAdmin()}
         />
 
         {/* SECCIÓN CARGA MASIVA */}
@@ -162,14 +230,14 @@ export default function PantallaGestionarProductos() {
           subtitulo="Guarda la plantilla y ábrela para editar"
           icono="file-download"
           onPress={manejarDescargaPlantilla}
-          esAdmin={esAdmin}
+          esAdmin={esAdmin()}
         />
         <OpcionMenu
           titulo="Importar Productos (Excel)"
           subtitulo="Carga el archivo editado a la App"
           icono="file-upload"
           onPress={manejarImportacion}
-          esAdmin={esAdmin}
+          esAdmin={esAdmin()}
         />
 
         {/* SECCIÓN EXPORTAR */}
@@ -179,29 +247,27 @@ export default function PantallaGestionarProductos() {
           subtitulo="Crea un catálogo con imágenes y precios"
           icono="file-pdf"
           onPress={manejarExportarPDF}
-          esAdmin={esAdmin}
+          esAdmin={esAdmin()}
         />
         <OpcionMenu
           titulo="Exportar Inventario Excel"
           subtitulo="Descarga la lista completa de productos"
           icono="file-excel"
           onPress={manejarExportarExcel}
-          esAdmin={esAdmin}
+          esAdmin={esAdmin()}
         />
 
-        {procesando && (
-          <View style={estilos.loadingBox}>
-            <ActivityIndicator size="large" color={COLORES.primario} />
-            <Text style={{ color: COLORES.textoBlanco, marginTop: 10 }}>
-              Procesando...
-            </Text>
-          </View>
-        )}
-
         {/* LISTA RÁPIDA DE PRODUCTOS */}
-        <Text style={estilos.seccionTitulo}>
-          PRODUCTOS ({productos.length})
-        </Text>
+        <View style={estilos.headerLista}>
+          <Text
+            style={[estilos.seccionTitulo, { marginTop: 0, marginBottom: 0 }]}
+          >
+            PRODUCTOS ({productos.length})
+          </Text>
+          {procesando && (
+            <ActivityIndicator size="small" color={COLORES.primario} />
+          )}
+        </View>
 
         {productos.length > 0 ? (
           productos.map((producto) => (
@@ -220,6 +286,7 @@ export default function PantallaGestionarProductos() {
                     estilos.productoStock,
                     producto.stock <= producto.stockMinimo && {
                       color: COLORES.error,
+                      fontWeight: "bold",
                     },
                   ]}
                 >
@@ -247,7 +314,7 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: COLORES.borde,
@@ -273,6 +340,14 @@ const estilos = StyleSheet.create({
     marginBottom: 15,
     marginTop: 25,
     letterSpacing: 1,
+  },
+
+  headerLista: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 25,
+    marginBottom: 15,
   },
 
   opcion: {
@@ -318,12 +393,4 @@ const estilos = StyleSheet.create({
 
   vacio: { alignItems: "center", paddingVertical: 30, gap: 10 },
   textoVacio: { color: COLORES.textoGris, fontSize: 14 },
-
-  loadingBox: {
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 20,
-    borderRadius: 12,
-    alignItems: "center",
-    marginVertical: 20,
-  },
 });
