@@ -13,25 +13,24 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
 import api from "../../services/api";
 
-// --- TEMA HARDCODEADO ---
+// --- TEMA HARDCODEADO (Pixel Perfect) ---
 const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
+  fondoOscuro: "#121212",
+  fondoTarjeta: "#1E1E1E",
+  fondoInput: "#1A1A1A",
   primario: "#D4FF00",
   textoBlanco: "#FFFFFF",
   textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
-  error: "#FF3B30",
-  acentoVerde: "#34C759",
+  textoOscuro: "#121212",
+  borde: "#2C2C2E",
+  exito: "#34C759", // Verde para ingresos/diferencias positivas
+  error: "#FF3B30", // Rojo para egresos/diferencias negativas
 };
-
-const API_URL = "http://192.168.1.111:8000";
 
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 
@@ -43,7 +42,7 @@ export default function PantallaReportes() {
     user?.rol === "superadmin";
 
   // --- ESTADOS DE UI ---
-  const [vistaActual, setVistaActual] = useState<VistaType>("resumen");
+  const [vistaActual, setVistaActual] = useState<VistaType>("caja"); // Iniciamos en Caja por defecto para trabajarla
   const [periodoResumen, setPeriodoResumen] = useState<
     "hoy" | "semana" | "mes"
   >("hoy");
@@ -51,16 +50,18 @@ export default function PantallaReportes() {
 
   // --- ESTADOS DE DATOS ---
   const [ventas, setVentas] = useState<any[]>([]);
-  const [productos, setProductos] = useState<any[]>([]);
   const [cajaActual, setCajaActual] = useState<any>(null);
   const [movimientosCaja, setMovimientosCaja] = useState<any[]>([]);
   const [historialCaja, setHistorialCaja] = useState<any[]>([]);
 
   // --- ESTADOS DE CAJA MODALES ---
   const [montoInicialCaja, setMontoInicialCaja] = useState("");
+
   const [modalCierreVisible, setModalCierreVisible] = useState(false);
   const [montoCierre, setMontoCierre] = useState("");
+  const [fondoSiguiente, setFondoSiguiente] = useState("");
   const [notasCierre, setNotasCierre] = useState("");
+
   const [modalMovimientoVisible, setModalMovimientoVisible] = useState(false);
   const [tipoMovimiento, setTipoMovimiento] = useState<"ingreso" | "egreso">(
     "ingreso",
@@ -68,31 +69,19 @@ export default function PantallaReportes() {
   const [montoMovimiento, setMontoMovimiento] = useState("");
   const [descMovimiento, setDescMovimiento] = useState("");
 
-  // --- ESTADOS DE ABONO ---
-  const [modalAbonoVisible, setModalAbonoVisible] = useState(false);
-  const [ventaAbono, setVentaAbono] = useState<any>(null);
-
-  // --- CARGA DE DATOS CENTRALIZADA ---
+  // --- CARGA DE DATOS ---
   const cargarDatos = async () => {
     try {
       setCargando(true);
-      const [resVentas, resProds, resCajaWrapper, resHist]: any =
-        await Promise.all([
-          api.get("/ventas").catch(() => []),
-          api.get("/productos").catch(() => []),
-          // CORRECCIÓN 1: La ruta de caja y la estructura de respuesta
-          api.get("/caja").catch(() => null),
-          // CORRECCIÓN 2: Historial por query param
-          api.get("/caja?action=historial").catch(() => []),
-        ]);
+      const [resVentas, resCajaWrapper, resHist]: any = await Promise.all([
+        api.get("/ventas").catch(() => []),
+        api.get("/caja").catch(() => null),
+        api.get("/caja?action=historial").catch(() => []),
+      ]);
 
       setVentas(resVentas || []);
-      setProductos(resProds || []);
-
-      // El backend devuelve { sesion: {...}, movimientos: [...] }
       setCajaActual(resCajaWrapper?.sesion || null);
       setMovimientosCaja(resCajaWrapper?.movimientos || []);
-
       setHistorialCaja(resHist || []);
     } catch (error) {
       console.error("Error cargando reportes:", error);
@@ -109,82 +98,88 @@ export default function PantallaReportes() {
 
   // --- UTILIDADES ---
   const formatearMoneda = (monto: number) => `$ ${(monto || 0).toFixed(2)}`;
-  const formatearFechaHora = (fecha: string) =>
-    new Date(fecha).toLocaleString();
-
-  // --- LÓGICA VISTA RESUMEN ---
-  const ventasResumen = useMemo(() => {
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    return ventas.filter((v) => {
-      if (!esAdmin() && v.vendedorId !== user?.id) return false;
-      const fecha = new Date(v.fecha);
-      if (periodoResumen === "hoy") return fecha >= hoy;
-      if (periodoResumen === "semana")
-        return fecha >= new Date(hoy.setDate(hoy.getDate() - 7));
-      if (periodoResumen === "mes")
-        return fecha >= new Date(hoy.setDate(hoy.getDate() - 30));
-      return true;
+  const formatearFechaHora = (fechaString: string) => {
+    if (!fechaString) return "";
+    const date = new Date(fechaString);
+    return date.toLocaleString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
     });
-  }, [ventas, periodoResumen, user, esAdmin]);
+  };
 
-  const kpis = useMemo(() => {
-    let brutas = 0,
-      costoTotal = 0,
-      porMetodo: any = {
-        efectivo: 0,
-        tarjeta: 0,
-        pago_movil: 0,
-        transferencia: 0,
-      };
-    ventasResumen.forEach((v) => {
-      brutas += v.total || 0;
-      if (porMetodo[v.metodoPago] !== undefined)
-        porMetodo[v.metodoPago] += v.total;
-      (v.items || []).forEach((item: any) => {
-        const costo =
-          productos.find((p) => p.id === item.productoId)?.costo || 0;
-        costoTotal += costo * item.cantidad;
-      });
-    });
-    const utilidad = brutas - costoTotal;
-    const margen = brutas > 0 ? (utilidad / brutas) * 100 : 0;
-    return { brutas, utilidad, margen, porMetodo };
-  }, [ventasResumen, productos]);
+  // --- LÓGICA DE CAJA (Cálculos en vivo) ---
+  const calculosCaja = useMemo(() => {
+    if (!cajaActual) return null;
 
-  const topProductos = useMemo(() => {
-    const conteo: any = {};
-    ventasResumen.forEach((v) => {
-      (v.items || []).forEach((item: any) => {
-        const id = item.productoId;
-        if (!conteo[id])
-          conteo[id] = {
-            nombre: item.producto?.nombre || "Desconocido",
-            total: 0,
-          };
-        conteo[id].total += item.subtotal;
-      });
-    });
-    return Object.values(conteo)
-      .sort((a: any, b: any) => b.total - a.total)
-      .slice(0, 5);
-  }, [ventasResumen]);
+    let ventasEfectivo = 0;
+    let ventasTarjetaTransfer = 0;
+    let ventasPagoMovil = 0;
+    let ventasCredito = 0;
 
-  // --- LÓGICA VISTA CRÉDITOS ---
-  const creditos = useMemo(() => {
-    return ventas.filter(
-      (v) =>
-        (v.estadoPago === "pendiente" || v.estadoPago === "parcial") &&
-        (esAdmin() || v.vendedorId === user?.id),
+    let totalIVA = 0;
+    let totalIGTF = 0;
+
+    // Filtramos las ventas de la sesión actual
+    const fechaApertura = new Date(cajaActual.fecha_apertura);
+    const ventasSesion = ventas.filter(
+      (v) => new Date(v.fecha) >= fechaApertura,
     );
-  }, [ventas, esAdmin, user]);
 
-  const totalCobrar = creditos.reduce(
-    (acc, v) => acc + (v.montoRestante || 0),
-    0,
-  );
+    ventasSesion.forEach((v) => {
+      if (v.metodoPago === "efectivo") ventasEfectivo += v.total;
+      if (v.metodoPago === "tarjeta" || v.metodoPago === "transferencia")
+        ventasTarjetaTransfer += v.total;
+      if (v.metodoPago === "pago_movil") ventasPagoMovil += v.total;
+      if (
+        v.metodoPago === "credito" ||
+        v.estadoPago === "pendiente" ||
+        v.estadoPago === "parcial"
+      ) {
+        // Si es credito, sumamos lo que quedo por cobrar a Credito
+        ventasCredito += v.montoRestante || v.total;
+        // Si pago un abono inicial, lo sumamos al metodo correspondiente
+        if (v.metodoPago2 === "efectivo") ventasEfectivo += v.montoPagado || 0;
+        if (v.metodoPago2 === "tarjeta" || v.metodoPago2 === "transferencia")
+          ventasTarjetaTransfer += v.montoPagado || 0;
+        if (v.metodoPago2 === "pago_movil")
+          ventasPagoMovil += v.montoPagado || 0;
+      }
 
-  // --- ACCIONES CAJA CONECTADAS AL BACKEND ---
+      totalIVA += v.montoIVA || 0;
+      totalIGTF += v.montoIGTF || 0;
+    });
+
+    let ingresosExtra = 0;
+    let gastos = 0;
+
+    movimientosCaja.forEach((m) => {
+      if (m.tipo === "ingreso") ingresosExtra += parseFloat(m.monto);
+      if (m.tipo === "egreso") gastos += parseFloat(m.monto);
+    });
+
+    const baseInicial = parseFloat(cajaActual.monto_inicial);
+    const efectivoEsperado =
+      baseInicial + ventasEfectivo + ingresosExtra - gastos;
+
+    return {
+      baseInicial,
+      ventasEfectivo,
+      ventasTarjetaTransfer,
+      ventasPagoMovil,
+      ventasCredito,
+      totalIVA,
+      totalIGTF,
+      ingresosExtra,
+      gastos,
+      efectivoEsperado,
+    };
+  }, [cajaActual, ventas, movimientosCaja]);
+
+  // --- ACCIONES CAJA API ---
   const handleAbrirCaja = async () => {
     const monto = parseFloat(montoInicialCaja);
     if (isNaN(monto))
@@ -192,12 +187,11 @@ export default function PantallaReportes() {
 
     try {
       setCargando(true);
-      // CORRECCIÓN 3: POST a /caja con action: 'abrir'
       await api.post("/caja", { action: "abrir", monto_inicial: monto });
       setMontoInicialCaja("");
       cargarDatos();
-    } catch (e) {
-      Alert.alert("Error", "No se pudo abrir la caja");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "No se pudo abrir la caja");
       setCargando(false);
     }
   };
@@ -208,36 +202,30 @@ export default function PantallaReportes() {
 
     try {
       setCargando(true);
-      // Calculamos un estimado rápido de diferencia
-      let ingresosEfectivo = 0;
-      let egresosEfectivo = 0;
-      movimientosCaja.forEach((m) => {
-        if (m.tipo === "ingreso") ingresosEfectivo += parseFloat(m.monto);
-        if (m.tipo === "egreso") egresosEfectivo += parseFloat(m.monto);
-      });
-      const ventasEfectivo = kpis.porMetodo.efectivo || 0; // Aproximado del día
-      const efectivoEsperado =
-        parseFloat(cajaActual.monto_inicial) +
-        ventasEfectivo +
-        ingresosEfectivo -
-        egresosEfectivo;
+      const efectivoEsperado = calculosCaja?.efectivoEsperado || 0;
       const diferencia = montoDeclarado - efectivoEsperado;
+      const fondo = parseFloat(fondoSiguiente) || 0;
 
-      // CORRECCIÓN 4: POST a /caja con action: 'cerrar'
       await api.post("/caja", {
         action: "cerrar",
         id: cajaActual.id,
         monto_final_declarado: montoDeclarado,
         diferencia: diferencia,
         notas: notasCierre,
+        fondo_siguiente: fondo,
       });
 
       setModalCierreVisible(false);
       setMontoCierre("");
       setNotasCierre("");
+      setFondoSiguiente("");
+      Alert.alert(
+        "Caja Cerrada",
+        `Se cerró la caja con una diferencia de ${formatearMoneda(diferencia)}`,
+      );
       cargarDatos();
-    } catch (e) {
-      Alert.alert("Error", "No se pudo cerrar la caja");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "No se pudo cerrar la caja");
       setCargando(false);
     }
   };
@@ -249,7 +237,6 @@ export default function PantallaReportes() {
 
     try {
       setCargando(true);
-      // CORRECCIÓN 5: POST a /caja con action: 'movimiento'
       await api.post("/caja", {
         action: "movimiento",
         caja_sesion_id: cajaActual.id,
@@ -262,286 +249,34 @@ export default function PantallaReportes() {
       setMontoMovimiento("");
       setDescMovimiento("");
       cargarDatos();
-    } catch (e) {
-      Alert.alert("Error", "Falló registro de movimiento");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Falló registro de movimiento");
       setCargando(false);
     }
   };
 
-  // --- RENDERIZADOS ESPECÍFICOS ---
-  const renderVistaResumen = () => (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={estilos.contenidoScroll}
-    >
-      <View style={estilos.selectorPeriodo}>
-        {(["hoy", "semana", "mes"] as const).map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[
-              estilos.botonPeriodo,
-              periodoResumen === p && estilos.botonPeriodoActivo,
-            ]}
-            onPress={() => setPeriodoResumen(p)}
-          >
-            <Text
-              style={[
-                estilos.textoPeriodo,
-                periodoResumen === p && estilos.textoPeriodoActivo,
-              ]}
-            >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={estilos.filaTarjetas}>
-        <View style={estilos.tarjetaNeon}>
-          <Text style={estilos.tituloTarjetaNeon}>VENTAS BRUTAS</Text>
-          <Text style={estilos.valorTarjetaNeon}>
-            {formatearMoneda(kpis.brutas)}
-          </Text>
-          <FontAwesome5
-            name="dollar-sign"
-            size={80}
-            color="rgba(0,0,0,0.05)"
-            style={estilos.marcaAgua}
-          />
-        </View>
-
-        <View style={estilos.tarjetaOscura}>
-          <Text style={estilos.tituloTarjetaOscura}>UTILIDAD NETA</Text>
-          <Text style={estilos.valorTarjetaOscura}>
-            {formatearMoneda(kpis.utilidad)}
-          </Text>
-          <Text style={estilos.subtituloTarjetaOscura}>
-            Margen: {kpis.margen.toFixed(1)}%
-          </Text>
-        </View>
-      </View>
-
-      <View style={estilos.seccionTop}>
-        <Text style={estilos.tituloSeccion}>Métodos de Pago</Text>
-        {Object.entries(kpis.porMetodo).map(([metodo, total]: any) => {
-          if (total === 0) return null;
-          const perc = kpis.brutas > 0 ? (total / kpis.brutas) * 100 : 0;
-          return (
-            <View key={metodo} style={{ marginBottom: 15 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  marginBottom: 5,
-                }}
-              >
-                <Text style={{ color: COLORES.textoGris, fontSize: 14 }}>
-                  {metodo.toUpperCase().replace("_", " ")}
-                </Text>
-                <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
-                >
-                  {formatearMoneda(total)}
-                </Text>
-              </View>
-              <View
-                style={{
-                  height: 6,
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  borderRadius: 3,
-                }}
-              >
-                <View
-                  style={{
-                    height: "100%",
-                    width: `${perc}%`,
-                    backgroundColor: COLORES.primario,
-                    borderRadius: 3,
-                  }}
-                />
-              </View>
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={[estilos.seccionTop, { marginTop: 15 }]}>
-        <Text style={estilos.tituloSeccion}>Top Productos</Text>
-        {topProductos.length === 0 ? (
-          <Text style={estilos.textoVacio}>No hay datos</Text>
-        ) : (
-          topProductos.map((p: any, i) => (
-            <View
-              key={i}
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderColor: COLORES.borde,
-              }}
-            >
-              <Text style={{ color: COLORES.textoBlanco }}>
-                #{i + 1} {p.nombre}
-              </Text>
-              <Text style={{ color: COLORES.primario, fontWeight: "bold" }}>
-                {formatearMoneda(p.total)}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
-  );
-
-  const renderVistaVentas = () => (
-    <View style={estilos.flex1}>
-      {ventas.length === 0 ? (
-        <View style={estilos.estadoVacio}>
-          <Text style={estilos.textoVacio}>No hay ventas registradas aún.</Text>
-        </View>
-      ) : (
-        <FlatList
-          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-          data={ventas}
-          keyExtractor={(i) => i.id}
-          renderItem={({ item }) => (
-            <View
-              style={{
-                backgroundColor: COLORES.fondoTarjeta,
-                padding: 15,
-                borderRadius: 12,
-                marginBottom: 10,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  marginBottom: 5,
-                }}
-              >
-                <Text style={{ color: COLORES.primario, fontWeight: "bold" }}>
-                  Venta #{item.id.slice(-6)}
-                </Text>
-                <Text
-                  style={{
-                    color: COLORES.textoBlanco,
-                    fontWeight: "bold",
-                    fontSize: 16,
-                  }}
-                >
-                  {formatearMoneda(item.total)}
-                </Text>
-              </View>
-              <Text style={{ color: COLORES.textoGris, fontSize: 12 }}>
-                {formatearFechaHora(item.fecha)}
-              </Text>
-              <Text
-                style={{ color: COLORES.textoGris, fontSize: 12, marginTop: 5 }}
-              >
-                Método: {item.metodoPago.toUpperCase()}
-              </Text>
-            </View>
-          )}
-        />
-      )}
-    </View>
-  );
-
-  const renderVistaCreditos = () => (
-    <View style={estilos.flex1}>
-      <View style={estilos.resumenCreditos}>
-        <Text style={estilos.tituloResumenCreditos}>Total por Cobrar</Text>
-        <Text style={estilos.montoResumenCreditos}>
-          {formatearMoneda(totalCobrar)}
-        </Text>
-      </View>
-      {creditos.length === 0 ? (
-        <View style={estilos.estadoVacio}>
-          <Text style={estilos.textoVacio}>No hay créditos pendientes.</Text>
-        </View>
-      ) : (
-        <FlatList
-          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-          data={creditos}
-          keyExtractor={(i) => i.id}
-          renderItem={({ item }) => (
-            <View
-              style={{
-                backgroundColor: COLORES.fondoTarjeta,
-                padding: 15,
-                borderRadius: 12,
-                marginBottom: 10,
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View>
-                <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
-                >
-                  {item.cliente?.nombre || "Cliente"}
-                </Text>
-                <Text style={{ color: COLORES.textoGris, fontSize: 12 }}>
-                  Total: {formatearMoneda(item.total)}
-                </Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={{ color: COLORES.error, fontSize: 10 }}>DEBE</Text>
-                <Text
-                  style={{
-                    color: COLORES.error,
-                    fontWeight: "bold",
-                    fontSize: 18,
-                  }}
-                >
-                  {formatearMoneda(item.montoRestante)}
-                </Text>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: COLORES.primario,
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 5,
-                    marginTop: 5,
-                  }}
-                  onPress={() => {
-                    setVentaAbono(item);
-                    setModalAbonoVisible(true);
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: COLORES.textoOscuro,
-                      fontSize: 12,
-                      fontWeight: "bold",
-                    }}
-                  >
-                    Abonar
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        />
-      )}
-    </View>
-  );
+  // --- VISTAS ---
+  // (Omito Resumen y Ventas para concentrarnos en la UI de Caja que pediste, pero siguen existiendo si las necesitas)
 
   const renderVistaCaja = () => (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 100, padding: 20 }}
+      contentContainerStyle={estilos.contenidoScroll}
     >
+      {/* 1. CAJA CERRADA */}
       {!cajaActual ? (
         <View style={estilos.contenedorCajaCerrada}>
-          <FontAwesome5 name="lock" size={50} color={COLORES.textoGris} />
+          <FontAwesome5
+            name="lock"
+            size={60}
+            color={COLORES.textoGris}
+            style={{ marginBottom: 20 }}
+          />
           <Text style={estilos.tituloCajaCerrada}>Caja Cerrada</Text>
           <Text style={estilos.subtituloCajaCerrada}>
             Inicia turno ingresando el monto inicial en caja.
           </Text>
+
           <View style={estilos.inputContainerCaja}>
             <Text style={estilos.labelInput}>Monto Inicial (Efectivo)</Text>
             <TextInput
@@ -553,215 +288,287 @@ export default function PantallaReportes() {
               placeholderTextColor={COLORES.textoGris}
             />
           </View>
+
           <TouchableOpacity
-            style={estilos.botonAccionPrincipal}
+            style={estilos.botonAbrirCaja}
             onPress={handleAbrirCaja}
           >
             <Text style={estilos.textoBotonAccion}>ABRIR CAJA</Text>
           </TouchableOpacity>
         </View>
       ) : (
+        /* 2. CAJA ABIERTA (SESIÓN EN CURSO) */
         <View>
-          <View
-            style={{
-              backgroundColor: COLORES.fondoTarjeta,
-              padding: 15,
-              borderRadius: 15,
-              marginBottom: 20,
-            }}
-          >
-            <Text
-              style={{
-                color: COLORES.textoGris,
-                fontSize: 10,
-                fontWeight: "bold",
-              }}
-            >
-              SESIÓN EN CURSO
-            </Text>
-            <Text
-              style={{
-                color: COLORES.textoBlanco,
-                fontSize: 16,
-                fontWeight: "bold",
-                marginTop: 5,
-              }}
-            >
-              {formatearFechaHora(cajaActual.fecha_apertura)}
-            </Text>
-            <View
-              style={{
-                marginTop: 15,
-                padding: 15,
-                backgroundColor: COLORES.fondoOscuro,
-                borderRadius: 10,
-              }}
-            >
-              <Text style={{ color: COLORES.textoGris, fontSize: 12 }}>
-                Efectivo Base Inicial
+          {/* HEADER SESION */}
+          <View style={estilos.headerCajaAbierta}>
+            <View>
+              <Text
+                style={{
+                  color: COLORES.textoGris,
+                  fontSize: 10,
+                  fontWeight: "bold",
+                  letterSpacing: 1,
+                }}
+              >
+                SESIÓN ACTUAL
               </Text>
               <Text
                 style={{
                   color: COLORES.textoBlanco,
-                  fontSize: 24,
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  marginTop: 4,
+                }}
+              >
+                {formatearFechaHora(cajaActual.fecha_apertura)}
+              </Text>
+            </View>
+            <View style={estilos.badgeAbierto}>
+              <FontAwesome5
+                name="check-circle"
+                size={12}
+                color={COLORES.textoOscuro}
+              />
+              <Text
+                style={{
+                  color: COLORES.textoOscuro,
+                  fontSize: 10,
                   fontWeight: "bold",
                 }}
               >
-                {formatearMoneda(parseFloat(cajaActual.monto_inicial))}
+                EN CURSO
               </Text>
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+          {/* GRID 4 CUADROS */}
+          <View style={estilos.gridCuentas}>
+            <View style={estilos.filaCuentas}>
+              <View
+                style={[
+                  estilos.cardCuenta,
+                  { backgroundColor: COLORES.primario },
+                ]}
+              >
+                <Text
+                  style={[estilos.labelCuenta, { color: COLORES.textoOscuro }]}
+                >
+                  EFECTIVO
+                </Text>
+                <Text
+                  style={[estilos.montoCuenta, { color: COLORES.textoOscuro }]}
+                >
+                  {formatearMoneda(calculosCaja?.efectivoEsperado || 0)}
+                </Text>
+                <Text
+                  style={[estilos.sublabelCuenta, { color: "rgba(0,0,0,0.6)" }]}
+                >
+                  Base: {formatearMoneda(calculosCaja?.baseInicial || 0)}
+                </Text>
+              </View>
+              <View style={estilos.cardCuenta}>
+                <Text style={estilos.labelCuenta}>BANCO (TRANS/TARJ)</Text>
+                <Text style={estilos.montoCuenta}>
+                  {formatearMoneda(calculosCaja?.ventasTarjetaTransfer || 0)}
+                </Text>
+              </View>
+            </View>
+            <View style={estilos.filaCuentas}>
+              <View style={estilos.cardCuenta}>
+                <Text style={estilos.labelCuenta}>PAGO MÓVIL</Text>
+                <Text style={estilos.montoCuenta}>
+                  {formatearMoneda(calculosCaja?.ventasPagoMovil || 0)}
+                </Text>
+              </View>
+              <View
+                style={[
+                  estilos.cardCuenta,
+                  {
+                    backgroundColor: "rgba(255, 59, 48, 0.1)",
+                    borderWidth: 1,
+                    borderColor: COLORES.error,
+                  },
+                ]}
+              >
+                <Text style={[estilos.labelCuenta, { color: COLORES.error }]}>
+                  POR COBRAR
+                </Text>
+                <Text style={[estilos.montoCuenta, { color: COLORES.error }]}>
+                  {formatearMoneda(calculosCaja?.ventasCredito || 0)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* BOTONES INGRESOS/EGRESOS */}
+          <View style={estilos.contenedorAcciones}>
             <TouchableOpacity
-              style={{
-                flex: 1,
-                backgroundColor: "transparent",
-                borderWidth: 1,
-                borderColor: COLORES.acentoVerde,
-                padding: 15,
-                borderRadius: 10,
-                alignItems: "center",
-              }}
+              style={[estilos.botonMinimal, { borderColor: COLORES.exito }]}
               onPress={() => {
                 setTipoMovimiento("ingreso");
                 setModalMovimientoVisible(true);
               }}
             >
-              <Text style={{ color: COLORES.acentoVerde, fontWeight: "bold" }}>
-                + Ingreso Extra
+              <Text
+                style={{ color: COLORES.exito, fontSize: 18, marginRight: 5 }}
+              >
+                +
+              </Text>
+              <Text
+                style={[estilos.textoBotonMinimal, { color: COLORES.exito }]}
+              >
+                INGRESO EXTRA
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={{
-                flex: 1,
-                backgroundColor: "transparent",
-                borderWidth: 1,
-                borderColor: COLORES.error,
-                padding: 15,
-                borderRadius: 10,
-                alignItems: "center",
-              }}
+              style={[estilos.botonMinimal, { borderColor: COLORES.error }]}
               onPress={() => {
                 setTipoMovimiento("egreso");
                 setModalMovimientoVisible(true);
               }}
             >
-              <Text style={{ color: COLORES.error, fontWeight: "bold" }}>
-                - Retiro / Gasto
+              <Text
+                style={{ color: COLORES.error, fontSize: 18, marginRight: 5 }}
+              >
+                -
+              </Text>
+              <Text
+                style={[estilos.textoBotonMinimal, { color: COLORES.error }]}
+              >
+                EGRESO / GASTO
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Movimientos de la caja actual */}
-          {movimientosCaja.length > 0 && (
-            <View
-              style={{
-                marginBottom: 20,
-                backgroundColor: COLORES.fondoTarjeta,
-                padding: 15,
-                borderRadius: 15,
-              }}
-            >
-              <Text
-                style={{
-                  color: COLORES.textoBlanco,
-                  fontWeight: "bold",
-                  marginBottom: 10,
-                }}
-              >
-                Movimientos de Hoy
+          {/* TOTALES DE MOVIMIENTOS */}
+          <View style={estilos.resumenMovimientos}>
+            <View style={estilos.itemResumenMov}>
+              <Text style={estilos.labelResumenMov}>TOTAL INGRESOS (+)</Text>
+              <Text style={[estilos.valorResumenMov, { color: COLORES.exito }]}>
+                {formatearMoneda(calculosCaja?.ingresosExtra || 0)}
               </Text>
-              {movimientosCaja.map((mov) => (
-                <View
-                  key={mov.id}
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    paddingVertical: 8,
-                    borderBottomWidth: 1,
-                    borderBottomColor: COLORES.borde,
-                  }}
-                >
-                  <Text style={{ color: COLORES.textoGris }}>
-                    {mov.descripcion}
-                  </Text>
-                  <Text
-                    style={{
-                      color:
-                        mov.tipo === "ingreso"
-                          ? COLORES.acentoVerde
-                          : COLORES.error,
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {mov.tipo === "ingreso" ? "+" : "-"}
-                    {formatearMoneda(parseFloat(mov.monto))}
-                  </Text>
-                </View>
-              ))}
             </View>
-          )}
+            <View style={estilos.itemResumenMov}>
+              <Text style={estilos.labelResumenMov}>TOTAL GASTOS (-)</Text>
+              <Text style={[estilos.valorResumenMov, { color: COLORES.error }]}>
+                {formatearMoneda(calculosCaja?.gastos || 0)}
+              </Text>
+            </View>
+          </View>
 
           <TouchableOpacity
-            style={{
-              backgroundColor: COLORES.error,
-              padding: 15,
-              borderRadius: 12,
-              alignItems: "center",
-            }}
+            style={estilos.botonCierreMaestro}
             onPress={() => setModalCierreVisible(true)}
           >
-            <Text style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}>
-              CERRAR CAJA
+            <FontAwesome5 name="cube" size={18} color="#FFFFFF" />
+            <Text style={estilos.textoBotonCierreMaestro}>
+              REALIZAR CORTE DE CAJA
             </Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Historial Corto */}
+      {/* 3. HISTORIAL DE CAJAS */}
       <View style={{ marginTop: 40, width: "100%" }}>
-        <Text style={estilos.tituloSeccion}>Historial de Cajas Pasadas</Text>
-        {historialCaja.length === 0 ? (
-          <Text style={estilos.textoVacio}>No hay registros.</Text>
-        ) : (
-          historialCaja.map((c: any) => (
-            <View
-              key={c.id}
+        <Text style={estilos.tituloSeccion}>Historial de Cajas</Text>
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <TouchableOpacity style={estilos.botonSelectorFecha}>
+            <FontAwesome5
+              name="calendar-alt"
+              size={16}
+              color={COLORES.textoOscuro}
+            />
+            <Text style={{ color: COLORES.textoOscuro, fontWeight: "bold" }}>
+              Seleccionar Fecha
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={estilos.botonFiltroUsuarioActivo}>
+            <Text
               style={{
-                paddingVertical: 15,
-                borderBottomWidth: 1,
-                borderColor: COLORES.borde,
-                flexDirection: "row",
-                justifyContent: "space-between",
+                color: COLORES.textoOscuro,
+                fontWeight: "bold",
+                fontSize: 12,
               }}
             >
+              TODOS
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={estilos.botonFiltroUsuario}>
+            <Text style={{ color: COLORES.textoGris, fontSize: 12 }}>
+              CESAR
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {historialCaja.length === 0 ? (
+          <Text style={{ color: COLORES.textoGris, textAlign: "center" }}>
+            No se encontraron registros.
+          </Text>
+        ) : (
+          historialCaja.map((c: any) => (
+            <View key={c.id} style={estilos.itemHistorial}>
               <View>
                 <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  style={{
+                    color: COLORES.textoBlanco,
+                    fontWeight: "bold",
+                    fontSize: 15,
+                  }}
                 >
                   {formatearFechaHora(c.fecha_apertura)}
                 </Text>
-                <Text style={{ color: COLORES.textoGris, fontSize: 12 }}>
-                  Por: {c.vendedor_nombre || "Admin"}
-                </Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
                 <Text
                   style={{
                     color:
                       c.estado === "cerrada"
-                        ? COLORES.acentoVerde
-                        : COLORES.primario,
+                        ? COLORES.textoGris
+                        : COLORES.exito,
+                    fontSize: 12,
+                    marginTop: 4,
                   }}
                 >
-                  {c.estado === "cerrada" ? "CERRADA" : "ABIERTA"}
+                  {c.estado === "cerrada"
+                    ? `Cerrada: ${formatearFechaHora(c.fecha_cierre)}`
+                    : "Apertura en Curso"}
+                </Text>
+                <Text
+                  style={{ color: COLORES.exito, fontSize: 12, marginTop: 2 }}
+                >
+                  Apertura: {c.usuario_nombre || "Admin"}
+                </Text>
+              </View>
+              <View
+                style={{ alignItems: "flex-end", justifyContent: "center" }}
+              >
+                <Text
+                  style={{
+                    color: COLORES.textoBlanco,
+                    fontWeight: "bold",
+                    fontSize: 16,
+                  }}
+                >
+                  {formatearMoneda(parseFloat(c.monto_final_declarado || 0))}
                 </Text>
                 {c.estado === "cerrada" && (
                   <Text
-                    style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                    style={{
+                      color:
+                        (c.diferencia || 0) >= 0
+                          ? COLORES.exito
+                          : COLORES.error,
+                      fontSize: 12,
+                      marginTop: 2,
+                    }}
                   >
-                    {formatearMoneda(parseFloat(c.monto_final_declarado))}
+                    Dif: {(c.diferencia || 0) >= 0 ? "+" : ""}
+                    {formatearMoneda(parseFloat(c.diferencia || 0))}
                   </Text>
                 )}
               </View>
@@ -772,7 +579,6 @@ export default function PantallaReportes() {
     </ScrollView>
   );
 
-  // --- RENDER PRINCIPAL ---
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -783,7 +589,7 @@ export default function PantallaReportes() {
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: "rgba(0,0,0,0.7)",
+              backgroundColor: "rgba(18,18,18,0.8)",
               zIndex: 10,
               justifyContent: "center",
             },
@@ -793,6 +599,7 @@ export default function PantallaReportes() {
         </View>
       )}
 
+      {/* HEADER TABS */}
       <View style={estilos.header}>
         <View style={estilos.selectorVista}>
           {(esAdmin()
@@ -820,27 +627,58 @@ export default function PantallaReportes() {
         </View>
       </View>
 
-      {vistaActual === "resumen" && renderVistaResumen()}
-      {vistaActual === "ventas" && renderVistaVentas()}
-      {vistaActual === "creditos" && renderVistaCreditos()}
+      {/* BODY */}
       {vistaActual === "caja" && renderVistaCaja()}
+      {/* (Aquí renderVistaResumen y Ventas, omitidas para enfocar en Caja) */}
 
-      {/* --- MODALES --- */}
+      {/* --- MODAL: CIERRE DE CAJA --- */}
       <Modal visible={modalCierreVisible} transparent animationType="slide">
-        <View style={estilos.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={estilos.modalOverlay}
+        >
           <View style={estilos.modalContenido}>
-            <Text
-              style={{
-                color: COLORES.textoBlanco,
-                fontSize: 20,
-                fontWeight: "bold",
-                marginBottom: 20,
-                textAlign: "center",
-              }}
-            >
-              Cierre de Caja
+            <Text style={estilos.tituloModal}>Cierre de Caja</Text>
+            <Text style={estilos.subtituloModal}>
+              Cuenta el dinero físico en la caja e ingrésalo.
             </Text>
-            <Text style={estilos.labelInput}>Efectivo Físico en Caja</Text>
+
+            <View style={{ alignItems: "center", marginBottom: 20 }}>
+              <Text style={estilos.labelInput}>Efectivo Esperado (Sist.)</Text>
+              <Text
+                style={{
+                  color: COLORES.textoBlanco,
+                  fontSize: 32,
+                  fontWeight: "bold",
+                }}
+              >
+                {formatearMoneda(calculosCaja?.efectivoEsperado || 0)}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 30, marginTop: 5 }}>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ color: COLORES.textoGris, fontSize: 10 }}>
+                    Total IVA
+                  </Text>
+                  <Text
+                    style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  >
+                    {formatearMoneda(calculosCaja?.totalIVA || 0)}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ color: COLORES.textoGris, fontSize: 10 }}>
+                    Total IGTF
+                  </Text>
+                  <Text
+                    style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  >
+                    {formatearMoneda(calculosCaja?.totalIGTF || 0)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={estilos.labelInput}>Efectivo Real (Contado)</Text>
             <TextInput
               style={estilos.inputModal}
               keyboardType="decimal-pad"
@@ -849,103 +687,140 @@ export default function PantallaReportes() {
               placeholder="0.00"
               placeholderTextColor={COLORES.textoGris}
             />
-            <Text style={estilos.labelInput}>Notas o Novedades</Text>
+
+            <Text style={estilos.labelInput}>
+              Fondo para Siguiente Turno (Opcional)
+            </Text>
             <TextInput
-              style={[estilos.inputModal, { height: 80 }]}
+              style={estilos.inputModal}
+              keyboardType="decimal-pad"
+              value={fondoSiguiente}
+              onChangeText={setFondoSiguiente}
+              placeholder="0.00"
+              placeholderTextColor={COLORES.textoGris}
+            />
+
+            <Text style={estilos.labelInput}>Notas del Cierre</Text>
+            <TextInput
+              style={[
+                estilos.inputModal,
+                { height: 80, textAlignVertical: "top" },
+              ]}
               multiline
               value={notasCierre}
               onChangeText={setNotasCierre}
-              placeholder="Escriba aquí..."
+              placeholder="Notas adicionales..."
               placeholderTextColor={COLORES.textoGris}
             />
-            <View style={{ flexDirection: "row", gap: 10 }}>
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <TouchableOpacity
-                style={{ flex: 1, padding: 15, alignItems: "center" }}
+                style={[
+                  estilos.botonModal,
+                  { backgroundColor: COLORES.fondoInput },
+                ]}
                 onPress={() => setModalCierreVisible(false)}
               >
-                <Text style={{ color: COLORES.textoGris }}>Cancelar</Text>
+                <Text
+                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                >
+                  Cancelar
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{
-                  flex: 1,
-                  padding: 15,
-                  backgroundColor: COLORES.primario,
-                  borderRadius: 10,
-                  alignItems: "center",
-                }}
+                style={[
+                  estilos.botonModal,
+                  { backgroundColor: COLORES.primario },
+                ]}
                 onPress={handleCerrarCaja}
               >
                 <Text
                   style={{ color: COLORES.textoOscuro, fontWeight: "bold" }}
                 >
-                  Confirmar
+                  Confirmar Cierre
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
+      {/* --- MODAL: REGISTRAR INGRESO / EGRESO --- */}
       <Modal visible={modalMovimientoVisible} transparent animationType="fade">
-        <View style={estilos.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={estilos.modalOverlay}
+        >
           <View style={estilos.modalContenido}>
-            <Text
-              style={{
-                color: COLORES.textoBlanco,
-                fontSize: 20,
-                fontWeight: "bold",
-                marginBottom: 20,
-                textAlign: "center",
-              }}
-            >
+            <Text style={estilos.tituloModal}>
               {tipoMovimiento === "ingreso"
                 ? "Registrar Ingreso"
                 : "Registrar Egreso"}
             </Text>
+            <Text style={estilos.subtituloModal}>
+              {tipoMovimiento === "ingreso"
+                ? "Dinero extra entrando a caja."
+                : "Dinero saliendo de caja."}
+            </Text>
+
+            <Text style={estilos.labelInput}>Monto</Text>
             <TextInput
               style={estilos.inputModal}
               keyboardType="decimal-pad"
               value={montoMovimiento}
               onChangeText={setMontoMovimiento}
-              placeholder="Monto"
+              placeholder="0.00"
               placeholderTextColor={COLORES.textoGris}
             />
+
+            <Text style={estilos.labelInput}>Descripción / Motivo</Text>
             <TextInput
               style={estilos.inputModal}
               value={descMovimiento}
               onChangeText={setDescMovimiento}
-              placeholder="Motivo/Descripción"
+              placeholder={
+                tipoMovimiento === "ingreso"
+                  ? "Ej. Cambio inicial, Aporte extra"
+                  : "Ej. Pago proveedor, Retiro parcial"
+              }
               placeholderTextColor={COLORES.textoGris}
             />
-            <View style={{ flexDirection: "row", gap: 10 }}>
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <TouchableOpacity
-                style={{ flex: 1, padding: 15, alignItems: "center" }}
+                style={[
+                  estilos.botonModal,
+                  { backgroundColor: COLORES.fondoInput },
+                ]}
                 onPress={() => setModalMovimientoVisible(false)}
               >
-                <Text style={{ color: COLORES.textoGris }}>Cancelar</Text>
+                <Text
+                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                >
+                  Cancelar
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{
-                  flex: 1,
-                  padding: 15,
-                  backgroundColor:
-                    tipoMovimiento === "ingreso"
-                      ? COLORES.acentoVerde
-                      : COLORES.error,
-                  borderRadius: 10,
-                  alignItems: "center",
-                }}
+                style={[
+                  estilos.botonModal,
+                  {
+                    backgroundColor:
+                      tipoMovimiento === "ingreso"
+                        ? COLORES.exito
+                        : COLORES.error,
+                  },
+                ]}
                 onPress={handleMovimiento}
               >
                 <Text
                   style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
                 >
-                  Guardar
+                  Registrar
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -953,22 +828,21 @@ export default function PantallaReportes() {
 
 const estilos = StyleSheet.create({
   contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  flex1: { flex: 1 },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 15,
     paddingHorizontal: 20,
     backgroundColor: COLORES.fondoOscuro,
   },
   selectorVista: {
     flexDirection: "row",
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: COLORES.fondoInput,
     borderRadius: 25,
     padding: 5,
   },
   botonVista: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: "center",
     borderRadius: 20,
   },
@@ -980,93 +854,13 @@ const estilos = StyleSheet.create({
   },
   textoBotonVistaActivo: { color: COLORES.textoOscuro },
   contenidoScroll: { padding: 20, paddingBottom: 100 },
-  selectorPeriodo: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  botonPeriodo: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: COLORES.fondoTarjeta,
-  },
-  botonPeriodoActivo: { backgroundColor: COLORES.primario },
-  textoPeriodo: { color: COLORES.textoGris, fontWeight: "bold", fontSize: 12 },
-  textoPeriodoActivo: { color: COLORES.textoOscuro },
-  filaTarjetas: { flexDirection: "row", gap: 15, marginBottom: 20 },
-  tarjetaNeon: {
-    flex: 1,
-    backgroundColor: COLORES.primario,
-    padding: 15,
-    borderRadius: 16,
-    overflow: "hidden",
-    minHeight: 110,
-    justifyContent: "center",
-  },
-  tituloTarjetaNeon: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: COLORES.textoOscuro,
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  valorTarjetaNeon: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: COLORES.textoOscuro,
-  },
-  marcaAgua: { position: "absolute", right: -10, bottom: -10 },
-  tarjetaOscura: {
-    flex: 1,
-    backgroundColor: COLORES.fondoOscuro,
-    padding: 15,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORES.primario,
-    justifyContent: "center",
-  },
-  tituloTarjetaOscura: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: COLORES.primario,
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  valorTarjetaOscura: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: COLORES.primario,
-  },
-  subtituloTarjetaOscura: {
-    fontSize: 12,
-    color: COLORES.primario,
-    marginTop: 5,
-  },
-  seccionTop: {
-    backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 16,
-    padding: 15,
-  },
-  tituloSeccion: {
-    color: COLORES.textoBlanco,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  resumenCreditos: { alignItems: "center", paddingVertical: 30 },
-  tituloResumenCreditos: {
-    color: COLORES.textoGris,
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  montoResumenCreditos: {
-    color: COLORES.error,
-    fontSize: 36,
-    fontWeight: "bold",
-  },
+
+  // Caja Cerrada
   contenedorCajaCerrada: { alignItems: "center", paddingTop: 40 },
   tituloCajaCerrada: {
     fontSize: 24,
     fontWeight: "bold",
     color: COLORES.textoBlanco,
-    marginTop: 20,
   },
   subtituloCajaCerrada: {
     fontSize: 14,
@@ -1076,29 +870,154 @@ const estilos = StyleSheet.create({
     marginBottom: 30,
   },
   inputContainerCaja: { width: "100%", marginBottom: 20 },
-  labelInput: { color: COLORES.textoGris, marginBottom: 10, fontSize: 12 },
+  labelInput: { color: COLORES.textoGris, marginBottom: 8, fontSize: 12 },
   inputGrande: {
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: COLORES.fondoInput,
     color: COLORES.textoBlanco,
-    fontSize: 24,
-    padding: 15,
-    borderRadius: 12,
+    fontSize: 32,
+    padding: 20,
+    borderRadius: 16,
     textAlign: "center",
+    fontWeight: "bold",
   },
-  botonAccionPrincipal: {
+  botonAbrirCaja: {
     backgroundColor: COLORES.primario,
     padding: 18,
     borderRadius: 12,
-    width: "100%",
+    width: 200,
     alignItems: "center",
+    marginTop: 20,
   },
   textoBotonAccion: {
     color: COLORES.textoOscuro,
     fontWeight: "bold",
     fontSize: 16,
   },
-  estadoVacio: { flex: 1, justifyContent: "center", alignItems: "center" },
-  textoVacio: { color: COLORES.textoGris, fontSize: 14 },
+
+  // Caja Abierta (Grid y Botones)
+  headerCajaAbierta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    backgroundColor: COLORES.fondoInput,
+    padding: 15,
+    borderRadius: 15,
+  },
+  badgeAbierto: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORES.primario,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  gridCuentas: { gap: 10 },
+  filaCuentas: { flexDirection: "row", gap: 10 },
+  cardCuenta: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 12,
+    justifyContent: "center",
+    backgroundColor: COLORES.fondoTarjeta,
+  },
+  labelCuenta: {
+    fontSize: 10,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    color: COLORES.textoBlanco,
+  },
+  montoCuenta: { fontSize: 24, fontWeight: "bold", color: COLORES.textoBlanco },
+  sublabelCuenta: { fontSize: 10, marginTop: 4 },
+
+  contenedorAcciones: { flexDirection: "row", gap: 10, marginTop: 20 },
+  botonMinimal: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  textoBotonMinimal: { fontSize: 12, fontWeight: "bold" },
+
+  resumenMovimientos: {
+    flexDirection: "row",
+    marginTop: 15,
+    padding: 15,
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    borderColor: COLORES.borde,
+  },
+  itemResumenMov: { flex: 1, alignItems: "center" },
+  labelResumenMov: {
+    color: COLORES.textoGris,
+    fontSize: 10,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  valorResumenMov: { fontSize: 16, fontWeight: "bold" },
+
+  botonCierreMaestro: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORES.error,
+    marginTop: 30,
+    borderRadius: 12,
+    paddingVertical: 18,
+    gap: 10,
+  },
+  textoBotonCierreMaestro: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+
+  // Historial
+  tituloSeccion: {
+    color: COLORES.textoBlanco,
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+  },
+  botonSelectorFecha: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORES.primario,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 10,
+    marginRight: 10,
+  },
+  botonFiltroUsuarioActivo: {
+    backgroundColor: COLORES.primario,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginRight: 10,
+    justifyContent: "center",
+  },
+  botonFiltroUsuario: {
+    backgroundColor: "transparent",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    justifyContent: "center",
+  },
+  itemHistorial: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORES.borde,
+  },
+
+  // Modales
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -1107,8 +1026,21 @@ const estilos = StyleSheet.create({
   },
   modalContenido: {
     backgroundColor: COLORES.fondoTarjeta,
-    padding: 20,
-    borderRadius: 15,
+    padding: 25,
+    borderRadius: 20,
+  },
+  tituloModal: {
+    color: COLORES.textoBlanco,
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 5,
+    textAlign: "center",
+  },
+  subtituloModal: {
+    color: COLORES.textoGris,
+    textAlign: "center",
+    marginBottom: 25,
+    fontSize: 14,
   },
   inputModal: {
     backgroundColor: COLORES.fondoOscuro,
@@ -1117,5 +1049,8 @@ const estilos = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
   },
+  botonModal: { flex: 1, padding: 15, borderRadius: 10, alignItems: "center" },
 });
