@@ -2,17 +2,17 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import api from "../../services/api";
 
@@ -31,7 +31,7 @@ const COLORES = {
 interface Categoria {
   id: string;
   nombre: string;
-  cantidad_productos?: number; // Asumiendo que tu API devuelve cuántos productos tiene
+  total_productos?: number; // Asumiendo que tu API devuelve cuántos productos tiene
 }
 
 export default function PantallaCategorias() {
@@ -127,7 +127,7 @@ export default function PantallaCategorias() {
             <View style={estilos.tarjetaCategoria}>
               <Text style={estilos.nombreCategoria}>{item.nombre}</Text>
               <Text style={estilos.cantidadProductos}>
-                {item.cantidad_productos || 0} prod.
+                {item.total_productos || 0} prod.
               </Text>
             </View>
           )}

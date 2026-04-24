@@ -1,6 +1,6 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -79,6 +79,17 @@ export default function PantallaNuevaVenta() {
     cedula: "",
     telefono: "",
   });
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+
+  const clientesFiltrados = useMemo(() => {
+    if (!busquedaCliente.trim()) return clientesBD;
+    const query = busquedaCliente.toLowerCase();
+    return clientesBD.filter(
+      (c) =>
+        (c.nombre && c.nombre.toLowerCase().includes(query)) ||
+        (c.cedula && c.cedula.toLowerCase().includes(query)),
+    );
+  }, [clientesBD, busquedaCliente]);
 
   // Estados del Modal de Pago
   const [modalVisible, setModalVisible] = useState(false);
@@ -533,55 +544,8 @@ export default function PantallaNuevaVenta() {
                     </TouchableOpacity>
                   </View>
 
-                  {mostrarNuevoCliente ? (
-                    <View style={estilos.formCliente}>
-                      <TextInput
-                        style={estilos.input}
-                        placeholder="Nombre *"
-                        placeholderTextColor={COLORES.textoGris}
-                        value={nuevoCliente.nombre}
-                        onChangeText={(t) =>
-                          setNuevoCliente({ ...nuevoCliente, nombre: t })
-                        }
-                      />
-                      <TextInput
-                        style={estilos.input}
-                        placeholder="Cédula"
-                        placeholderTextColor={COLORES.textoGris}
-                        value={nuevoCliente.cedula}
-                        onChangeText={(t) =>
-                          setNuevoCliente({ ...nuevoCliente, cedula: t })
-                        }
-                        keyboardType="numeric"
-                      />
-                      <TextInput
-                        style={estilos.input}
-                        placeholder="Teléfono"
-                        placeholderTextColor={COLORES.textoGris}
-                        value={nuevoCliente.telefono}
-                        onChangeText={(t) =>
-                          setNuevoCliente({ ...nuevoCliente, telefono: t })
-                        }
-                        keyboardType="phone-pad"
-                      />
-                      <TouchableOpacity
-                        style={[
-                          estilos.botonPrimario,
-                          { marginTop: 10, padding: 12 },
-                        ]}
-                        onPress={crearClienteRapido}
-                        disabled={cargando}
-                      >
-                        {cargando ? (
-                          <ActivityIndicator color={COLORES.textoOscuro} />
-                        ) : (
-                          <Text style={estilos.textoBotonPrimario}>
-                            Guardar Cliente
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
+                  {/* --- NUEVO BUSCADOR Y LISTA VERTICAL --- */}
+                  {!mostrarNuevoCliente && (
                     <>
                       <View style={estilos.buscadorClientes}>
                         <FontAwesome5
@@ -593,55 +557,131 @@ export default function PantallaNuevaVenta() {
                           style={estilos.inputBuscador}
                           placeholder="Buscar por nombre o cédula..."
                           placeholderTextColor={COLORES.textoGris}
+                          value={busquedaCliente}
+                          onChangeText={setBusquedaCliente}
                         />
-                      </View>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={{ marginBottom: 10 }}
-                      >
-                        <TouchableOpacity
-                          style={[
-                            estilos.chipCliente,
-                            clienteSeleccionado === null &&
-                              estilos.chipClienteActivo,
-                          ]}
-                          onPress={() => setClienteSeleccionado(null)}
-                        >
-                          <Text
-                            style={[
-                              estilos.textoChipCliente,
-                              clienteSeleccionado === null && {
-                                color: COLORES.textoOscuro,
-                              },
-                            ]}
-                          >
-                            Mostrador
-                          </Text>
-                        </TouchableOpacity>
-                        {clientesBD.map((c) => (
+                        {/* Botón para limpiar búsqueda rápidamente */}
+                        {busquedaCliente.length > 0 && (
                           <TouchableOpacity
-                            key={c.id}
-                            style={[
-                              estilos.chipCliente,
-                              clienteSeleccionado === c.id &&
-                                estilos.chipClienteActivo,
-                            ]}
-                            onPress={() => setClienteSeleccionado(c.id)}
+                            onPress={() => setBusquedaCliente("")}
+                            style={{ padding: 5 }}
                           >
-                            <Text
-                              style={[
-                                estilos.textoChipCliente,
-                                clienteSeleccionado === c.id && {
-                                  color: COLORES.textoOscuro,
-                                },
-                              ]}
-                            >
-                              {c.nombre}
-                            </Text>
+                            <FontAwesome5
+                              name="times-circle"
+                              size={14}
+                              color={COLORES.textoGris}
+                            />
                           </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                        )}
+                      </View>
+
+                      {/* Lista de Resultados Vertical */}
+                      <View style={estilos.contenedorListaClientes}>
+                        <ScrollView
+                          nestedScrollEnabled
+                          showsVerticalScrollIndicator={true}
+                        >
+                          {/* Opción 'Mostrador' siempre disponible al inicio si no hay búsqueda estricta */}
+                          {!busquedaCliente && (
+                            <TouchableOpacity
+                              style={[
+                                estilos.itemClienteList,
+                                clienteSeleccionado === null &&
+                                  estilos.itemClienteListActivo,
+                              ]}
+                              onPress={() => setClienteSeleccionado(null)}
+                            >
+                              <View style={estilos.iconoClienteAvatar}>
+                                <FontAwesome5
+                                  name="store"
+                                  size={14}
+                                  color={
+                                    clienteSeleccionado === null
+                                      ? COLORES.textoOscuro
+                                      : COLORES.textoGris
+                                  }
+                                />
+                              </View>
+                              <Text
+                                style={[
+                                  estilos.textoItemCliente,
+                                  clienteSeleccionado === null && {
+                                    color: COLORES.textoOscuro,
+                                    fontWeight: "bold",
+                                  },
+                                ]}
+                              >
+                                Mostrador (Consumidor Final)
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {/* Clientes filtrados desde la BD */}
+                          {clientesFiltrados.map((c) => (
+                            <TouchableOpacity
+                              key={c.id}
+                              style={[
+                                estilos.itemClienteList,
+                                clienteSeleccionado === c.id &&
+                                  estilos.itemClienteListActivo,
+                              ]}
+                              onPress={() => setClienteSeleccionado(c.id)}
+                            >
+                              <View style={estilos.iconoClienteAvatar}>
+                                <FontAwesome5
+                                  name="user"
+                                  size={14}
+                                  color={
+                                    clienteSeleccionado === c.id
+                                      ? COLORES.textoOscuro
+                                      : COLORES.textoGris
+                                  }
+                                />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    estilos.textoItemCliente,
+                                    clienteSeleccionado === c.id && {
+                                      color: COLORES.textoOscuro,
+                                      fontWeight: "bold",
+                                    },
+                                  ]}
+                                >
+                                  {c.nombre}
+                                </Text>
+                                {c.cedula ? (
+                                  <Text
+                                    style={{
+                                      color:
+                                        clienteSeleccionado === c.id
+                                          ? "rgba(0,0,0,0.6)"
+                                          : COLORES.textoGris,
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    C.I: {c.cedula}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </TouchableOpacity>
+                          ))}
+
+                          {/* Mensaje si no hay resultados */}
+                          {clientesFiltrados.length === 0 &&
+                            busquedaCliente.length > 0 && (
+                              <Text
+                                style={{
+                                  color: COLORES.textoGris,
+                                  textAlign: "center",
+                                  padding: 20,
+                                }}
+                              >
+                                No se encontraron clientes
+                              </Text>
+                            )}
+                        </ScrollView>
+                      </View>
                     </>
                   )}
                 </View>
@@ -1077,7 +1117,39 @@ const estilos = StyleSheet.create({
     marginLeft: 10,
     color: COLORES.textoBlanco,
   },
-
+  // --- NUEVOS ESTILOS LISTA DE CLIENTES ---
+  contenedorListaClientes: {
+    maxHeight: 180, // Limita la altura para que no empuje el resto del modal
+    backgroundColor: COLORES.fondoInput,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    marginBottom: 15,
+    overflow: "hidden",
+  },
+  itemClienteList: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  itemClienteListActivo: {
+    backgroundColor: COLORES.primario,
+  },
+  iconoClienteAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  textoItemCliente: {
+    color: COLORES.textoBlanco,
+    fontSize: 14,
+  },
   chipCliente: {
     paddingHorizontal: 16,
     paddingVertical: 10,
