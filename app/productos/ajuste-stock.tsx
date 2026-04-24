@@ -2,16 +2,16 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
 import api from "../../services/api";
@@ -26,6 +26,7 @@ const COLORES = {
   textoOscuro: "#121212",
   borde: "#2C2C2E",
   error: "#FF3B30",
+  acentoAzul: "#00D1FF", // Agregado para ventas
 };
 
 interface Producto {
@@ -80,14 +81,13 @@ export default function PantallaAjusteStock() {
     if (productoId) {
       cargarKardexDelProducto(productoId);
     } else {
-      setMovimientos([]); // Limpiamos la lista si no hay producto
+      setMovimientos([]);
     }
   }, [productoId]);
 
   const cargarKardexDelProducto = async (id: string) => {
     setCargandoKardex(true);
     try {
-      // Le enviamos el producto_id como lo exige tu backend
       const resMovimientos: any = await api.get(
         `/ventas/kardex?producto_id=${id}`,
       );
@@ -106,7 +106,7 @@ export default function PantallaAjusteStock() {
     return productos.filter(
       (p) =>
         p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()) ||
-        p.sku.toLowerCase().includes(busquedaProducto.toLowerCase()),
+        (p.sku && p.sku.toLowerCase().includes(busquedaProducto.toLowerCase())),
     );
   }, [productos, busquedaProducto]);
 
@@ -138,22 +138,39 @@ export default function PantallaAjusteStock() {
 
     setGuardando(true);
     try {
-      await api.post("/productos/ajuste", {
-        producto_id: productoId,
+      const payload = {
+        productoId: productoId, // El controlador espera estrictamente esto
+        // La matemática: Envíamos positivo para entrada, negativo para salida
         cantidad: tipo === "ajuste_entrada" ? cant : -cant,
-        tipo: tipo,
+        tipo: tipo, // 'ajuste_entrada' o 'ajuste_salida'
         motivo: motivo,
-        usuario_id: user?.id,
-      });
+        // El controller extrae el usuario_id del JWT (Auth::check()),
+        // pero podemos enviarlo por si acaso si tu Auth middleware lo necesita en el payload
+      };
 
-      Alert.alert("Éxito", "Movimiento registrado correctamente");
-      setCantidad("");
-      setMotivo("");
+      console.log("🚀 ENVIANDO A LA RUTA CORRECTA:", payload);
 
-      // Actualizamos el stock global y el kardex de este producto
-      await cargarProductos();
-      await cargarKardexDelProducto(productoId);
+      // 🔥 EL CAMBIO MAESTRO: La ruta correcta que está en api.php
+      const respuestaBackend: any = await api.post(
+        "/productos/ajustar",
+        payload,
+      );
+
+      console.log("✅ RESPUESTA PHP:", respuestaBackend);
+
+      if (respuestaBackend && respuestaBackend.success) {
+        Alert.alert("Éxito", "Movimiento registrado correctamente");
+        setCantidad("");
+        setMotivo("");
+        setDesplegableAbierto(false);
+
+        await cargarProductos();
+        await cargarKardexDelProducto(productoId);
+      } else {
+        throw new Error(respuestaBackend?.error || "Error desconocido");
+      }
     } catch (error: any) {
+      console.log("❌ ERROR ATRAPADO:", error.message);
       Alert.alert(
         "Error",
         error.message || "No se pudo registrar el movimiento",
@@ -174,6 +191,46 @@ export default function PantallaAjusteStock() {
       minute: "2-digit",
       hour12: true,
     });
+  };
+
+  // Utilidad para recuperar el icono y color según el tipo de movimiento
+  const obtenerDetallesMovimiento = (tipoMov: string, cantidad: number) => {
+    switch (tipoMov) {
+      case "venta":
+        return {
+          icono: "shopping-cart",
+          color: COLORES.acentoAzul,
+          texto: "Venta",
+        };
+      case "compra":
+        return { icono: "truck", color: COLORES.primario, texto: "Compra" };
+      case "ajuste_entrada":
+        return {
+          icono: "plus-circle",
+          color: COLORES.primario,
+          texto: "Ajuste (+)",
+        };
+      case "ajuste_salida":
+        return {
+          icono: "minus-circle",
+          color: COLORES.error,
+          texto: "Ajuste (-)",
+        };
+      case "devolucion":
+        return {
+          icono: "undo-alt",
+          color: COLORES.primario,
+          texto: "Devolución",
+        };
+      case "inicial":
+        return { icono: "flag", color: COLORES.textoBlanco, texto: "Inicial" };
+      default:
+        return {
+          icono: "exchange-alt",
+          color: cantidad > 0 ? COLORES.primario : COLORES.error,
+          texto: "Movimiento",
+        };
+    }
   };
 
   return (
@@ -222,6 +279,11 @@ export default function PantallaAjusteStock() {
                 ? productoSeleccionado.nombre
                 : "Seleccionar Producto..."}
             </Text>
+            <FontAwesome5
+              name={desplegableAbierto ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={COLORES.textoGris}
+            />
           </TouchableOpacity>
 
           {/* DESPLEGABLE DE PRODUCTOS */}
@@ -389,20 +451,23 @@ export default function PantallaAjusteStock() {
           </View>
         ) : cargandoKardex ? (
           <ActivityIndicator
-            size="small"
+            size="large"
             color={COLORES.primario}
             style={{ marginTop: 20 }}
           />
         ) : movimientos.length > 0 ? (
           movimientos.map((item, index) => {
-            const esEntrada = parseFloat(item.cantidad) > 0;
+            const cantNum = parseFloat(item.cantidad);
+            const esEntrada = cantNum > 0;
+            const detalles = obtenerDetallesMovimiento(item.tipo, cantNum);
+
             return (
               <View key={index} style={estilos.itemMovimiento}>
                 <View style={estilos.colImagen}>
                   <FontAwesome5
-                    name="box"
+                    name={detalles.icono}
                     size={20}
-                    color={COLORES.textoGris}
+                    color={detalles.color}
                   />
                 </View>
                 <View style={estilos.colInfo}>
@@ -418,22 +483,28 @@ export default function PantallaAjusteStock() {
                       marginTop: 2,
                     }}
                   >
-                    <Text
-                      style={[
-                        estilos.movTipo,
-                        { color: esEntrada ? COLORES.primario : COLORES.error },
-                      ]}
-                    >
-                      {item.tipo
-                        ? item.tipo.replace("_", " ").toUpperCase()
-                        : "MOVIMIENTO"}
+                    <Text style={[estilos.movTipo, { color: detalles.color }]}>
+                      {detalles.texto.toUpperCase()}
                     </Text>
                     <Text style={estilos.movFecha}>
                       {" "}
                       • {formatearFechaHora(item.fecha)}
                     </Text>
                   </View>
-                  <Text style={estilos.movMotivo}>"{item.motivo}"</Text>
+                  {item.motivo ? (
+                    <Text style={estilos.movMotivo}>"{item.motivo}"</Text>
+                  ) : null}
+                  {item.usuario_nombre && (
+                    <Text
+                      style={{
+                        color: COLORES.textoGris,
+                        fontSize: 10,
+                        marginTop: 2,
+                      }}
+                    >
+                      Por: {item.usuario_nombre}
+                    </Text>
+                  )}
                 </View>
                 <View style={estilos.colCantidades}>
                   <Text
@@ -443,9 +514,12 @@ export default function PantallaAjusteStock() {
                     ]}
                   >
                     {esEntrada ? "+" : ""}
-                    {item.cantidad}
+                    {cantNum}
                   </Text>
-                  <Text style={estilos.movStockSaldo}>Stock</Text>
+                  {/* AQUÍ SE RECUPERÓ LA TRANSICIÓN DE STOCK DEL CÓDIGO VIEJO */}
+                  <Text style={estilos.movStockSaldo}>
+                    {item.stock_anterior ?? "-"} → {item.stock_nuevo ?? "-"}
+                  </Text>
                 </View>
               </View>
             );
@@ -490,10 +564,7 @@ const estilos = StyleSheet.create({
     marginBottom: 10,
     letterSpacing: 1,
   },
-
-  tarjetaFormulario: {
-    marginBottom: 30,
-  },
+  tarjetaFormulario: { marginBottom: 30 },
   label: {
     color: COLORES.textoGris,
     fontSize: 13,
@@ -507,6 +578,9 @@ const estilos = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORES.borde,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   textoSelector: { color: COLORES.textoBlanco, fontSize: 16 },
   placeholderSelector: { color: COLORES.textoGris, fontSize: 16 },
@@ -562,11 +636,7 @@ const estilos = StyleSheet.create({
     borderColor: COLORES.borde,
     backgroundColor: COLORES.fondoTarjeta,
   },
-  opcionTipo: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  opcionTipo: { flex: 1, justifyContent: "center", alignItems: "center" },
   tipoEntradaActivo: { backgroundColor: COLORES.primario },
   tipoSalidaActivo: { backgroundColor: COLORES.error },
   textoTipo: { fontWeight: "bold", fontSize: 15 },
@@ -577,10 +647,7 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     marginTop: 25,
   },
-  textoBotonRegistrar: {
-    fontSize: 16,
-    fontWeight: "900",
-  },
+  textoBotonRegistrar: { fontSize: 16, fontWeight: "900" },
 
   headerHistorial: {
     flexDirection: "row",

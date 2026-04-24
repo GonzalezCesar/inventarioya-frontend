@@ -228,12 +228,12 @@ export default function PantallaNuevaVenta() {
     setCargando(true);
     try {
       const payload = {
-        cliente_id: clienteSeleccionado,
+        clienteId: clienteSeleccionado, // Corregido a CamelCase
         total: total,
         subtotal: total,
-        metodo_pago: metodoPago,
-        monto_recibido: recibidoFloat,
-        estado_pago: metodoPago === "credito" ? "pendiente" : "completo", // Manejo básico de crédito
+        metodoPago: metodoPago, // Corregido a CamelCase
+        montoPagado: recibidoFloat, // Corregido a CamelCase (según tus types viejos)
+        estadoPago: metodoPago === "credito" ? "pendiente" : "completo", // Corregido a CamelCase
         items: carrito.map((item) => ({
           productoId: item.producto.id,
           cantidad: item.cantidad,
