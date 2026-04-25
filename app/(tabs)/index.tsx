@@ -1,6 +1,6 @@
 import { FontAwesome5 } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router"; // <-- IMPORTANTE: useFocusEffect
-import React, { useCallback, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -12,24 +12,14 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
+import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
-
-const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00",
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
-};
 
 export default function PantallaDashboard() {
   const router = useRouter();
   const { user } = useAuth();
-
-  // 🕵️ TRUCO DE DEBUGGING: Esto imprimirá en tu terminal los datos reales de tu usuario
-  console.log("DATOS DEL USUARIO LOGUEADO:", user);
+  const { colores } = useTheme();
+  const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
@@ -39,7 +29,6 @@ export default function PantallaDashboard() {
     try {
       const esSuper = user?.rol?.toLowerCase() === "superadmin";
       const endpoint = esSuper ? "/admin/dashboard" : "/dashboard";
-
       const respuesta: any = await api.get(endpoint);
       setDatos(respuesta);
     } catch (error) {
@@ -50,11 +39,10 @@ export default function PantallaDashboard() {
     }
   };
 
-  // 🔥 MAGIA AQUÍ: useFocusEffect hace que se recargue CADA VEZ que entras a esta pestaña
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
-    }, [user]), // Le pasamos 'user' por si cambia de sesión
+    }, [user]),
   );
 
   const onRefresh = useCallback(() => {
@@ -67,10 +55,18 @@ export default function PantallaDashboard() {
     return `$ ${(num || 0).toFixed(2)}`;
   };
 
+  // Matriz de acciones rápidas para replicar el mapeo de tu app original
+  const accionesRapidas = [
+    { titulo: "Nueva Venta", icono: "dollar-sign", ruta: "/(tabs)/vender" },
+    { titulo: "Escanear", icono: "camera", ruta: "/productos/escaner" },
+    { titulo: "Productos", icono: "cube", ruta: "/(tabs)/inventario" },
+    { titulo: "Reportes", icono: "chart-bar", ruta: "/(tabs)/reportes" },
+  ];
+
   if (cargando && !refrescando) {
     return (
       <View style={[estilos.contenedor, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color={COLORES.primario} />
+        <ActivityIndicator size="large" color={colores.primario} />
       </View>
     );
   }
@@ -78,7 +74,6 @@ export default function PantallaDashboard() {
   return (
     <View style={estilos.contenedor}>
       <ScrollView
-        // 🔥 SOLUCIÓN ANDROID: paddingBottom 100 para que nada quede debajo del TabBar
         contentContainerStyle={{
           padding: 20,
           paddingBottom: Platform.OS === "android" ? 120 : 100,
@@ -88,21 +83,32 @@ export default function PantallaDashboard() {
           <RefreshControl
             refreshing={refrescando}
             onRefresh={onRefresh}
-            tintColor={COLORES.primario}
+            tintColor={colores.primario}
           />
         }
       >
         {/* ENCABEZADO */}
         <View style={estilos.encabezado}>
           <Text style={estilos.saludo}>Hola, {user?.nombre || "Usuario"}</Text>
-          {/* Mostramos el rol exacto que manda la BD */}
-          <Text style={estilos.rol}>{user?.rol || "Sin Rol Definido"}</Text>
+          <Text style={estilos.rol}>
+            {user?.rol === "admin" || user?.rol === "superadmin"
+              ? "Administrador"
+              : "Vendedor"}
+          </Text>
         </View>
 
         {/* RESUMEN DE HOY */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Resumen</Text>
+
           <View style={estilos.tarjetaPrincipal}>
+            {/* Marca de agua gigante de la tarjeta principal */}
+            <FontAwesome5
+              name="dollar-sign"
+              size={120}
+              color="rgba(0,0,0,0.1)"
+              style={estilos.marcaAguaPrincipal}
+            />
             <View style={{ zIndex: 1 }}>
               <Text style={estilos.tituloTarjetaPrincipal}>VENTAS DE HOY</Text>
               <Text style={estilos.valorTarjetaPrincipal}>
@@ -112,42 +118,47 @@ export default function PantallaDashboard() {
                 {datos?.cantidad_ventas || 0} ventas realizadas
               </Text>
             </View>
-            <FontAwesome5
-              name="dollar-sign"
-              size={100}
-              color="rgba(0,0,0,0.1)"
-              style={estilos.marcaAgua}
-            />
           </View>
 
           <View style={estilos.fila}>
-            <View style={estilos.tarjetaPequena}>
-              <Text style={estilos.tituloTarjetaPequena}>POR COBRAR</Text>
+            {/* Tarjeta Por Cobrar */}
+            <TouchableOpacity
+              style={estilos.tarjetaPequena}
+              onPress={() => router.push("/(tabs)/reportes")}
+              activeOpacity={0.8}
+            >
+              <View style={estilos.encabezadoTarjetaPequena}>
+                <Text style={estilos.tituloTarjetaPequena}>POR COBRAR</Text>
+              </View>
               <Text style={estilos.valorTarjetaPequena}>
                 {formatearMoneda(datos?.por_cobrar)}
               </Text>
-            </View>
+            </TouchableOpacity>
+
+            {/* Tarjeta Stock Bajo */}
             <View
               style={[
                 estilos.tarjetaPequena,
                 {
                   borderColor:
-                    datos?.stock_bajo > 0 ? "#FF3B30" : COLORES.borde,
+                    datos?.stock_bajo > 0 ? colores.error : colores.primario,
                 },
               ]}
             >
-              <Text
-                style={[
-                  estilos.tituloTarjetaPequena,
-                  datos?.stock_bajo > 0 && { color: "#FF3B30" },
-                ]}
-              >
-                STOCK BAJO
-              </Text>
+              <View style={estilos.encabezadoTarjetaPequena}>
+                <Text
+                  style={[
+                    estilos.tituloTarjetaPequena,
+                    datos?.stock_bajo > 0 && { color: colores.error },
+                  ]}
+                >
+                  STOCK BAJO
+                </Text>
+              </View>
               <Text
                 style={[
                   estilos.valorTarjetaPequena,
-                  datos?.stock_bajo > 0 && { color: "#FF3B30" },
+                  datos?.stock_bajo > 0 && { color: colores.error },
                 ]}
               >
                 {datos?.stock_bajo || 0}
@@ -156,50 +167,37 @@ export default function PantallaDashboard() {
           </View>
         </View>
 
-        {/* ACCIONES RÁPIDAS */}
+        {/* ACCIONES RÁPIDAS (Restauradas al diseño original) */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Acciones Rápidas</Text>
           <View style={estilos.gridAcciones}>
-            <TouchableOpacity
-              style={estilos.tarjetaAccion}
-              onPress={() => router.push("/(tabs)/vender")}
-            >
-              <FontAwesome5
-                name="dollar-sign"
-                size={24}
-                color={COLORES.textoOscuro}
-              />
-              <Text style={estilos.tituloAccion}>Nueva Venta</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={estilos.tarjetaAccion}
-              onPress={() => router.push("/productos/escaner")}
-            >
-              <FontAwesome5
-                name="camera"
-                size={24}
-                color={COLORES.textoOscuro}
-              />
-              <Text style={estilos.tituloAccion}>Escanear</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={estilos.tarjetaAccion}
-              onPress={() => router.push("/(tabs)/inventario")}
-            >
-              <FontAwesome5 name="box" size={24} color={COLORES.textoOscuro} />
-              <Text style={estilos.tituloAccion}>Productos</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={estilos.tarjetaAccion}
-              onPress={() => router.push("/(tabs)/reportes")}
-            >
-              <FontAwesome5
-                name="chart-bar"
-                size={24}
-                color={COLORES.textoOscuro}
-              />
-              <Text style={estilos.tituloAccion}>Reportes</Text>
-            </TouchableOpacity>
+            {accionesRapidas.map((accion, index) => (
+              <TouchableOpacity
+                key={index}
+                style={estilos.tarjetaAccion}
+                onPress={() => router.push(accion.ruta as any)}
+                activeOpacity={0.8}
+              >
+                {/* 💧 Marca de agua (Restaurada de tu código original) */}
+                <View style={estilos.marcaAguaAccion}>
+                  <FontAwesome5
+                    name={accion.icono}
+                    size={100}
+                    color="rgba(0,0,0,0.08)"
+                  />
+                </View>
+
+                {/* Contenido Frontal */}
+                <View style={estilos.contenidoAccion}>
+                  <FontAwesome5
+                    name={accion.icono}
+                    size={38}
+                    color={colores.textoOscuro}
+                  />
+                  <Text style={estilos.tituloAccion}>{accion.titulo}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -208,23 +206,25 @@ export default function PantallaDashboard() {
           <Text style={estilos.tituloSeccion}>Actividad Reciente</Text>
           {datos?.recientes && datos.recientes.length > 0 ? (
             datos.recientes.map((item: any, index: number) => (
-              <View key={index} style={estilos.itemReciente}>
-                <View style={estilos.iconoReciente}>
+              <View key={index} style={estilos.itemActividad}>
+                <View style={estilos.iconoActividad}>
                   <FontAwesome5
-                    name="shopping-cart"
+                    name="dollar-sign"
                     size={16}
-                    color={COLORES.primario}
+                    color={colores.textoResaltado}
                   />
                 </View>
-                <View style={{ flex: 1, marginLeft: 15 }}>
-                  <Text style={estilos.textoReciente}>
-                    Venta #{item.id.substring(0, 8)}
+                <View style={estilos.infoActividad}>
+                  <Text style={estilos.textoActividad}>
+                    Venta #{item.id.substring(0, 8)} •{" "}
+                    {new Date(item.fecha).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </Text>
-                  <Text style={estilos.fechaReciente}>
-                    {new Date(item.fecha).toLocaleTimeString()}
-                  </Text>
+                  <Text style={estilos.subtextoActividad}>Total pagado</Text>
                 </View>
-                <Text style={estilos.montoReciente}>
+                <Text style={estilos.montoActividad}>
                   {formatearMoneda(item.monto)}
                 </Text>
               </View>
@@ -240,114 +240,156 @@ export default function PantallaDashboard() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  encabezado: { marginTop: 40, marginBottom: 20 },
-  saludo: { fontSize: 28, fontWeight: "bold", color: COLORES.textoBlanco },
-  rol: { fontSize: 16, color: COLORES.primario, textTransform: "capitalize" },
+// 🔥 ESTILOS DINÁMICOS Y PIXEL PERFECT
+const crearEstilos = (c: any) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
+    encabezado: { marginTop: 30, marginBottom: 20 },
+    saludo: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: c.textoBlanco,
+      marginBottom: 4,
+    },
+    rol: { fontSize: 16, color: c.textoResaltado, textTransform: "capitalize" }, // Verde oscuro para el rol
 
-  seccion: { marginBottom: 25 },
-  tituloSeccion: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORES.textoBlanco,
-    marginBottom: 15,
-  },
+    seccion: { marginBottom: 30 },
+    tituloSeccion: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: c.textoBlanco,
+      marginBottom: 15,
+    },
 
-  tarjetaPrincipal: {
-    backgroundColor: COLORES.primario,
-    padding: 25,
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 15,
-  },
-  tituloTarjetaPrincipal: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: COLORES.textoOscuro,
-    letterSpacing: 1,
-  },
-  valorTarjetaPrincipal: {
-    fontSize: 40,
-    fontWeight: "bold",
-    color: COLORES.textoOscuro,
-    marginVertical: 5,
-  },
-  subtituloTarjetaPrincipal: { fontSize: 14, color: COLORES.textoOscuro },
-  marcaAgua: { position: "absolute", right: -10, bottom: -20 },
+    tarjetaPrincipal: {
+      backgroundColor: c.primario,
+      padding: 25,
+      borderRadius: 20,
+      overflow: "hidden",
+      marginBottom: 15,
+      minHeight: 140,
+      justifyContent: "center",
+    },
+    marcaAguaPrincipal: {
+      position: "absolute",
+      right: -10,
+      bottom: -20,
+      transform: [{ rotate: "-15deg" }], // Rotación original
+    },
+    tituloTarjetaPrincipal: {
+      fontSize: 12,
+      fontWeight: "bold",
+      color: c.textoOscuro,
+      letterSpacing: 1,
+      marginBottom: 8,
+    },
+    valorTarjetaPrincipal: {
+      fontSize: 48, // Un poco más grande para igualar la imagen
+      fontWeight: "900",
+      color: c.textoOscuro,
+      marginBottom: 4,
+    },
+    subtituloTarjetaPrincipal: { fontSize: 14, color: c.textoOscuro },
 
-  fila: { flexDirection: "row", justifyContent: "space-between" },
-  tarjetaPequena: {
-    width: "48%",
-    backgroundColor: COLORES.fondoTarjeta,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  tituloTarjetaPequena: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: COLORES.primario,
-    letterSpacing: 1,
-    marginBottom: 5,
-  },
-  valorTarjetaPequena: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: COLORES.textoBlanco,
-  },
+    fila: { flexDirection: "row", justifyContent: "space-between", gap: 15 },
+    tarjetaPequena: {
+      flex: 1,
+      backgroundColor: c.fondoTarjeta,
+      padding: 20,
+      borderRadius: 20,
+      borderWidth: 2, // Borde más grueso como en el original
+      borderColor: c.primario,
+      minHeight: 110,
+      justifyContent: "center",
+    },
+    encabezadoTarjetaPequena: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+      gap: 6,
+    },
+    tituloTarjetaPequena: {
+      fontSize: 12,
+      fontWeight: "bold",
+      color: c.textoResaltado,
+      letterSpacing: 1,
+    },
+    valorTarjetaPequena: {
+      fontSize: 36,
+      fontWeight: "900",
+      color: c.textoResaltado,
+    },
 
-  gridAcciones: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  tarjetaAccion: {
-    width: "48%",
-    backgroundColor: COLORES.primario,
-    padding: 20,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    height: 100,
-    marginBottom: 5,
-  },
-  tituloAccion: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORES.textoOscuro,
-    marginTop: 10,
-  },
+    gridAcciones: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      gap: 15,
+    },
+    tarjetaAccion: {
+      width: "47%",
+      backgroundColor: c.primario,
+      borderRadius: 20,
+      height: 120, // Altura original
+      overflow: "hidden", // Crucial para que la marca de agua no se salga
+    },
+    contenidoAccion: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 16,
+      gap: 10,
+      zIndex: 1,
+    },
+    tituloAccion: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: c.textoOscuro,
+      textAlign: "center",
+    },
+    marcaAguaAccion: {
+      position: "absolute",
+      right: -25,
+      bottom: -25,
+      transform: [{ rotate: "-15deg" }], // Rotación original de la marca de agua
+    },
 
-  itemReciente: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORES.fondoTarjeta,
-    padding: 15,
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-  iconoReciente: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(212, 255, 0, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textoReciente: {
-    color: COLORES.textoBlanco,
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  fechaReciente: { color: COLORES.textoGris, fontSize: 12, marginTop: 2 },
-  montoReciente: { color: COLORES.primario, fontWeight: "bold", fontSize: 18 },
-  textoVacio: {
-    color: COLORES.textoGris,
-    textAlign: "center",
-    padding: 20,
-    fontSize: 16,
-  },
-});
+    itemActividad: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.fondoTarjeta,
+      padding: 16,
+      borderRadius: 16,
+      marginBottom: 12,
+    },
+    iconoActividad: {
+      width: 45,
+      height: 45,
+      borderRadius: 12,
+      backgroundColor: "rgba(212, 255, 0, 0.1)", // Secundario Claro
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 15,
+    },
+    infoActividad: {
+      flex: 1,
+    },
+    textoActividad: {
+      color: c.textoBlanco,
+      fontWeight: "bold",
+      fontSize: 15,
+      marginBottom: 2,
+    },
+    subtextoActividad: { color: c.textoGris, fontSize: 13 },
+    montoActividad: {
+      color: c.textoResaltado,
+      fontWeight: "900",
+      fontSize: 18,
+    },
+    textoVacio: {
+      color: c.textoGris,
+      textAlign: "center",
+      padding: 20,
+      fontSize: 16,
+    },
+  });

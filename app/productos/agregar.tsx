@@ -1,7 +1,8 @@
+import { useTheme } from "../../contexts/ContextTheme";
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,18 +20,6 @@ import {
 import api from "../../services/api";
 import { DeviceEventEmitter } from "react-native";
 
-const COLORES = {
-  fondoOscuro: "#121212",
-  fondoTarjeta: "#1E1E1E",
-  primario: "#D4FF00",
-  secundarioVerde: "#8FBF13",
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#121212",
-  borde: "#2C2C2E",
-  error: "#FF3B30",
-};
-
 interface Categoria {
   id: string;
   nombre: string;
@@ -38,6 +27,13 @@ interface Categoria {
 
 export default function PantallaAgregarProducto() {
   const router = useRouter();
+
+  // 🔥 Conectamos al Tema Global
+  const { colores, isDark } = useTheme();
+  const estilos = useMemo(
+    () => crearEstilos(colores, isDark),
+    [colores, isDark],
+  );
 
   // Estados del Formulario
   const [nombre, setNombre] = useState("");
@@ -53,13 +49,13 @@ export default function PantallaAgregarProducto() {
 
   const [cargando, setCargando] = useState(false);
 
-  // Estados para Categorías (Desplegable y Creación Rápida)
+  // Estados para Categorías
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] =
     useState<Categoria | null>(null);
   const [desplegableCategoria, setDesplegableCategoria] = useState(false);
 
-  // Modal chiquito para escribir la nueva categoría
+  // Modal chiquito para crear categoría
   const [modalNuevaCatVisible, setModalNuevaCatVisible] = useState(false);
   const [nuevoNombreCategoria, setNuevoNombreCategoria] = useState("");
   const [creandoCategoria, setCreandoCategoria] = useState(false);
@@ -67,11 +63,13 @@ export default function PantallaAgregarProducto() {
   useEffect(() => {
     cargarCategorias();
 
-    const suscripcion = DeviceEventEmitter.addListener("onCodigoEscaneado", (codigo) => {
-      setCodigoBarras(codigo);
-    });
+    const suscripcion = DeviceEventEmitter.addListener(
+      "onCodigoEscaneado",
+      (codigo) => {
+        setCodigoBarras(codigo);
+      },
+    );
 
-    // Limpiamos la escucha cuando la pantalla se cierra
     return () => suscripcion.remove();
   }, []);
 
@@ -84,7 +82,6 @@ export default function PantallaAgregarProducto() {
     }
   };
 
-  // Función para crear categoría en el momento
   const guardarNuevaCategoria = async () => {
     if (!nuevoNombreCategoria.trim()) {
       Alert.alert("Error", "Ingresa un nombre para la categoría");
@@ -92,16 +89,11 @@ export default function PantallaAgregarProducto() {
     }
     setCreandoCategoria(true);
     try {
-      // Creamos la categoría en el backend
       const res: any = await api.post("/categorias", {
         nombre: nuevoNombreCategoria.trim(),
       });
 
-      // Recargamos la lista para que aparezca
       await cargarCategorias();
-
-      // Asumimos que la API devuelve la categoría creada (ajusta según tu backend)
-      // Si no la devuelve completa, al menos tenemos el nombre para seleccionarla visualmente
       const catCreada = res.categoria || res;
 
       setCategoriaSeleccionada({
@@ -196,7 +188,7 @@ export default function PantallaAgregarProducto() {
     const c = parseFloat(costo.toString().replace(",", ".")) || 0;
     const p = parseFloat(precio.toString().replace(",", ".")) || 0;
     if (c === 0) return "0%";
-    return `${(((p - c) / c) * 100).toFixed(0)}%`;
+    return `${(((p - c) / c) * 100).toFixed(1)}%`;
   };
 
   return (
@@ -212,7 +204,7 @@ export default function PantallaAgregarProducto() {
           <FontAwesome5
             name="chevron-left"
             size={20}
-            color={COLORES.textoBlanco}
+            color={colores.textoBlanco}
           />
         </TouchableOpacity>
         <Text style={estilos.titulo}>Agregar Producto</Text>
@@ -223,6 +215,7 @@ export default function PantallaAgregarProducto() {
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
       >
+        {/* IMAGEN DEL PRODUCTO */}
         <TouchableOpacity
           style={estilos.imagenContainer}
           onPress={seleccionarImagen}
@@ -232,12 +225,13 @@ export default function PantallaAgregarProducto() {
             <Image source={{ uri: imagen }} style={estilos.imagen} />
           ) : (
             <View style={estilos.imagenPlaceholder}>
-              <FontAwesome5 name="camera" size={32} color={COLORES.textoGris} />
+              <FontAwesome5 name="camera" size={32} color={colores.textoGris} />
               <Text style={estilos.imagenTexto}>Tocar para agregar imagen</Text>
             </View>
           )}
         </TouchableOpacity>
 
+        {/* INFORMACIÓN BÁSICA */}
         <Text style={estilos.seccionTitulo}>INFORMACIÓN BÁSICA</Text>
 
         <Text style={estilos.label}>Nombre *</Text>
@@ -245,7 +239,8 @@ export default function PantallaAgregarProducto() {
           style={estilos.input}
           value={nombre}
           onChangeText={setNombre}
-          placeholderTextColor={COLORES.textoGris}
+          placeholder="Nombre del producto"
+          placeholderTextColor={colores.textoGris}
         />
 
         <Text style={estilos.label}>SKU</Text>
@@ -253,20 +248,22 @@ export default function PantallaAgregarProducto() {
           style={estilos.input}
           value={sku}
           onChangeText={setSku}
-          placeholderTextColor={COLORES.textoGris}
+          placeholder="Código SKU"
+          placeholderTextColor={colores.textoGris}
           autoCapitalize="characters"
         />
 
         <Text style={estilos.label}>Descripción</Text>
         <TextInput
-          style={[estilos.input, { minHeight: 60, textAlignVertical: "top" }]}
+          style={[estilos.input, estilos.inputMultilinea]}
           value={descripcion}
           onChangeText={setDescripcion}
-          placeholderTextColor={COLORES.textoGris}
+          placeholder="Descripción del producto"
+          placeholderTextColor={colores.textoGris}
           multiline
         />
 
-        {/* --- ACORDEÓN DE CATEGORÍAS (Idéntico a tu foto) --- */}
+        {/* ACORDEÓN DE CATEGORÍAS */}
         <Text style={estilos.label}>Categoría</Text>
         <View style={{ zIndex: 10 }}>
           <TouchableOpacity
@@ -281,8 +278,8 @@ export default function PantallaAgregarProducto() {
             <Text
               style={{
                 color: categoriaSeleccionada
-                  ? COLORES.textoBlanco
-                  : COLORES.textoGris,
+                  ? colores.textoBlanco
+                  : colores.textoGris,
                 fontSize: 16,
               }}
             >
@@ -293,7 +290,7 @@ export default function PantallaAgregarProducto() {
             <FontAwesome5
               name={desplegableCategoria ? "chevron-up" : "chevron-down"}
               size={14}
-              color={COLORES.textoGris}
+              color={colores.textoGris}
             />
           </TouchableOpacity>
 
@@ -313,12 +310,32 @@ export default function PantallaAgregarProducto() {
                   <Text style={estilos.textoCategoria}>Sin Categoría</Text>
                   {!categoriaSeleccionada && (
                     <FontAwesome5
-                      name="check-circle"
+                      name="check"
                       size={16}
-                      color={COLORES.primario}
-                      regular
+                      color={colores.primario}
                     />
                   )}
+                </TouchableOpacity>
+
+                {/* Botón Crear Categoría como en tu código viejo */}
+                <TouchableOpacity
+                  style={estilos.botonRapidoCrear}
+                  onPress={() => {
+                    setDesplegableCategoria(false);
+                    setModalNuevaCatVisible(true);
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <FontAwesome5
+                      name="plus"
+                      size={14}
+                      color={colores.primario}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={estilos.textoBotonRapido}>
+                      Crear Categoría
+                    </Text>
+                  </View>
                 </TouchableOpacity>
 
                 {categorias.map((item) => (
@@ -337,31 +354,14 @@ export default function PantallaAgregarProducto() {
                     <Text style={estilos.textoCategoria}>{item.nombre}</Text>
                     {categoriaSeleccionada?.id === item.id && (
                       <FontAwesome5
-                        name="check-circle"
+                        name="check"
                         size={16}
-                        color={COLORES.primario}
-                        regular
+                        color={colores.primario}
                       />
                     )}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-
-              <TouchableOpacity
-                style={estilos.botonRapidoCrear}
-                onPress={() => {
-                  setDesplegableCategoria(false);
-                  setModalNuevaCatVisible(true);
-                }}
-              >
-                <FontAwesome5
-                  name="plus"
-                  size={14}
-                  color={COLORES.primario}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={estilos.textoBotonRapido}>Crear Categoría</Text>
-              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -376,7 +376,7 @@ export default function PantallaAgregarProducto() {
               value={costo}
               onChangeText={setCosto}
               placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
               keyboardType="decimal-pad"
             />
           </View>
@@ -387,12 +387,13 @@ export default function PantallaAgregarProducto() {
               value={precio}
               onChangeText={setPrecio}
               placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
               keyboardType="decimal-pad"
             />
           </View>
         </View>
 
+        {/* Cuadro de Margen */}
         <View style={estilos.margenContainer}>
           <Text style={estilos.margenLabel}>Margen de ganancia:</Text>
           <Text style={estilos.margenValor}>{calcularMargen()}</Text>
@@ -408,7 +409,7 @@ export default function PantallaAgregarProducto() {
               value={stock}
               onChangeText={setStock}
               placeholder="0"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
               keyboardType="numeric"
             />
           </View>
@@ -419,7 +420,7 @@ export default function PantallaAgregarProducto() {
               value={stockMinimo}
               onChangeText={setStockMinimo}
               placeholder="10"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
               keyboardType="numeric"
             />
           </View>
@@ -434,14 +435,18 @@ export default function PantallaAgregarProducto() {
             value={codigoBarras}
             onChangeText={setCodigoBarras}
             placeholder="Escanear o ingresar"
-            placeholderTextColor={COLORES.textoGris}
+            placeholderTextColor={colores.textoGris}
             keyboardType="numeric"
           />
           <TouchableOpacity
             style={estilos.botonEscanear}
             onPress={() => router.push("/productos/escaner")}
           >
-            <FontAwesome5 name="camera" size={20} color={COLORES.textoOscuro} />
+            <FontAwesome5
+              name="barcode"
+              size={24}
+              color={colores.textoOscuro}
+            />
           </TouchableOpacity>
         </View>
 
@@ -451,10 +456,10 @@ export default function PantallaAgregarProducto() {
           value={proveedor}
           onChangeText={setProveedor}
           placeholder="Nombre del proveedor"
-          placeholderTextColor={COLORES.textoGris}
+          placeholderTextColor={colores.textoGris}
         />
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* FOOTER */}
@@ -465,7 +470,7 @@ export default function PantallaAgregarProducto() {
           disabled={cargando}
         >
           {cargando ? (
-            <ActivityIndicator color={COLORES.textoOscuro} />
+            <ActivityIndicator color={colores.textoOscuro} />
           ) : (
             <Text style={estilos.textoBotonGuardar}>Guardar Producto</Text>
           )}
@@ -490,16 +495,16 @@ export default function PantallaAgregarProducto() {
                 <FontAwesome5
                   name="times"
                   size={20}
-                  color={COLORES.textoGris}
+                  color={colores.textoGris}
                 />
               </TouchableOpacity>
             </View>
 
-            <Text style={estilos.label}>Nombre</Text>
+            <Text style={estilos.label}>Nombre de Categoría</Text>
             <TextInput
               style={estilos.inputModal}
               placeholder="Ej: Snacks, Bebidas..."
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
               value={nuevoNombreCategoria}
               onChangeText={setNuevoNombreCategoria}
               autoFocus
@@ -508,13 +513,14 @@ export default function PantallaAgregarProducto() {
             <TouchableOpacity
               style={[
                 estilos.botonGuardar,
+                { marginTop: 15 },
                 creandoCategoria && { opacity: 0.7 },
               ]}
               onPress={guardarNuevaCategoria}
               disabled={creandoCategoria}
             >
               {creandoCategoria ? (
-                <ActivityIndicator color={COLORES.textoOscuro} />
+                <ActivityIndicator color={colores.textoOscuro} />
               ) : (
                 <Text style={estilos.textoBotonGuardar}>
                   Crear y Seleccionar
@@ -528,185 +534,192 @@ export default function PantallaAgregarProducto() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  encabezado: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 15,
-  },
-  botonVolver: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  titulo: { fontSize: 20, fontWeight: "bold", color: COLORES.textoBlanco },
-  contenido: { padding: 20, paddingBottom: 40 },
+// 🔥 ESTILOS DINÁMICOS
+const crearEstilos = (c: any, isDark: boolean) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
+    encabezado: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingTop: Platform.OS === "ios" ? 60 : 40,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    botonVolver: {
+      width: 40,
+      height: 40,
+      justifyContent: "center",
+      alignItems: "flex-start",
+    },
+    titulo: { fontSize: 20, fontWeight: "bold", color: c.textoBlanco },
+    contenido: { padding: 20 },
 
-  imagenContainer: {
-    width: "100%",
-    aspectRatio: 1,
-    backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  imagen: { width: "100%", height: "100%", resizeMode: "cover" },
-  imagenPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  imagenTexto: { color: COLORES.textoGris, fontSize: 16, marginTop: 10 },
+    imagenContainer: {
+      width: "100%",
+      aspectRatio: 1,
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 16,
+      overflow: "hidden",
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    imagen: { width: "100%", height: "100%", resizeMode: "cover" },
+    imagenPlaceholder: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    imagenTexto: { color: c.textoGris, fontSize: 16, marginTop: 10 },
 
-  seccionTitulo: {
-    color: COLORES.secundarioVerde,
-    fontSize: 14,
-    fontWeight: "bold",
-    marginTop: 25,
-    marginBottom: 15,
-    letterSpacing: 1,
-  },
-  label: {
-    color: COLORES.textoGris,
-    fontSize: 14,
-    marginBottom: 8,
-    marginTop: 10,
-  },
-  input: {
-    backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 12,
-    padding: 16,
-    color: COLORES.textoBlanco,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  row: { flexDirection: "row", gap: 15 },
-  inputGroup: { flex: 1 },
+    seccionTitulo: {
+      color: c.subtitulos, // Títulos en Verde
+      fontSize: 14,
+      fontWeight: "bold",
+      marginTop: 10,
+      marginBottom: 5,
+      letterSpacing: 1,
+    },
+    label: { color: c.textoGris, fontSize: 14, marginBottom: 8, marginTop: 15 },
+    input: {
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 12,
+      padding: 16,
+      color: c.textoBlanco,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    inputMultilinea: { minHeight: 80, textAlignVertical: "top" },
+    row: { flexDirection: "row", gap: 15 },
+    inputGroup: { flex: 1 },
 
-  // Estilos del Acordeón de Categorías
-  selectorCategoria: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  selectorActivo: {
-    borderColor: COLORES.primario,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  },
-  desplegableContenedor: {
-    backgroundColor: COLORES.fondoTarjeta,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: COLORES.primario,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    overflow: "hidden",
-  },
-  itemCategoria: {
-    padding: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  itemCategoriaActiva: { backgroundColor: "rgba(212, 255, 0, 0.05)" },
-  textoCategoria: { color: COLORES.textoBlanco, fontSize: 16 },
-  botonRapidoCrear: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    backgroundColor: "rgba(212, 255, 0, 0.08)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(212, 255, 0, 0.2)",
-  },
-  textoBotonRapido: {
-    color: COLORES.primario,
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+    // Selector Categorías
+    selectorCategoria: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    selectorActivo: {
+      borderColor: c.primario,
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+    },
+    desplegableContenedor: {
+      backgroundColor: c.fondoTarjeta,
+      borderWidth: 1,
+      borderTopWidth: 0,
+      borderColor: c.primario,
+      borderBottomLeftRadius: 12,
+      borderBottomRightRadius: 12,
+      overflow: "hidden",
+    },
+    itemCategoria: {
+      padding: 15,
+      paddingHorizontal: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    itemCategoriaActiva: { backgroundColor: "rgba(212, 255, 0, 0.05)" },
+    textoCategoria: { color: c.textoBlanco, fontSize: 16 },
+    botonRapidoCrear: {
+      padding: 15,
+      backgroundColor: "rgba(212, 255, 0, 0.1)",
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    textoBotonRapido: { color: c.primario, fontWeight: "bold", fontSize: 16 },
 
-  margenContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: COLORES.secundarioVerde,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 20,
-  },
-  margenLabel: { color: COLORES.textoBlanco, fontSize: 16 },
-  margenValor: { color: COLORES.textoOscuro, fontSize: 20, fontWeight: "bold" },
+    // Margen
+    margenContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: isDark ? c.primario : "#D4FF4E", // Verde sólido en oscuro, claro en modo claro
+      padding: 16,
+      borderRadius: 12,
+      marginTop: 15,
+      borderWidth: isDark ? 0 : 1,
+      borderColor: c.primario,
+    },
+    margenLabel: {
+      color: isDark ? c.textoOscuro : c.textoBlanco,
+      fontSize: 16,
+    },
+    margenValor: {
+      color: isDark ? c.textoOscuro : c.textoBlanco,
+      fontSize: 20,
+      fontWeight: "bold",
+    },
 
-  botonEscanear: {
-    backgroundColor: COLORES.primario,
-    width: 55,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    botonEscanear: {
+      backgroundColor: c.primario,
+      width: 55,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    backgroundColor: COLORES.fondoOscuro,
-    paddingBottom: Platform.OS === "ios" ? 40 : 20,
-  },
-  botonGuardar: {
-    backgroundColor: COLORES.primario,
-    padding: 18,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  textoBotonGuardar: {
-    color: COLORES.textoOscuro,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+    footer: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      padding: 20,
+      backgroundColor: c.fondoOscuro,
+      paddingBottom: Platform.OS === "ios" ? 40 : 20,
+      borderTopWidth: 1,
+      borderTopColor: c.borde,
+    },
+    botonGuardar: {
+      backgroundColor: c.primario,
+      padding: 18,
+      borderRadius: 12,
+      alignItems: "center",
+    },
+    textoBotonGuardar: {
+      color: c.textoOscuro,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
 
-  // Modal Pequeño
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#1E1E1E",
-    borderRadius: 20,
-    padding: 25,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitulo: { color: COLORES.textoBlanco, fontSize: 20, fontWeight: "bold" },
-  inputModal: {
-    backgroundColor: COLORES.fondoOscuro,
-    borderRadius: 12,
-    padding: 16,
-    color: COLORES.textoBlanco,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    marginBottom: 25,
-  },
-});
+    // Modal
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      justifyContent: "center",
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 20,
+      padding: 25,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    modalTitulo: { color: c.textoBlanco, fontSize: 20, fontWeight: "bold" },
+    inputModal: {
+      backgroundColor: c.fondoOscuro,
+      borderRadius: 12,
+      padding: 16,
+      color: c.textoBlanco,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: c.borde,
+      marginTop: 5,
+    },
+  });

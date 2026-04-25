@@ -14,20 +14,8 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
+import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el tema global
 import api from "../../services/api";
-
-const COLORES = {
-  fondoOscuro: "#121212",
-  fondoTarjeta: "#1E1E1E",
-  fondoInput: "#1C1C1E",
-  primario: "#D4FF00",
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#121212",
-  borde: "#2C2C2E",
-  error: "#FF3B30",
-  acentoAzul: "#00D1FF", // Agregado para ventas
-};
 
 interface Producto {
   id: string;
@@ -39,6 +27,13 @@ interface Producto {
 export default function PantallaAjusteStock() {
   const router = useRouter();
   const { user } = useAuth();
+
+  // 🔥 Conectamos al Tema Global
+  const { colores, isDark } = useTheme();
+  const estilos = useMemo(
+    () => crearEstilos(colores, isDark),
+    [colores, isDark],
+  );
 
   // Estados
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -139,24 +134,16 @@ export default function PantallaAjusteStock() {
     setGuardando(true);
     try {
       const payload = {
-        productoId: productoId, // El controlador espera estrictamente esto
-        // La matemática: Envíamos positivo para entrada, negativo para salida
+        productoId: productoId,
         cantidad: tipo === "ajuste_entrada" ? cant : -cant,
-        tipo: tipo, // 'ajuste_entrada' o 'ajuste_salida'
+        tipo: tipo,
         motivo: motivo,
-        // El controller extrae el usuario_id del JWT (Auth::check()),
-        // pero podemos enviarlo por si acaso si tu Auth middleware lo necesita en el payload
       };
 
-      console.log("🚀 ENVIANDO A LA RUTA CORRECTA:", payload);
-
-      // 🔥 EL CAMBIO MAESTRO: La ruta correcta que está en api.php
       const respuestaBackend: any = await api.post(
         "/productos/ajustar",
         payload,
       );
-
-      console.log("✅ RESPUESTA PHP:", respuestaBackend);
 
       if (respuestaBackend && respuestaBackend.success) {
         Alert.alert("Éxito", "Movimiento registrado correctamente");
@@ -170,7 +157,6 @@ export default function PantallaAjusteStock() {
         throw new Error(respuestaBackend?.error || "Error desconocido");
       }
     } catch (error: any) {
-      console.log("❌ ERROR ATRAPADO:", error.message);
       Alert.alert(
         "Error",
         error.message || "No se pudo registrar el movimiento",
@@ -193,41 +179,37 @@ export default function PantallaAjusteStock() {
     });
   };
 
-  // Utilidad para recuperar el icono y color según el tipo de movimiento
-  const obtenerDetallesMovimiento = (tipoMov: string, cantidad: number) => {
+  // Restauramos los colores originales para los badges
+  const obtenerDetallesMovimiento = (tipoMov: string, cant: number) => {
     switch (tipoMov) {
       case "venta":
-        return {
-          icono: "shopping-cart",
-          color: COLORES.acentoAzul,
-          texto: "Venta",
-        };
+        return { icono: "shopping-cart", color: "#00D1FF", texto: "Venta" };
       case "compra":
-        return { icono: "truck", color: COLORES.primario, texto: "Compra" };
+        return { icono: "truck", color: colores.primario, texto: "Compra" };
       case "ajuste_entrada":
         return {
           icono: "plus-circle",
-          color: COLORES.primario,
+          color: colores.primario,
           texto: "Ajuste (+)",
         };
       case "ajuste_salida":
         return {
           icono: "minus-circle",
-          color: COLORES.error,
+          color: colores.error,
           texto: "Ajuste (-)",
         };
       case "devolucion":
         return {
           icono: "undo-alt",
-          color: COLORES.primario,
+          color: colores.primario,
           texto: "Devolución",
         };
       case "inicial":
-        return { icono: "flag", color: COLORES.textoBlanco, texto: "Inicial" };
+        return { icono: "flag", color: colores.textoBlanco, texto: "Inicial" };
       default:
         return {
           icono: "exchange-alt",
-          color: cantidad > 0 ? COLORES.primario : COLORES.error,
+          color: cant > 0 ? colores.primario : colores.error,
           texto: "Movimiento",
         };
     }
@@ -246,7 +228,7 @@ export default function PantallaAjusteStock() {
           <FontAwesome5
             name="chevron-left"
             size={20}
-            color={COLORES.textoBlanco}
+            color={colores.textoBlanco}
           />
         </TouchableOpacity>
         <Text style={estilos.titulo}>Movimientos de Inventario</Text>
@@ -259,9 +241,9 @@ export default function PantallaAjusteStock() {
         keyboardShouldPersistTaps="handled"
       >
         {/* --- FORMULARIO AJUSTE --- */}
-        <Text style={estilos.seccionTitulo}>REGISTRAR AJUSTE MANUAL</Text>
+        <View style={estilos.cardFormulario}>
+          <Text style={estilos.tituloSeccion}>REGISTRAR AJUSTE MANUAL</Text>
 
-        <View style={estilos.tarjetaFormulario}>
           <Text style={estilos.label}>Producto</Text>
           <TouchableOpacity
             style={estilos.selector}
@@ -282,7 +264,7 @@ export default function PantallaAjusteStock() {
             <FontAwesome5
               name={desplegableAbierto ? "chevron-up" : "chevron-down"}
               size={16}
-              color={COLORES.textoGris}
+              color={colores.textoGris}
             />
           </TouchableOpacity>
 
@@ -292,14 +274,14 @@ export default function PantallaAjusteStock() {
               <TextInput
                 style={estilos.inputBusqueda}
                 placeholder="Buscar producto..."
-                placeholderTextColor={COLORES.textoGris}
+                placeholderTextColor={colores.textoGris}
                 value={busquedaProducto}
                 onChangeText={setBusquedaProducto}
               />
               <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                 {cargando ? (
                   <ActivityIndicator
-                    color={COLORES.primario}
+                    color={colores.primario}
                     style={{ padding: 20 }}
                   />
                 ) : (
@@ -327,13 +309,13 @@ export default function PantallaAjusteStock() {
           {productoSeleccionado && (
             <Text style={estilos.infoStock}>
               Stock Actual:{" "}
-              <Text style={{ fontWeight: "bold", color: COLORES.primario }}>
+              <Text style={{ fontWeight: "bold", color: colores.primario }}>
                 {productoSeleccionado.stock}
               </Text>
             </Text>
           )}
 
-          {/* TIPO Y CANTIDAD */}
+          {/* TIPO Y CANTIDAD (Estilo Switch Integrado Original) */}
           <View style={estilos.filaInputs}>
             <View style={{ flex: 1 }}>
               <Text style={estilos.label}>Tipo</Text>
@@ -342,7 +324,7 @@ export default function PantallaAjusteStock() {
                   style={[
                     estilos.opcionTipo,
                     tipo === "ajuste_entrada" && estilos.tipoEntradaActivo,
-                    { borderTopLeftRadius: 10, borderBottomLeftRadius: 10 },
+                    { borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
                   ]}
                   onPress={() => setTipo("ajuste_entrada")}
                 >
@@ -350,8 +332,8 @@ export default function PantallaAjusteStock() {
                     style={[
                       estilos.textoTipo,
                       tipo === "ajuste_entrada"
-                        ? { color: COLORES.textoOscuro }
-                        : { color: COLORES.textoGris },
+                        ? { color: colores.textoOscuro }
+                        : { color: colores.textoGris },
                     ]}
                   >
                     Entrada
@@ -361,7 +343,7 @@ export default function PantallaAjusteStock() {
                   style={[
                     estilos.opcionTipo,
                     tipo === "ajuste_salida" && estilos.tipoSalidaActivo,
-                    { borderTopRightRadius: 10, borderBottomRightRadius: 10 },
+                    { borderTopRightRadius: 8, borderBottomRightRadius: 8 },
                   ]}
                   onPress={() => setTipo("ajuste_salida")}
                 >
@@ -369,8 +351,8 @@ export default function PantallaAjusteStock() {
                     style={[
                       estilos.textoTipo,
                       tipo === "ajuste_salida"
-                        ? { color: COLORES.textoBlanco }
-                        : { color: COLORES.textoGris },
+                        ? { color: colores.textoBlanco }
+                        : { color: colores.textoGris },
                     ]}
                   >
                     Salida
@@ -387,7 +369,7 @@ export default function PantallaAjusteStock() {
                 value={cantidad}
                 onChangeText={setCantidad}
                 placeholder="0"
-                placeholderTextColor={COLORES.textoGris}
+                placeholderTextColor={colores.textoGris}
               />
             </View>
           </View>
@@ -398,15 +380,15 @@ export default function PantallaAjusteStock() {
             value={motivo}
             onChangeText={setMotivo}
             placeholder="Ej. Compra, Merma, Error..."
-            placeholderTextColor={COLORES.textoGris}
+            placeholderTextColor={colores.textoGris}
           />
 
           <TouchableOpacity
             style={[
               estilos.botonRegistrar,
               tipo === "ajuste_entrada"
-                ? { backgroundColor: COLORES.primario }
-                : { backgroundColor: COLORES.error },
+                ? { backgroundColor: colores.primario }
+                : { backgroundColor: colores.error },
               guardando && { opacity: 0.7 },
             ]}
             onPress={handleRegistrar}
@@ -417,8 +399,8 @@ export default function PantallaAjusteStock() {
               <ActivityIndicator
                 color={
                   tipo === "ajuste_entrada"
-                    ? COLORES.textoOscuro
-                    : COLORES.textoBlanco
+                    ? colores.textoOscuro
+                    : colores.textoBlanco
                 }
               />
             ) : (
@@ -426,8 +408,8 @@ export default function PantallaAjusteStock() {
                 style={[
                   estilos.textoBotonRegistrar,
                   tipo === "ajuste_entrada"
-                    ? { color: COLORES.textoOscuro }
-                    : { color: COLORES.textoBlanco },
+                    ? { color: colores.textoOscuro }
+                    : { color: colores.textoBlanco },
                 ]}
               >
                 REGISTRAR MOVIMIENTO
@@ -438,10 +420,19 @@ export default function PantallaAjusteStock() {
 
         {/* --- HISTORIAL / KARDEX --- */}
         <View style={estilos.headerHistorial}>
-          <Text style={[estilos.seccionTitulo, { marginBottom: 0 }]}>
-            KARDEX DEL PRODUCTO
+          <Text style={[estilos.tituloSeccion, { marginBottom: 0 }]}>
+            KARDEX / HISTORIAL
           </Text>
         </View>
+
+        {/* Banner verde al estilo viejo */}
+        {productoSeleccionado && (
+          <View style={estilos.bannerFiltro}>
+            <Text style={estilos.textoBannerFiltro}>
+              Viendo historial de: {productoSeleccionado.nombre}
+            </Text>
+          </View>
+        )}
 
         {!productoId ? (
           <View style={{ alignItems: "center", paddingVertical: 20 }}>
@@ -452,7 +443,7 @@ export default function PantallaAjusteStock() {
         ) : cargandoKardex ? (
           <ActivityIndicator
             size="large"
-            color={COLORES.primario}
+            color={colores.primario}
             style={{ marginTop: 20 }}
           />
         ) : movimientos.length > 0 ? (
@@ -467,7 +458,7 @@ export default function PantallaAjusteStock() {
                   <FontAwesome5
                     name={detalles.icono}
                     size={20}
-                    color={detalles.color}
+                    color={colores.textoGris}
                   />
                 </View>
                 <View style={estilos.colInfo}>
@@ -484,7 +475,7 @@ export default function PantallaAjusteStock() {
                     }}
                   >
                     <Text style={[estilos.movTipo, { color: detalles.color }]}>
-                      {detalles.texto.toUpperCase()}
+                      {detalles.texto}
                     </Text>
                     <Text style={estilos.movFecha}>
                       {" "}
@@ -497,7 +488,7 @@ export default function PantallaAjusteStock() {
                   {item.usuario_nombre && (
                     <Text
                       style={{
-                        color: COLORES.textoGris,
+                        color: colores.textoGris,
                         fontSize: 10,
                         marginTop: 2,
                       }}
@@ -510,13 +501,12 @@ export default function PantallaAjusteStock() {
                   <Text
                     style={[
                       estilos.movCantidadGrande,
-                      { color: esEntrada ? COLORES.primario : COLORES.error },
+                      { color: esEntrada ? colores.primario : colores.error },
                     ]}
                   >
                     {esEntrada ? "+" : ""}
                     {cantNum}
                   </Text>
-                  {/* AQUÍ SE RECUPERÓ LA TRANSICIÓN DE STOCK DEL CÓDIGO VIEJO */}
                   <Text style={estilos.movStockSaldo}>
                     {item.stock_anterior ?? "-"} → {item.stock_nuevo ?? "-"}
                   </Text>
@@ -536,160 +526,184 @@ export default function PantallaAjusteStock() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  encabezado: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
-  },
-  botonVolver: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  titulo: { fontSize: 20, fontWeight: "bold", color: COLORES.textoBlanco },
-  contenido: { padding: 20 },
+// 🔥 ESTILOS DINÁMICOS
+const crearEstilos = (c: any, isDark: boolean) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
+    encabezado: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingTop: Platform.OS === "ios" ? 60 : 40,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    botonVolver: {
+      width: 40,
+      height: 40,
+      justifyContent: "center",
+      alignItems: "flex-start",
+    },
+    titulo: { fontSize: 20, fontWeight: "bold", color: c.textoBlanco },
+    contenido: { padding: 20 },
 
-  seccionTitulo: {
-    color: COLORES.textoGris,
-    fontSize: 12,
-    fontWeight: "bold",
-    marginBottom: 10,
-    letterSpacing: 1,
-  },
-  tarjetaFormulario: { marginBottom: 30 },
-  label: {
-    color: COLORES.textoGris,
-    fontSize: 13,
-    marginBottom: 6,
-    marginTop: 10,
-  },
+    cardFormulario: {
+      backgroundColor: c.fondoTarjeta,
+      padding: 15,
+      borderRadius: 16,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    tituloSeccion: {
+      color: c.textoGris,
+      fontSize: 12,
+      fontWeight: "bold",
+      marginBottom: 10,
+      letterSpacing: 1,
+    },
+    label: { color: c.textoGris, fontSize: 12, marginBottom: 5, marginTop: 10 },
 
-  selector: {
-    backgroundColor: COLORES.fondoTarjeta,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  textoSelector: { color: COLORES.textoBlanco, fontSize: 16 },
-  placeholderSelector: { color: COLORES.textoGris, fontSize: 16 },
-  infoStock: {
-    color: COLORES.textoGris,
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: "right",
-  },
+    selector: {
+      backgroundColor: c.fondoOscuro,
+      padding: 15,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.borde,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    textoSelector: { color: c.textoBlanco, fontSize: 15 },
+    placeholderSelector: { color: c.textoGris, fontSize: 15 },
+    infoStock: {
+      color: c.textoGris,
+      fontSize: 12,
+      marginTop: 8,
+      textAlign: "right",
+    },
 
-  dropdown: {
-    backgroundColor: COLORES.fondoTarjeta,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    borderRadius: 12,
-    marginTop: 5,
-    overflow: "hidden",
-  },
-  inputBusqueda: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
-    color: COLORES.textoBlanco,
-    fontSize: 15,
-  },
-  itemDropdown: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  textoItemDropdown: { color: COLORES.textoBlanco, fontSize: 15 },
-  stockItemDropdown: { color: COLORES.primario, fontWeight: "bold" },
+    dropdown: {
+      backgroundColor: c.fondoOscuro,
+      borderWidth: 1,
+      borderColor: c.borde,
+      borderRadius: 12,
+      marginTop: 5,
+      overflow: "hidden",
+    },
+    inputBusqueda: {
+      padding: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+      color: c.textoBlanco,
+      fontSize: 15,
+    },
+    itemDropdown: {
+      padding: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    textoItemDropdown: { color: c.textoBlanco, fontSize: 15 },
+    stockItemDropdown: { color: c.primario, fontWeight: "bold" },
 
-  filaInputs: { flexDirection: "row", gap: 15, marginTop: 5 },
-  input: {
-    backgroundColor: COLORES.fondoTarjeta,
-    color: COLORES.textoBlanco,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    fontSize: 16,
-  },
+    filaInputs: { flexDirection: "row", gap: 15, marginTop: 5 },
+    input: {
+      backgroundColor: c.fondoOscuro,
+      color: c.textoBlanco,
+      padding: 14,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borde,
+      fontSize: 16,
+    },
 
-  switchTipo: {
-    flexDirection: "row",
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    backgroundColor: COLORES.fondoTarjeta,
-  },
-  opcionTipo: { flex: 1, justifyContent: "center", alignItems: "center" },
-  tipoEntradaActivo: { backgroundColor: COLORES.primario },
-  tipoSalidaActivo: { backgroundColor: COLORES.error },
-  textoTipo: { fontWeight: "bold", fontSize: 15 },
+    // Switch de Entrada/Salida
+    switchTipo: {
+      flexDirection: "row",
+      height: 52,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.borde,
+      backgroundColor: c.fondoOscuro,
+    },
+    opcionTipo: { flex: 1, justifyContent: "center", alignItems: "center" },
+    tipoEntradaActivo: { backgroundColor: c.primario },
+    tipoSalidaActivo: { backgroundColor: c.error },
+    textoTipo: { fontWeight: "bold", fontSize: 14 },
 
-  botonRegistrar: {
-    padding: 18,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 25,
-  },
-  textoBotonRegistrar: { fontSize: 16, fontWeight: "900" },
+    botonRegistrar: {
+      padding: 18,
+      borderRadius: 12,
+      alignItems: "center",
+      marginTop: 25,
+    },
+    textoBotonRegistrar: { fontSize: 16, fontWeight: "900" },
 
-  headerHistorial: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
+    headerHistorial: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+      marginTop: 10,
+    },
 
-  itemMovimiento: {
-    flexDirection: "row",
-    backgroundColor: COLORES.fondoTarjeta,
-    padding: 15,
-    borderRadius: 16,
-    marginBottom: 10,
-    alignItems: "center",
-  },
-  colImagen: {
-    width: 45,
-    height: 45,
-    borderRadius: 12,
-    backgroundColor: COLORES.fondoOscuro,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  colInfo: { flex: 1, paddingHorizontal: 15 },
-  movProductoNombre: {
-    color: COLORES.textoBlanco,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  movTipo: { fontSize: 11, fontWeight: "bold" },
-  movFecha: { color: COLORES.textoGris, fontSize: 11 },
-  movMotivo: {
-    color: COLORES.textoGris,
-    fontSize: 13,
-    fontStyle: "italic",
-    marginTop: 4,
-  },
+    bannerFiltro: {
+      backgroundColor: isDark ? "rgba(212, 255, 0, 0.1)" : c.primario,
+      padding: 12,
+      borderRadius: 10,
+      marginBottom: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: c.primario,
+    },
+    textoBannerFiltro: {
+      color: isDark ? c.primario : c.textoOscuro,
+      fontWeight: "bold",
+      fontSize: 13,
+    },
 
-  colCantidades: { alignItems: "flex-end" },
-  movCantidadGrande: { fontWeight: "900", fontSize: 18 },
-  movStockSaldo: { color: COLORES.textoGris, fontSize: 11, marginTop: 2 },
+    itemMovimiento: {
+      flexDirection: "row",
+      backgroundColor: c.fondoTarjeta,
+      padding: 15,
+      borderRadius: 16,
+      marginBottom: 10,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    colImagen: {
+      width: 45,
+      height: 45,
+      borderRadius: 12,
+      backgroundColor: c.fondoOscuro,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    colInfo: { flex: 1, paddingHorizontal: 15 },
+    movProductoNombre: {
+      color: c.textoBlanco,
+      fontWeight: "bold",
+      fontSize: 15,
+    },
+    movTipo: { fontSize: 11, fontWeight: "bold" },
+    movFecha: { color: c.textoGris, fontSize: 11 },
+    movMotivo: {
+      color: c.textoGris,
+      fontSize: 13,
+      fontStyle: "italic",
+      marginTop: 4,
+    },
 
-  vacio: { color: COLORES.textoGris, textAlign: "center", marginTop: 20 },
-});
+    colCantidades: { alignItems: "flex-end" },
+    movCantidadGrande: { fontWeight: "900", fontSize: 18 },
+    movStockSaldo: { color: c.textoGris, fontSize: 11, marginTop: 2 },
+
+    vacio: { color: c.textoGris, textAlign: "center", marginTop: 20 },
+  });

@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@/contexts/ContextTheme";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -45,8 +46,10 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <ContextoAutenticacionProvider>
-      <RootLayoutContent />
-    </ContextoAutenticacionProvider>
+    <ThemeProvider>
+      <ContextoAutenticacionProvider>
+        <RootLayoutContent />
+      </ContextoAutenticacionProvider>
+    </ThemeProvider>
   );
 }

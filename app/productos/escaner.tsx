@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useTheme } from "../../contexts/ContextTheme";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,23 +10,17 @@ import {
   DeviceEventEmitter,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import { FontAwesome5 } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
-// --- TEMA HARDCODEADO ---
-const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  primario: "#D4FF00", // Verde Neón
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  error: "#FF3B30",
-};
-
 export default function PantallaEscaner() {
   const router = useRouter();
-  const params = useLocalSearchParams(); // Para recibir parámetros por URL (ej. modo=buscar o modo=agregar)
+
+  // 🔥 Conectamos al Tema Global
+  const { colores } = useTheme();
+  const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   const [permission, requestPermission] = useCameraPermissions();
   const [escaneado, setEscaneado] = useState(false);
@@ -36,7 +31,6 @@ export default function PantallaEscaner() {
   const [zoom, setZoom] = useState(0);
 
   useEffect(() => {
-    // Pequeño delay para asegurar que la UI se monte antes de encender la cámara
     const timeout = setTimeout(() => setCameraReady(true), 500);
     return () => {
       clearTimeout(timeout);
@@ -49,10 +43,6 @@ export default function PantallaEscaner() {
 
     scannerLock.current = true;
     setEscaneado(true);
-
-    // Si pasamos un parámetro 'modo=agregar' por la URL, podríamos devolver el dato.
-    // En Expo Router, devolver datos a la pantalla anterior es un poco distinto,
-    // pero por ahora mostraremos una alerta con el código leído.
 
     Alert.alert("Código Escaneado", `Código: ${data}`, [
       {
@@ -76,7 +66,6 @@ export default function PantallaEscaner() {
   const changeZoom = (delta: number) =>
     setZoom((prev) => Math.min(Math.max(prev + delta, 0), 1));
 
-  // Manejo de Permisos
   if (!permission) {
     return (
       <View style={estilos.contenedorCarga}>
@@ -91,7 +80,7 @@ export default function PantallaEscaner() {
         <FontAwesome5
           name="camera"
           size={50}
-          color={COLORES.textoGris}
+          color={colores.textoGris}
           style={{ marginBottom: 20 }}
         />
         <Text style={estilos.textoPermiso}>
@@ -127,9 +116,7 @@ export default function PantallaEscaner() {
         <View style={[StyleSheet.absoluteFill, { backgroundColor: "black" }]} />
       )}
 
-      {/* Capa UI sobre la cámara */}
       <View style={estilos.uiOverlay}>
-        {/* Cabecera con controles */}
         <View style={estilos.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -164,13 +151,12 @@ export default function PantallaEscaner() {
               <FontAwesome5
                 name="bolt"
                 size={16}
-                color={torch ? COLORES.textoOscuro : "#FFF"}
+                color={torch ? colores.textoOscuro : "#FFF"}
               />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Marco Central de Escaneo */}
         <View style={estilos.centro}>
           <View style={estilos.marco} />
           <View style={estilos.instruccionContainer}>
@@ -184,97 +170,93 @@ export default function PantallaEscaner() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: "black" },
-  contenedorCarga: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORES.fondoOscuro,
-  },
-  textoCarga: { color: COLORES.textoBlanco },
+const crearEstilos = (c: any) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: "black" },
+    contenedorCarga: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: c.fondoOscuro,
+    },
+    textoCarga: { color: c.textoBlanco },
+    contenedorPermiso: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: c.fondoOscuro,
+      padding: 20,
+    },
+    textoPermiso: {
+      color: c.textoBlanco,
+      textAlign: "center",
+      marginBottom: 30,
+      fontSize: 16,
+    },
+    botonPermiso: {
+      backgroundColor: c.primario,
+      paddingHorizontal: 30,
+      paddingVertical: 15,
+      borderRadius: 12,
+      marginBottom: 20,
+    },
+    textoBotonPermiso: {
+      color: c.textoOscuro,
+      fontWeight: "bold",
+      fontSize: 16,
+    },
+    botonCancelar: { padding: 15 },
+    textoCancelar: { color: c.textoGris, fontSize: 16 },
 
-  // Permisos
-  contenedorPermiso: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORES.fondoOscuro,
-    padding: 20,
-  },
-  textoPermiso: {
-    color: COLORES.textoBlanco,
-    textAlign: "center",
-    marginBottom: 30,
-    fontSize: 16,
-  },
-  botonPermiso: {
-    backgroundColor: COLORES.primario,
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  textoBotonPermiso: {
-    color: COLORES.textoOscuro,
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  botonCancelar: { padding: 15 },
-  textoCancelar: { color: COLORES.textoGris, fontSize: 16 },
+    uiOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "space-between",
+      paddingVertical: 50,
+      zIndex: 10,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      alignItems: "center",
+      paddingTop: 20,
+    },
+    botonIcono: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      justifyContent: "center",
+      alignItems: "center",
+      marginHorizontal: 5,
+    },
+    botonIconoActivo: { backgroundColor: c.primario },
+    controlesSuperiores: { flexDirection: "row", alignItems: "center" },
+    indicadorZoom: {
+      backgroundColor: "rgba(0,0,0,0.6)",
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginHorizontal: 5,
+    },
+    textoZoom: { color: "white", fontSize: 12, fontWeight: "bold" },
 
-  // Interfaz de Cámara
-  uiOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "space-between",
-    paddingVertical: 50,
-    zIndex: 10,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    alignItems: "center",
-    paddingTop: 20,
-  },
-
-  botonIcono: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 5,
-  },
-  botonIconoActivo: { backgroundColor: COLORES.primario },
-
-  controlesSuperiores: { flexDirection: "row", alignItems: "center" },
-  indicadorZoom: {
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginHorizontal: 5,
-  },
-  textoZoom: { color: "white", fontSize: 12, fontWeight: "bold" },
-
-  centro: { alignItems: "center", justifyContent: "center", flex: 1 },
-  marco: {
-    width: width * 0.7,
-    height: width * 0.4,
-    borderWidth: 3,
-    borderColor: COLORES.primario,
-    borderRadius: 20,
-    backgroundColor: "transparent",
-  },
-
-  instruccionContainer: {
-    marginTop: 30,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  instruccion: { color: "white", textAlign: "center", fontWeight: "bold" },
-});
+    centro: { alignItems: "center", justifyContent: "center", flex: 1 },
+    // 🔥 RESTAURADO EL MARCO CUADRADO DEL ESCÁNER ORIGINAL
+    marco: {
+      width: width * 0.7,
+      height: width * 0.7,
+      borderWidth: 3,
+      borderColor: c.primario,
+      borderRadius: 20,
+      backgroundColor: "transparent",
+    },
+    instruccionContainer: {
+      marginTop: 30,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 20,
+    },
+    instruccion: { color: "white", textAlign: "center", fontWeight: "bold" },
+  });

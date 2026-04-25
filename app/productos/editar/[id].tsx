@@ -1,7 +1,7 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,23 +16,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "../../../contexts/ContextTheme";
 import api from "../../../services/api";
 
-const COLORES = {
-  fondoOscuro: "#121212", // Negro profundo de la foto
-  fondoTarjeta: "#1E1E1E", // Gris oscuro para inputs
-  primario: "#D4FF00", // Verde Neón
-  secundarioVerde: "#8FBF13", // Verde oliva de los títulos de sección
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#121212",
-  borde: "#2C2C2E",
-  error: "#FF3B30",
-};
-
-// Asumiendo tu IP local para las fotos
+// Asumiendo tu IP local para las fotos del servidor
 const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 interface Categoria {
@@ -43,6 +33,14 @@ interface Categoria {
 export default function PantallaEditarProducto() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
+
+  // 🔥 Conectamos al Tema Global
+  const { colores, isDark } = useTheme();
+  const estilos = useMemo(
+    () => crearEstilos(colores, isDark),
+    [colores, isDark],
+  );
 
   const [cargandoInicial, setCargandoInicial] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -68,7 +66,6 @@ export default function PantallaEditarProducto() {
     useState<Categoria | null>(null);
   const [modalCategoriasVisible, setModalCategoriasVisible] = useState(false);
 
-  // 1. Cargar datos del producto y categorías al abrir
   useEffect(() => {
     const cargarDatos = async () => {
       try {
@@ -77,10 +74,7 @@ export default function PantallaEditarProducto() {
           api.get("/categorias"),
         ]);
 
-        // Poblar Categorías
         setCategorias(resCategorias || []);
-
-        // Poblar Producto
         setNombre(resProducto.nombre || "");
         setSku(resProducto.sku || "");
         setDescripcion(resProducto.descripcion || "");
@@ -92,10 +86,14 @@ export default function PantallaEditarProducto() {
         setProveedor(resProducto.proveedor || "");
 
         if (resProducto.imagen) {
-          setImagen(`${API_URL_UPLOADS}${resProducto.imagen}`);
+          // Lógica de URL para imagen existente
+          setImagen(
+            resProducto.imagen.startsWith("http")
+              ? resProducto.imagen
+              : `${API_URL_UPLOADS}${resProducto.imagen}`,
+          );
         }
 
-        // Buscar si el producto tenía una categoría y setearla
         if (resProducto.categoria_id && resCategorias) {
           const catEncontrada = resCategorias.find(
             (c: any) => String(c.id) === String(resProducto.categoria_id),
@@ -103,10 +101,7 @@ export default function PantallaEditarProducto() {
           if (catEncontrada) setCategoriaSeleccionada(catEncontrada);
         }
       } catch (error: any) {
-        Alert.alert(
-          "Error",
-          "No se pudo cargar el producto. Puede que haya sido eliminado.",
-        );
+        Alert.alert("Error", "No se pudo cargar el producto.");
         router.back();
       } finally {
         setCargandoInicial(false);
@@ -122,11 +117,9 @@ export default function PantallaEditarProducto() {
       },
     );
 
-    // Limpiamos la escucha cuando la pantalla se cierra
     return () => suscripcion.remove();
   }, [id]);
 
-  // 2. Manejar Imagen
   const seleccionarImagen = async () => {
     Alert.alert("Imagen", "¿De dónde quieres obtener la imagen?", [
       { text: "Cancelar", style: "cancel" },
@@ -134,10 +127,7 @@ export default function PantallaEditarProducto() {
         text: "Tomar Foto",
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") {
-            Alert.alert("Permiso denegado", "Necesitamos acceso a la cámara.");
-            return;
-          }
+          if (status !== "granted") return;
           const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
             aspect: [1, 1],
@@ -172,7 +162,6 @@ export default function PantallaEditarProducto() {
     ]);
   };
 
-  // 3. Guardar Cambios (Update)
   const guardarCambios = async () => {
     if (!nombre.trim() || !precio) {
       Alert.alert("Error", "El nombre y precio son obligatorios.");
@@ -182,7 +171,6 @@ export default function PantallaEditarProducto() {
     setGuardando(true);
     try {
       const payload: any = {
-        id: id,
         nombre: nombre.trim(),
         sku: sku.trim(),
         descripcion: descripcion.trim(),
@@ -199,8 +187,7 @@ export default function PantallaEditarProducto() {
       }
 
       await api.put(`/productos/${id}`, payload);
-
-      Alert.alert("Éxito", "Producto actualizado", [
+      Alert.alert("Éxito", "Producto actualizado correctamente", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (error: any) {
@@ -210,11 +197,10 @@ export default function PantallaEditarProducto() {
     }
   };
 
-  // 4. Eliminar Producto
   const manejarEliminar = () => {
     Alert.alert(
       "Eliminar Producto",
-      "¿Seguro que deseas eliminarlo? Esto no se puede deshacer.",
+      "¿Seguro que deseas eliminarlo? Esta acción no se puede deshacer.",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -224,11 +210,9 @@ export default function PantallaEditarProducto() {
             setGuardando(true);
             try {
               await api.delete(`/productos/${id}`);
-              Alert.alert("Eliminado", "Producto borrado.", [
-                { text: "OK", onPress: () => router.back() },
-              ]);
+              router.back();
             } catch (e: any) {
-              Alert.alert("Error", e.message || "No se pudo eliminar.");
+              Alert.alert("Error", "No se pudo eliminar el producto.");
               setGuardando(false);
             }
           },
@@ -241,13 +225,13 @@ export default function PantallaEditarProducto() {
     const c = parseFloat(costo.toString().replace(",", ".")) || 0;
     const p = parseFloat(precio.toString().replace(",", ".")) || 0;
     if (c === 0) return "0%";
-    return `${(((p - c) / c) * 100).toFixed(0)}%`;
+    return `${(((p - c) / c) * 100).toFixed(1)}%`;
   };
 
   if (cargandoInicial) {
     return (
       <View style={[estilos.contenedor, { justifyContent: "center" }]}>
-        <ActivityIndicator size="large" color={COLORES.primario} />
+        <ActivityIndicator size="large" color={colores.primario} />
       </View>
     );
   }
@@ -265,7 +249,7 @@ export default function PantallaEditarProducto() {
           <FontAwesome5
             name="chevron-left"
             size={20}
-            color={COLORES.textoBlanco}
+            color={colores.textoBlanco}
           />
         </TouchableOpacity>
         <Text style={estilos.titulo}>Editar Producto</Text>
@@ -276,23 +260,26 @@ export default function PantallaEditarProducto() {
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
       >
-        {/* IMAGEN DEL PRODUCTO */}
+        {/* IMAGEN */}
         <TouchableOpacity
           style={estilos.imagenContainer}
           onPress={seleccionarImagen}
           activeOpacity={0.8}
         >
           {imagen ? (
-            <Image source={{ uri: imagen }} style={estilos.imagen} />
+            <Image
+              source={{ uri: imagen }}
+              style={estilos.imagen}
+              key={imagen}
+            />
           ) : (
             <View style={estilos.imagenPlaceholder}>
-              <FontAwesome5 name="camera" size={32} color={COLORES.textoGris} />
-              <Text style={estilos.imagenTexto}>Cambiar foto</Text>
+              <FontAwesome5 name="camera" size={32} color={colores.textoGris} />
+              <Text style={estilos.imagenTexto}>Tocar para cambiar imagen</Text>
             </View>
           )}
         </TouchableOpacity>
 
-        {/* INFO BÁSICA */}
         <Text style={estilos.seccionTitulo}>INFORMACIÓN BÁSICA</Text>
 
         <Text style={estilos.label}>Nombre *</Text>
@@ -300,8 +287,7 @@ export default function PantallaEditarProducto() {
           style={estilos.input}
           value={nombre}
           onChangeText={setNombre}
-          placeholder="Nombre del producto"
-          placeholderTextColor={COLORES.textoGris}
+          placeholderTextColor={colores.textoGris}
         />
 
         <Text style={estilos.label}>SKU</Text>
@@ -309,38 +295,30 @@ export default function PantallaEditarProducto() {
           style={estilos.input}
           value={sku}
           onChangeText={setSku}
-          placeholder="Código SKU"
-          placeholderTextColor={COLORES.textoGris}
+          placeholderTextColor={colores.textoGris}
           autoCapitalize="characters"
         />
 
         <Text style={estilos.label}>Descripción</Text>
         <TextInput
-          style={[estilos.input, { minHeight: 60, textAlignVertical: "top" }]}
+          style={[estilos.input, { minHeight: 80, textAlignVertical: "top" }]}
           value={descripcion}
           onChangeText={setDescripcion}
-          placeholder="Descripción del producto"
-          placeholderTextColor={COLORES.textoGris}
+          placeholderTextColor={colores.textoGris}
           multiline
+          numberOfLines={3}
         />
 
         <Text style={estilos.label}>Categoría</Text>
         <TouchableOpacity
-          style={[
-            estilos.input,
-            {
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            },
-          ]}
+          style={estilos.selector}
           onPress={() => setModalCategoriasVisible(true)}
         >
           <Text
             style={{
               color: categoriaSeleccionada
-                ? COLORES.textoBlanco
-                : COLORES.textoGris,
+                ? colores.textoBlanco
+                : colores.textoGris,
               fontSize: 16,
             }}
           >
@@ -348,9 +326,13 @@ export default function PantallaEditarProducto() {
               ? categoriaSeleccionada.nombre
               : "Sin Categoría"}
           </Text>
+          <FontAwesome5
+            name="chevron-down"
+            size={14}
+            color={colores.textoGris}
+          />
         </TouchableOpacity>
 
-        {/* PRECIOS */}
         <Text style={estilos.seccionTitulo}>PRECIOS</Text>
         <View style={estilos.row}>
           <View style={estilos.inputGroup}>
@@ -359,8 +341,6 @@ export default function PantallaEditarProducto() {
               style={estilos.input}
               value={costo}
               onChangeText={setCosto}
-              placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
               keyboardType="decimal-pad"
             />
           </View>
@@ -370,8 +350,6 @@ export default function PantallaEditarProducto() {
               style={estilos.input}
               value={precio}
               onChangeText={setPrecio}
-              placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
               keyboardType="decimal-pad"
             />
           </View>
@@ -382,19 +360,33 @@ export default function PantallaEditarProducto() {
           <Text style={estilos.margenValor}>{calcularMargen()}</Text>
         </View>
 
-        {/* INVENTARIO */}
         <Text style={estilos.seccionTitulo}>INVENTARIO</Text>
         <View style={estilos.row}>
           <View style={estilos.inputGroup}>
             <Text style={estilos.label}>Stock Actual</Text>
-            <TextInput
-              style={[
-                estilos.input,
-                { backgroundColor: "#1A1A1A", opacity: 0.8 },
-              ]}
-              value={stock}
-              editable={false} // El stock no se debe editar aquí, se edita en Ajuste de Stock
-            />
+            <View style={estilos.stockContainer}>
+              <TextInput
+                style={[estilos.input, estilos.inputDisabled]}
+                value={stock}
+                editable={false}
+              />
+              <TouchableOpacity
+                style={estilos.botonAjustar}
+                onPress={() =>
+                  router.push({
+                    pathname: "/productos/ajuste-stock",
+                    params: { productoId: id },
+                  })
+                }
+              >
+                <FontAwesome5
+                  name="edit"
+                  size={14}
+                  color={colores.textoOscuro}
+                />
+                <Text style={estilos.textoBotonAjustar}>Ajustar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={estilos.inputGroup}>
             <Text style={estilos.label}>Stock Mínimo</Text>
@@ -402,31 +394,29 @@ export default function PantallaEditarProducto() {
               style={estilos.input}
               value={stockMinimo}
               onChangeText={setStockMinimo}
-              placeholder="10"
-              placeholderTextColor={COLORES.textoGris}
               keyboardType="numeric"
             />
           </View>
         </View>
 
-        {/* INFORMACIÓN ADICIONAL */}
-        <Text style={estilos.seccionTitulo}>INFORMACIÓN ADICIONAL</Text>
-
+        <Text style={estilos.seccionTitulo}>OTROS DATOS</Text>
         <Text style={estilos.label}>Código de Barras</Text>
         <View style={estilos.row}>
           <TextInput
             style={[estilos.input, { flex: 1 }]}
             value={codigoBarras}
             onChangeText={setCodigoBarras}
-            placeholder="Escanear o ingresar"
-            placeholderTextColor={COLORES.textoGris}
             keyboardType="numeric"
           />
           <TouchableOpacity
             style={estilos.botonEscanear}
             onPress={() => router.push("/productos/escaner")}
           >
-            <FontAwesome5 name="camera" size={20} color={COLORES.textoOscuro} />
+            <FontAwesome5
+              name="barcode"
+              size={20}
+              color={colores.textoOscuro}
+            />
           </TouchableOpacity>
         </View>
 
@@ -435,42 +425,38 @@ export default function PantallaEditarProducto() {
           style={estilos.input}
           value={proveedor}
           onChangeText={setProveedor}
-          placeholder="Nombre del proveedor"
-          placeholderTextColor={COLORES.textoGris}
+          placeholderTextColor={colores.textoGris}
         />
 
         <TouchableOpacity
           style={estilos.botonEliminar}
           onPress={manejarEliminar}
         >
-          <FontAwesome5 name="trash" size={16} color={COLORES.error} />
+          <FontAwesome5 name="trash-alt" size={16} color={colores.error} />
           <Text style={estilos.textoEliminar}>Eliminar Producto</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* FOOTER (Botón Guardar) */}
-      <View style={estilos.footer}>
+      <View
+        style={[estilos.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}
+      >
         <TouchableOpacity
           style={[estilos.botonGuardar, guardando && { opacity: 0.7 }]}
           onPress={guardarCambios}
           disabled={guardando}
         >
           {guardando ? (
-            <ActivityIndicator color={COLORES.textoOscuro} />
+            <ActivityIndicator color={colores.textoOscuro} />
           ) : (
             <Text style={estilos.textoBotonGuardar}>Guardar Cambios</Text>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* --- MODAL PARA SELECCIONAR CATEGORÍA --- */}
-      <Modal
-        visible={modalCategoriasVisible}
-        transparent={true}
-        animationType="slide"
-      >
+      {/* MODAL CATEGORIAS */}
+      <Modal visible={modalCategoriasVisible} transparent animationType="slide">
         <View style={estilos.modalOverlay}>
           <View style={estilos.modalContent}>
             <View style={estilos.modalHeader}>
@@ -480,8 +466,8 @@ export default function PantallaEditarProducto() {
               >
                 <FontAwesome5
                   name="times"
-                  size={24}
-                  color={COLORES.textoGris}
+                  size={20}
+                  color={colores.textoGris}
                 />
               </TouchableOpacity>
             </View>
@@ -501,7 +487,7 @@ export default function PantallaEditarProducto() {
                     <FontAwesome5
                       name="check"
                       size={16}
-                      color={COLORES.primario}
+                      color={colores.primario}
                     />
                   )}
                 </TouchableOpacity>
@@ -519,17 +505,6 @@ export default function PantallaEditarProducto() {
                   </Text>
                 </TouchableOpacity>
               }
-              ListEmptyComponent={
-                <Text
-                  style={{
-                    color: COLORES.textoGris,
-                    textAlign: "center",
-                    padding: 20,
-                  }}
-                >
-                  No hay categorías registradas.
-                </Text>
-              }
             />
           </View>
         </View>
@@ -538,154 +513,184 @@ export default function PantallaEditarProducto() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  encabezado: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 15,
-  },
-  botonVolver: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  titulo: { fontSize: 20, fontWeight: "bold", color: COLORES.textoBlanco },
-  contenido: { padding: 20, paddingBottom: 40 },
+// 🔥 ESTILOS DINÁMICOS
+const crearEstilos = (c: any, isDark: boolean) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
+    encabezado: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingTop: Platform.OS === "ios" ? 60 : 40,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    botonVolver: { width: 40, height: 40, justifyContent: "center" },
+    titulo: { fontSize: 20, fontWeight: "bold", color: c.textoBlanco },
+    contenido: { padding: 20 },
 
-  imagenContainer: {
-    width: "100%",
-    aspectRatio: 1,
-    backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  imagen: { width: "100%", height: "100%", resizeMode: "cover" },
-  imagenPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  imagenTexto: { color: COLORES.textoGris, fontSize: 16, marginTop: 10 },
+    imagenContainer: {
+      width: "100%",
+      aspectRatio: 1,
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 16,
+      overflow: "hidden",
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    imagen: { width: "100%", height: "100%", resizeMode: "cover" },
+    imagenPlaceholder: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    imagenTexto: { color: c.textoGris, fontSize: 14, marginTop: 10 },
 
-  seccionTitulo: {
-    color: COLORES.secundarioVerde, // Verde apagado/oliva de tu foto
-    fontSize: 14,
-    fontWeight: "bold",
-    marginTop: 25,
-    marginBottom: 15,
-    letterSpacing: 1,
-  },
-  label: {
-    color: COLORES.textoGris,
-    fontSize: 14,
-    marginBottom: 8,
-    marginTop: 10,
-  },
-  input: {
-    backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 12,
-    padding: 16,
-    color: COLORES.textoBlanco,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  row: { flexDirection: "row", gap: 15 },
-  inputGroup: { flex: 1 },
+    seccionTitulo: {
+      color: c.primario,
+      fontSize: 14,
+      fontWeight: "bold",
+      marginTop: 25,
+      marginBottom: 10,
+      letterSpacing: 1,
+    },
+    label: { color: c.textoGris, fontSize: 14, marginBottom: 8, marginTop: 15 },
+    input: {
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 12,
+      padding: 16,
+      color: c.textoBlanco,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    selector: {
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    row: { flexDirection: "row", gap: 15 },
+    inputGroup: { flex: 1 },
 
-  margenContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: COLORES.secundarioVerde, // Fondo sólido verde completo
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 20,
-  },
-  margenLabel: { color: COLORES.textoBlanco, fontSize: 16 },
-  margenValor: { color: COLORES.textoOscuro, fontSize: 20, fontWeight: "bold" },
+    margenContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: isDark ? c.primario : "rgba(196, 255, 14, 0.2)",
+      padding: 16,
+      borderRadius: 12,
+      marginTop: 20,
+      borderWidth: isDark ? 0 : 1,
+      borderColor: c.primario,
+    },
+    margenLabel: {
+      color: isDark ? c.textoOscuro : c.textoBlanco,
+      fontSize: 16,
+    },
+    margenValor: {
+      color: isDark ? c.textoOscuro : c.textoBlanco,
+      fontSize: 20,
+      fontWeight: "bold",
+    },
 
-  botonEscanear: {
-    backgroundColor: COLORES.primario,
-    width: 55,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    stockContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
+    inputDisabled: { backgroundColor: c.secundario, opacity: 0.6, flex: 1 },
+    botonAjustar: {
+      backgroundColor: c.primario,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      borderRadius: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    textoBotonAjustar: {
+      color: c.textoOscuro,
+      fontWeight: "bold",
+      fontSize: 13,
+    },
 
-  botonEliminar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 40,
-    padding: 15,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: COLORES.error,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 59, 48, 0.1)",
-  },
-  textoEliminar: { color: COLORES.error, fontSize: 16, fontWeight: "bold" },
+    botonEscanear: {
+      backgroundColor: c.primario,
+      width: 55,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+    },
 
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    backgroundColor: COLORES.fondoOscuro, // Se funde con el fondo
-    paddingBottom: Platform.OS === "ios" ? 40 : 20,
-  },
-  botonGuardar: {
-    backgroundColor: COLORES.primario,
-    padding: 18,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  textoBotonGuardar: {
-    color: COLORES.textoOscuro,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+    botonEliminar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 40,
+      padding: 15,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: c.error,
+      borderRadius: 12,
+      backgroundColor: "rgba(255, 59, 48, 0.05)",
+    },
+    textoEliminar: { color: c.error, fontSize: 16, fontWeight: "bold" },
 
-  // Modal de Categorías
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: COLORES.fondoOscuro,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: "60%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
-  },
-  modalTitulo: { fontSize: 18, fontWeight: "bold", color: COLORES.textoBlanco },
-  itemCategoria: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
-  },
-  textoCategoria: { fontSize: 16, color: COLORES.textoBlanco },
-});
+    footer: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      padding: 20,
+      backgroundColor: c.fondoOscuro,
+      borderTopWidth: 1,
+      borderTopColor: c.borde,
+    },
+    botonGuardar: {
+      backgroundColor: c.primario,
+      padding: 18,
+      borderRadius: 12,
+      alignItems: "center",
+    },
+    textoBotonGuardar: {
+      color: c.textoOscuro,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.8)",
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      backgroundColor: c.fondoTarjeta,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 20,
+      maxHeight: "70%",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    modalTitulo: { fontSize: 18, fontWeight: "bold", color: c.textoBlanco },
+    itemCategoria: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    textoCategoria: { fontSize: 16, color: c.textoBlanco },
+  });

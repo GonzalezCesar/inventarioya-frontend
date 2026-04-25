@@ -1,40 +1,27 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context"; // <-- IMPORTACIÓN CLAVE
-
-const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00",
-  textoGris: "#8E8E93",
-};
+import { useTheme } from "../../contexts/ContextTheme"; // Importamos el tema
 
 export default function TabLayout() {
-  // Obtenemos las medidas de las barras del sistema (notificaciones arriba, botones de navegación abajo)
-  const insets = useSafeAreaInsets();
+  const { colores } = useTheme(); // Obtenemos los colores vivos
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-
+        // 🔥 Aquí aplicamos el color dinámico a la barra
         tabBarStyle: {
-          backgroundColor: COLORES.fondoOscuro,
-          borderTopWidth: 1,
-          borderTopColor: COLORES.fondoTarjeta,
-          // 🔥 EL TRUCO: Altura base (60) + el espacio que ocupan los botones de Android (insets.bottom)
-          height: 60 + insets.bottom,
-          // Añadimos el espacio extra al padding para que los íconos queden centrados
-          paddingBottom: insets.bottom > 0 ? insets.bottom + 5 : 10,
-          paddingTop: 10,
+          backgroundColor: colores.fondoOscuro,
+          borderTopColor: colores.borde,
+          elevation: 0, // Quita la sombra en Android
+          shadowOpacity: 0, // Quita la sombra en iOS
         },
-        tabBarActiveTintColor: COLORES.primario,
-        tabBarInactiveTintColor: COLORES.textoGris,
+        tabBarActiveTintColor: colores.subtitulos, // Tu verde neón cuando está seleccionado
+        tabBarInactiveTintColor: colores.textoGris, // Gris cuando no está seleccionado
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-          marginTop: 2,
+          fontSize: 12,
+          fontWeight: "bold",
+          paddingBottom: 5,
         },
       }}
     >
@@ -43,47 +30,43 @@ export default function TabLayout() {
         options={{
           title: "Inicio",
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="home" size={22} color={color} />
+            <FontAwesome5 name="home" size={20} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="inventario"
         options={{
           title: "Inventario",
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="clipboard-list" size={22} color={color} />
+            <FontAwesome5 name="clipboard-list" size={20} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="vender"
         options={{
           title: "Vender",
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="dollar-sign" size={22} color={color} />
+            <FontAwesome5 name="shopping-cart" size={20} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="reportes"
         options={{
           title: "Reportes",
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="chart-bar" size={22} color={color} />
+            <FontAwesome5 name="chart-bar" size={20} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="cuenta"
         options={{
           title: "Cuenta",
           tabBarIcon: ({ color }) => (
-            <FontAwesome5 name="user" size={22} color={color} />
+            <FontAwesome5 name="user" size={20} color={color} />
           ),
         }}
       />

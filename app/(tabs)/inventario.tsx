@@ -1,6 +1,7 @@
+import { useTheme } from "../../contexts/ContextTheme";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,18 +16,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/ContextAuth";
 import api from "../../services/api";
 
-// --- TEMA HARDCODEADO (Pixel Perfect basado en tu imagen) ---
-const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#212124", // Ligeramente más claro que el fondo
-  primario: "#C4FF0D", // Verde Neón exacto de la foto
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
-  error: "#FF3B30",
-};
-
 interface Producto {
   id: string;
   costo: number;
@@ -39,6 +28,10 @@ export default function PantallaInventario() {
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // 🔥 Conectamos al Tema Global
+  const { colores } = useTheme();
+  const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   const [cargando, setCargando] = useState(true);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -58,7 +51,6 @@ export default function PantallaInventario() {
   const cargarResumenInventario = async () => {
     try {
       setCargando(true);
-      // Pedimos la lista de productos a tu API real
       const respuesta: any = await api.get("/productos");
       setProductos(respuesta || []);
     } catch (error) {
@@ -68,16 +60,10 @@ export default function PantallaInventario() {
     }
   };
 
-  // Cálculos en tiempo real basados en los productos obtenidos
-  const productosBajoStock = productos.filter((p) => p.stock <= p.stockMinimo);
+  const productosBajoStock = productos.filter((p) => p.stock <= (p.stockMinimo || 5)); // Ojo al fallback de 5
   const valorTotalInventario = productos.reduce((acc, curr) => {
-    // Si tu API devuelve el costo como string, lo parseamos
-    const costo =
-      typeof curr.costo === "string" ? parseFloat(curr.costo) : curr.costo || 0;
-    const stock =
-      typeof curr.stock === "string"
-        ? parseInt(curr.stock, 10)
-        : curr.stock || 0;
+    const costo = typeof curr.costo === "string" ? parseFloat(curr.costo) : curr.costo || 0;
+    const stock = typeof curr.stock === "string" ? parseInt(curr.stock, 10) : curr.stock || 0;
     return acc + costo * stock;
   }, 0);
 
@@ -90,248 +76,225 @@ export default function PantallaInventario() {
         "Solo los administradores pueden gestionar productos.",
       );
     } else {
-      router.push("/productos/gestionar");
+      router.push("/productos/gestionar" as any);
     }
   };
 
   return (
     <View style={estilos.contenedor}>
-      {/* HEADER DE LA PANTALLA */}
-      <View style={estilos.header}>
-        <Text style={estilos.tituloPantalla}>Inventario</Text>
+      {/* ENCABEZADO CON LÍNEA DIVISORIA (Como en el original) */}
+      <View style={estilos.encabezado}>
+        <Text style={estilos.tituloEncabezado}>Inventario</Text>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
-          estilos.scrollContent,
+          estilos.contenido,
           { paddingBottom: insets.bottom + 100 },
         ]}
       >
-        {/* TARJETAS SUPERIORES (KPIs) */}
-        <View style={estilos.filaTarjetas}>
-          <View style={estilos.tarjetaNeon}>
-            <View style={{ zIndex: 1, alignItems: "center" }}>
-              <Text style={estilos.tituloTarjetaNeon}>Valor Total</Text>
-              {cargando ? (
-                <ActivityIndicator
-                  color={COLORES.textoOscuro}
-                  style={{ marginTop: 5 }}
-                />
-              ) : (
-                <Text style={estilos.valorTarjetaNeon}>
-                  {formatearMoneda(valorTotalInventario)}
-                </Text>
-              )}
+        {/* TARJETAS SUPERIORES */}
+        <View style={estilos.resumenContainer}>
+          <View style={estilos.tarjetaResumen}>
+            <View style={estilos.marcaAgua}>
+              <FontAwesome5 name="dollar-sign" size={100} color="rgba(0,0,0,0.1)" />
             </View>
-            <FontAwesome5
-              name="dollar-sign"
-              size={90}
-              color="rgba(0,0,0,0.05)"
-              style={estilos.marcaAgua}
-            />
+            <Text style={estilos.labelResumen}>Valor Total</Text>
+            {cargando ? (
+              <ActivityIndicator color={colores.textoOscuro} style={{ marginTop: 5 }} />
+            ) : (
+              <Text style={estilos.valorResumen}>
+                {formatearMoneda(valorTotalInventario)}
+              </Text>
+            )}
           </View>
 
-          <View style={estilos.tarjetaNeon}>
-            <View style={{ zIndex: 1, alignItems: "center" }}>
-              <Text style={estilos.tituloTarjetaNeon}>Productos</Text>
-              {cargando ? (
-                <ActivityIndicator
-                  color={COLORES.textoOscuro}
-                  style={{ marginTop: 5 }}
-                />
-              ) : (
-                <Text style={estilos.valorTarjetaNeon}>{productos.length}</Text>
-              )}
+          <View style={estilos.tarjetaResumen}>
+            <View style={estilos.marcaAgua}>
+              <FontAwesome5 name="box" size={100} color="rgba(0,0,0,0.1)" />
             </View>
-            <FontAwesome5
-              name="box"
-              size={80}
-              color="rgba(0,0,0,0.05)"
-              style={estilos.marcaAgua}
-            />
+            <Text style={estilos.labelResumen}>Productos</Text>
+            {cargando ? (
+              <ActivityIndicator color={colores.textoOscuro} style={{ marginTop: 5 }} />
+            ) : (
+              <Text style={estilos.valorResumen}>{productos.length}</Text>
+            )}
           </View>
         </View>
 
-        {/* ALERTA DE STOCK BAJO (Solo visible si hay > 0) */}
+        {/* ALERTA DE STOCK BAJO */}
         {!cargando && productosBajoStock.length > 0 && (
           <View style={estilos.alertaContainer}>
             <View style={estilos.alertaHeader}>
-              <FontAwesome5
-                name="exclamation-triangle"
-                size={16}
-                color={COLORES.error}
-              />
+              <FontAwesome5 name="exclamation-triangle" size={16} color={colores.error} />
               <Text style={estilos.alertaTitulo}>
-                {productosBajoStock.length} producto
-                {productosBajoStock.length > 1 ? "s" : ""} con stock bajo
+                {productosBajoStock.length} producto{productosBajoStock.length > 1 ? "s" : ""} con stock bajo
               </Text>
             </View>
           </View>
         )}
 
         {/* SECCIÓN DE GESTIÓN */}
-        <View style={estilos.seccion}>
-          <Text style={estilos.tituloSeccion}>GESTIÓN</Text>
+        <Text style={estilos.seccionTitulo}>GESTIÓN</Text>
 
-          {/* Botón Productos (Acceso para todos) */}
-          <TouchableOpacity
-            style={estilos.botonLista}
-            activeOpacity={0.7}
-            onPress={() => router.push("/productos")}
-          >
-            <View style={estilos.iconoContenedor}>
-              <FontAwesome5
-                name="box-open"
-                size={20}
-                color={COLORES.primario}
-              />
-            </View>
-            <View style={estilos.textosBotonLista}>
-              <Text style={estilos.tituloBotonLista}>Productos</Text>
-              <Text style={estilos.subtituloBotonLista}>
-                Ver catálogo de productos
-              </Text>
-            </View>
-            <FontAwesome5
-              name="chevron-right"
-              size={14}
-              color={COLORES.textoGris}
-            />
-          </TouchableOpacity>
+        <TouchableOpacity
+          style={estilos.opcion}
+          activeOpacity={0.7}
+          onPress={() => router.push("/productos" as any)} // Ajusta la ruta real de tu catálogo
+        >
+          <FontAwesome5 name="box" size={26} color={colores.primario} style={estilos.iconoOpcion} />
+          <View style={estilos.textoContainer}>
+            <Text style={estilos.tituloOpcion}>Productos</Text>
+            <Text style={estilos.subtituloOpcion}>Ver catálogo de productos</Text>
+          </View>
+          <FontAwesome5 name="chevron-right" size={16} color={colores.textoGris} />
+        </TouchableOpacity>
 
-          {/* Botón Gestionar Productos (Solo Administradores) */}
-          <TouchableOpacity
-            style={[
-              estilos.botonLista,
-              !esAdmin() && {
-                opacity: 0.5,
-                backgroundColor: COLORES.fondoOscuro,
-              },
-            ]}
-            activeOpacity={!esAdmin() ? 1 : 0.7}
-            onPress={manejarGestionarProductos}
-          >
-            <View style={estilos.iconoContenedor}>
-              <FontAwesome5
-                name="cog"
-                size={22}
-                color={!esAdmin() ? COLORES.textoGris : COLORES.primario}
-              />
-            </View>
-            <View style={estilos.textosBotonLista}>
-              <Text
-                style={[
-                  estilos.tituloBotonLista,
-                  !esAdmin() && { color: COLORES.textoGris },
-                ]}
-              >
-                Gestionar Productos {!esAdmin() && "(Solo Admin)"}
-              </Text>
-              <Text style={estilos.subtituloBotonLista}>
-                Editar, agregar y ajustar stock
-              </Text>
-            </View>
-            <FontAwesome5
-              name={!esAdmin() ? "lock" : "chevron-right"}
-              size={14}
-              color={COLORES.textoGris}
-            />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[
+            estilos.opcion,
+            !esAdmin() && { opacity: 0.5, backgroundColor: colores.fondoOscuro },
+          ]}
+          activeOpacity={!esAdmin() ? 1 : 0.7}
+          onPress={manejarGestionarProductos}
+        >
+          <FontAwesome5 
+            name="cog" 
+            size={26} 
+            color={!esAdmin() ? colores.textoGris : colores.primario} 
+            style={estilos.iconoOpcion} 
+          />
+          <View style={estilos.textoContainer}>
+            <Text style={[estilos.tituloOpcion, !esAdmin() && { color: colores.textoGris }]}>
+              Gestionar Productos {!esAdmin() && "(Solo Admin)"}
+            </Text>
+            <Text style={estilos.subtituloOpcion}>Editar, agregar y ajustar stock</Text>
+          </View>
+          <FontAwesome5 
+            name={!esAdmin() ? "lock" : "chevron-right"} 
+            size={16} 
+            color={colores.textoGris} 
+          />
+        </TouchableOpacity>
+
       </ScrollView>
     </View>
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 60 : 50,
-    paddingBottom: 25,
-    backgroundColor: COLORES.fondoOscuro,
-  },
-  tituloPantalla: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: COLORES.textoBlanco,
-  },
-  scrollContent: { padding: 20, paddingTop: 0 },
+// 🔥 ESTILOS DINÁMICOS Y PIXEL PERFECT
+const crearEstilos = (c: any) =>
+  StyleSheet.create({
+    contenedor: {
+      flex: 1,
+      backgroundColor: c.fondoOscuro,
+    },
+    encabezado: {
+      paddingHorizontal: 24,
+      paddingTop: Platform.OS === "ios" ? 60 : 50,
+      paddingBottom: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde, // Línea divisoria igual a tu app vieja
+      backgroundColor: c.fondoOscuro,
+    },
+    tituloEncabezado: {
+      fontSize: 28, // Tamaño xl2 original
+      fontWeight: "bold",
+      color: c.textoBlanco,
+    },
+    contenido: {
+      padding: 24, // Padding global como ESPACIADO.xl
+    },
+    
+    // --- Tarjetas Resumen ---
+    resumenContainer: {
+      flexDirection: "row",
+      gap: 16,
+      marginBottom: 24,
+    },
+    tarjetaResumen: {
+      flex: 1,
+      backgroundColor: c.primario, // Verde personalizado
+      padding: 16,
+      borderRadius: 16,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: "rgba(0,0,0,0.1)", // Borde muy sutil para dar forma
+      overflow: "hidden",
+      minHeight: 100,
+      justifyContent: "center"
+    },
+    marcaAgua: {
+      position: "absolute",
+      right: -20,
+      bottom: -20,
+    },
+    labelResumen: {
+      color: c.textoOscuro, // Texto oscuro sobre fondo primario
+      fontSize: 14,
+      marginBottom: 4,
+    },
+    valorResumen: {
+      color: c.textoOscuro,
+      fontSize: 28, // Tamaño xl original
+      fontWeight: "bold",
+    },
 
-  filaTarjetas: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 25,
-  },
-  tarjetaNeon: {
-    width: "48%",
-    backgroundColor: COLORES.primario,
-    padding: 20,
-    borderRadius: 16,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 110,
-  },
-  tituloTarjetaNeon: {
-    fontSize: 14,
-    color: COLORES.textoOscuro,
-    marginBottom: 8,
-  },
-  valorTarjetaNeon: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: COLORES.textoOscuro,
-  },
-  marcaAgua: { position: "absolute", right: -15, bottom: -20 },
+    // --- Alerta ---
+    alertaContainer: {
+      backgroundColor: "rgba(255, 59, 48, 0.1)", // c.error con opacidad
+      padding: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.error,
+      marginBottom: 24,
+    },
+    alertaHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    alertaTitulo: {
+      color: c.error,
+      fontWeight: "600",
+      fontSize: 14,
+    },
 
-  alertaContainer: {
-    backgroundColor: "rgba(255, 59, 48, 0.1)", // Rojo con 10% opacidad
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORES.error,
-    marginBottom: 25,
-  },
-  alertaHeader: { flexDirection: "row", alignItems: "center" },
-  alertaTitulo: {
-    color: COLORES.error,
-    fontWeight: "bold",
-    fontSize: 14,
-    marginLeft: 10,
-  },
-
-  seccion: { marginBottom: 30 },
-  tituloSeccion: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: COLORES.textoGris,
-    marginBottom: 15,
-    letterSpacing: 1,
-    marginLeft: 5,
-  },
-
-  botonLista: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORES.fondoTarjeta,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-  iconoContenedor: {
-    width: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  textosBotonLista: { flex: 1 },
-  tituloBotonLista: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORES.textoBlanco,
-    marginBottom: 4,
-  },
-  subtituloBotonLista: { fontSize: 13, color: COLORES.textoGris },
-});
+    // --- Menú de Opciones ---
+    seccionTitulo: {
+      color: c.textoGris,
+      fontSize: 14,
+      marginBottom: 16,
+      marginLeft: 8,
+      letterSpacing: 1,
+    },
+    opcion: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.fondoTarjeta,
+      padding: 16,
+      borderRadius: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: c.borde, // Borde para definir la tarjeta
+    },
+    iconoOpcion: {
+        width: 35,
+        textAlign: 'center',
+        marginRight: 12
+    },
+    textoContainer: {
+      flex: 1,
+    },
+    tituloOpcion: {
+      color: c.textoBlanco,
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    subtituloOpcion: {
+      color: c.textoGris,
+      fontSize: 13,
+    },
+  });
