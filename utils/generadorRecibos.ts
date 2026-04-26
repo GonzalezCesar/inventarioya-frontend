@@ -33,8 +33,14 @@ export const generarReciboHTML = (venta: any, nombreNegocio: string): string => 
     const estadoColor = venta.estadoPago === 'completo' ? '#00FF88' : (venta.estadoPago === 'parcial' ? '#FFD60A' : '#FF3B30');
     const estadoTextoColor = venta.estadoPago === 'completo' ? '#000' : (venta.estadoPago === 'parcial' ? '#000' : '#fff');
 
-    // Determinar nombre de cliente (a veces viene el objeto, a veces solo el string)
+    // Determinar nombre de cliente
     const clienteNombre = venta.cliente?.nombre || venta.clienteNombre || 'Mostrador';
+
+    // 🔥 Extraer montos fiscales de la venta
+    const subtotal = Number(venta.subtotal || 0);
+    const montoIVA = Number(venta.montoIVA || 0);
+    const montoIGTF = Number(venta.montoIGTF || 0);
+    const tieneImpuestos = montoIVA > 0 || montoIGTF > 0;
 
     return `
         <!DOCTYPE html>
@@ -56,7 +62,8 @@ export const generarReciboHTML = (venta: any, nombreNegocio: string): string => 
                 .fila-item-nombre { font-weight: 500; }
                 .fila-item-detalle { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
                 .totales { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 10px 0; margin: 15px 0; }
-                .total-final { font-size: 18px; font-weight: bold; }
+                .fila-impuesto { color: #555; font-size: 12px; padding: 3px 0; }
+                .total-final { font-size: 18px; font-weight: bold; margin-top: 5px; padding-top: 5px; border-top: 1px solid #eee; }
                 .pago-info { background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0; }
                 .footer { text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
                 .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; background: ${estadoColor}; color: ${estadoTextoColor}; }
@@ -98,6 +105,25 @@ export const generarReciboHTML = (venta: any, nombreNegocio: string): string => 
                 </div>
 
                 <div class="totales">
+                    ${tieneImpuestos ? `
+                        <div class="fila fila-impuesto">
+                            <span>Subtotal:</span>
+                            <span>$${subtotal.toFixed(2)}</span>
+                        </div>
+                        ${montoIVA > 0 ? `
+                        <div class="fila fila-impuesto">
+                            <span>IVA:</span>
+                            <span>$${montoIVA.toFixed(2)}</span>
+                        </div>
+                        ` : ''}
+                        ${montoIGTF > 0 ? `
+                        <div class="fila fila-impuesto">
+                            <span>IGTF:</span>
+                            <span>$${montoIGTF.toFixed(2)}</span>
+                        </div>
+                        ` : ''}
+                    ` : ''}
+                    
                     <div class="fila total-final">
                         <span>TOTAL:</span>
                         <span>$${Number(venta.total || 0).toFixed(2)}</span>
