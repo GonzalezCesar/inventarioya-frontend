@@ -21,7 +21,7 @@ import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el co
 import api from "../../services/api";
 import { Image } from "expo-image";
 
-const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
+const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/pagos";
 
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 type FiltroType = "ninguno" | "fecha" | "pagos" | "vendedor" | "producto";
@@ -1753,14 +1753,14 @@ export default function PantallaReportes() {
               source={{ 
                 uri: comprobanteVisible.startsWith("http") || comprobanteVisible.startsWith("data:")
                   ? comprobanteVisible 
-                  : `${API_URL_UPLOADS}${comprobanteVisible}` 
+                  // 🔥 AQUÍ ESTÁ LA MAGIA: Le agregamos "pagos/" a la ruta
+                  : `http://192.168.1.111:8000/uploads/pagos/${comprobanteVisible}` 
               }} 
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />
           )}
         </View>
       </Modal>
-
     </KeyboardAvoidingView>
   );
 }
