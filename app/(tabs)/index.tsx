@@ -25,11 +25,12 @@ export default function PantallaDashboard() {
   const [refrescando, setRefrescando] = useState(false);
   const [datos, setDatos] = useState<any>(null);
 
+  const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
+
   const cargarDatos = async () => {
     try {
-      const esSuper = user?.rol?.toLowerCase() === "superadmin";
-      const endpoint = esSuper ? "/admin/dashboard" : "/dashboard";
-      const respuesta: any = await api.get(endpoint);
+      // 🔥 Ahora TODOS consumen la ruta de su tienda personal
+      const respuesta: any = await api.get("/dashboard");
       setDatos(respuesta);
     } catch (error) {
       console.error("Error cargando dashboard:", error);
@@ -48,14 +49,13 @@ export default function PantallaDashboard() {
   const onRefresh = useCallback(() => {
     setRefrescando(true);
     cargarDatos();
-  }, []);
+  }, [user]);
 
   const formatearMoneda = (monto: any) => {
     const num = typeof monto === "string" ? parseFloat(monto) : monto;
     return `$ ${(num || 0).toFixed(2)}`;
   };
 
-  // Matriz de acciones rápidas para replicar el mapeo de tu app original
   const accionesRapidas = [
     { titulo: "Nueva Venta", icono: "dollar-sign", ruta: "/(tabs)/vender" },
     { titulo: "Escanear", icono: "camera", ruta: "/productos/escaner" },
@@ -87,24 +87,22 @@ export default function PantallaDashboard() {
           />
         }
       >
-        {/* ENCABEZADO */}
         <View style={estilos.encabezado}>
           <Text style={estilos.saludo}>Hola, {user?.nombre || "Usuario"}</Text>
           <Text style={estilos.rol}>
-            {user?.rol?.toLowerCase() === "superadmin"
-              ? "Superadministrador"
-              : user?.rol?.toLowerCase() === "administrador" || user?.rol?.toLowerCase() === "admin"
-              ? "Administrador"
-              : "Vendedor"}
+            {esSuperAdmin
+              ? "Superadmin"
+              : user?.rol?.toLowerCase() === "administrador" ||
+                  user?.rol?.toLowerCase() === "admin"
+                ? "Administrador"
+                : "Vendedor"}
           </Text>
         </View>
 
-        {/* RESUMEN DE HOY */}
+        {/* RESUMEN DE MI TIENDA */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Resumen</Text>
-
           <View style={estilos.tarjetaPrincipal}>
-            {/* Marca de agua gigante de la tarjeta principal */}
             <FontAwesome5
               name="dollar-sign"
               size={120}
@@ -123,11 +121,9 @@ export default function PantallaDashboard() {
           </View>
 
           <View style={estilos.fila}>
-            {/* Tarjeta Por Cobrar */}
             <TouchableOpacity
               style={estilos.tarjetaPequena}
               onPress={() => router.push("/(tabs)/reportes")}
-              activeOpacity={0.8}
             >
               <View style={estilos.encabezadoTarjetaPequena}>
                 <Text style={estilos.tituloTarjetaPequena}>POR COBRAR</Text>
@@ -137,7 +133,6 @@ export default function PantallaDashboard() {
               </Text>
             </TouchableOpacity>
 
-            {/* Tarjeta Stock Bajo */}
             <View
               style={[
                 estilos.tarjetaPequena,
@@ -169,7 +164,7 @@ export default function PantallaDashboard() {
           </View>
         </View>
 
-        {/* ACCIONES RÁPIDAS (Restauradas al diseño original) */}
+        {/* ACCIONES RÁPIDAS */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Acciones Rápidas</Text>
           <View style={estilos.gridAcciones}>
@@ -178,9 +173,7 @@ export default function PantallaDashboard() {
                 key={index}
                 style={estilos.tarjetaAccion}
                 onPress={() => router.push(accion.ruta as any)}
-                activeOpacity={0.8}
               >
-                {/* 💧 Marca de agua (Restaurada de tu código original) */}
                 <View style={estilos.marcaAguaAccion}>
                   <FontAwesome5
                     name={accion.icono}
@@ -188,8 +181,6 @@ export default function PantallaDashboard() {
                     color="rgba(0,0,0,0.08)"
                   />
                 </View>
-
-                {/* Contenido Frontal */}
                 <View style={estilos.contenidoAccion}>
                   <FontAwesome5
                     name={accion.icono}
@@ -203,7 +194,7 @@ export default function PantallaDashboard() {
           </View>
         </View>
 
-        {/* ACTIVIDAD RECIENTE */}
+        {/* ACTIVIDAD RECIENTE DE LA TIENDA */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Actividad Reciente</Text>
           {datos?.recientes && datos.recientes.length > 0 ? (
@@ -211,17 +202,14 @@ export default function PantallaDashboard() {
               <View key={index} style={estilos.itemActividad}>
                 <View style={estilos.iconoActividad}>
                   <FontAwesome5
-                    name={item.accion === "Conexión" ? "user-clock" : "dollar-sign"}
+                    name="dollar-sign"
                     size={16}
                     color={colores.textoResaltado}
                   />
                 </View>
                 <View style={estilos.infoActividad}>
                   <Text style={estilos.textoActividad} numberOfLines={1}>
-                    {/* 🔥 Magia aquí: Si tiene ID, es una venta de tienda. Si no, es actividad de Superadmin */}
-                    {item.id 
-                      ? `Venta #${item.id.substring(0, 8)}` 
-                      : `${item.accion} • ${item.nombre || item.email}`}
+                    Venta #{item.id ? item.id.substring(0, 8) : item.id}
                   </Text>
                   <Text style={estilos.subtextoActividad}>
                     {new Date(item.fecha).toLocaleTimeString([], {
@@ -230,19 +218,13 @@ export default function PantallaDashboard() {
                     })}
                   </Text>
                 </View>
-                
-                {/* 🔥 Solo renderizamos el monto si realmente existe en el JSON */}
-                {item.monto !== undefined && (
-                  <Text style={estilos.montoActividad}>
-                    {formatearMoneda(item.monto)}
-                  </Text>
-                )}
+                <Text style={estilos.montoActividad}>
+                  {formatearMoneda(item.monto)}
+                </Text>
               </View>
             ))
           ) : (
-            <Text style={estilos.textoVacio}>
-              No hay actividad reciente.
-            </Text>
+            <Text style={estilos.textoVacio}>No hay ventas recientes.</Text>
           )}
         </View>
       </ScrollView>
@@ -250,7 +232,6 @@ export default function PantallaDashboard() {
   );
 }
 
-// 🔥 ESTILOS DINÁMICOS Y PIXEL PERFECT
 const crearEstilos = (c: any) =>
   StyleSheet.create({
     contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
@@ -261,8 +242,7 @@ const crearEstilos = (c: any) =>
       color: c.textoBlanco,
       marginBottom: 4,
     },
-    rol: { fontSize: 16, color: c.textoResaltado, textTransform: "capitalize" }, // Verde oscuro para el rol
-
+    rol: { fontSize: 16, color: c.textoResaltado, textTransform: "capitalize" },
     seccion: { marginBottom: 30 },
     tituloSeccion: {
       fontSize: 18,
@@ -270,7 +250,6 @@ const crearEstilos = (c: any) =>
       color: c.textoBlanco,
       marginBottom: 15,
     },
-
     tarjetaPrincipal: {
       backgroundColor: c.primario,
       padding: 25,
@@ -284,7 +263,7 @@ const crearEstilos = (c: any) =>
       position: "absolute",
       right: -10,
       bottom: -20,
-      transform: [{ rotate: "-15deg" }], // Rotación original
+      transform: [{ rotate: "-15deg" }],
     },
     tituloTarjetaPrincipal: {
       fontSize: 12,
@@ -294,20 +273,19 @@ const crearEstilos = (c: any) =>
       marginBottom: 8,
     },
     valorTarjetaPrincipal: {
-      fontSize: 48, // Un poco más grande para igualar la imagen
+      fontSize: 48,
       fontWeight: "900",
       color: c.textoOscuro,
       marginBottom: 4,
     },
     subtituloTarjetaPrincipal: { fontSize: 14, color: c.textoOscuro },
-
     fila: { flexDirection: "row", justifyContent: "space-between", gap: 15 },
     tarjetaPequena: {
       flex: 1,
       backgroundColor: c.fondoTarjeta,
       padding: 20,
       borderRadius: 20,
-      borderWidth: 2, // Borde más grueso como en el original
+      borderWidth: 2,
       borderColor: c.primario,
       minHeight: 110,
       justifyContent: "center",
@@ -329,7 +307,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "900",
       color: c.textoResaltado,
     },
-
     gridAcciones: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -340,8 +317,8 @@ const crearEstilos = (c: any) =>
       width: "47%",
       backgroundColor: c.primario,
       borderRadius: 20,
-      height: 120, // Altura original
-      overflow: "hidden", // Crucial para que la marca de agua no se salga
+      height: 120,
+      overflow: "hidden",
     },
     contenidoAccion: {
       flex: 1,
@@ -361,9 +338,8 @@ const crearEstilos = (c: any) =>
       position: "absolute",
       right: -25,
       bottom: -25,
-      transform: [{ rotate: "-15deg" }], // Rotación original de la marca de agua
+      transform: [{ rotate: "-15deg" }],
     },
-
     itemActividad: {
       flexDirection: "row",
       alignItems: "center",
@@ -376,14 +352,12 @@ const crearEstilos = (c: any) =>
       width: 45,
       height: 45,
       borderRadius: 12,
-      backgroundColor: "rgba(212, 255, 0, 0.1)", // Secundario Claro
+      backgroundColor: "rgba(212, 255, 0, 0.1)",
       justifyContent: "center",
       alignItems: "center",
       marginRight: 15,
     },
-    infoActividad: {
-      flex: 1,
-    },
+    infoActividad: { flex: 1 },
     textoActividad: {
       color: c.textoBlanco,
       fontWeight: "bold",

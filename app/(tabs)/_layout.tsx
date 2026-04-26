@@ -1,9 +1,12 @@
+import { useAuth } from "@/contexts/ContextAuth";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useTheme } from "../../contexts/ContextTheme"; // Importamos el tema
 
 export default function TabLayout() {
   const { colores } = useTheme(); // Obtenemos los colores vivos
+  const { user } = useAuth();
+  const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
 
   return (
     <Tabs
@@ -67,6 +70,18 @@ export default function TabLayout() {
           title: "Cuenta",
           tabBarIcon: ({ color }) => (
             <FontAwesome5 name="user" size={20} color={color} />
+          ),
+        }}
+      />
+      {/* 🔥 Nueva Pestaña Oculta */}
+      <Tabs.Screen
+        name="superadmin"
+        options={{
+          title: "Global",
+          // La magia: Si no es superadmin, href es null y no aparece en la barra
+          href: esSuperAdmin ? "/(tabs)/superadmin" : null,
+          tabBarIcon: ({ color }) => (
+            <FontAwesome5 name="globe" size={24} color={color} />
           ),
         }}
       />
