@@ -1,11 +1,12 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
+  DeviceEventEmitter,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -18,10 +19,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
-import { generarYCompartirRecibo } from "@/utils";
-import { useAuth } from "../../contexts/ContextAuth"; // <--- Importar esto para sacar el nombre del negocio
+import { generarYCompartirRecibo } from "../../utils/generadorRecibos"; // 🔥 Importamos tu generador
 
 const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
@@ -47,9 +48,7 @@ interface Cliente {
 
 export default function PantallaNuevaVenta() {
   const router = useRouter();
-  const { user } = useAuth();
-
-
+  const { user } = useAuth(); // 🔥 Necesario para el nombre del negocio en el recibo
   const { colores } = useTheme();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
@@ -57,26 +56,31 @@ export default function PantallaNuevaVenta() {
   const [clientesBD, setClientesBD] = useState<Cliente[]>([]);
   const [cargandoInicial, setCargandoInicial] = useState(true);
 
+  // 🔥 ESTADOS PARA CONFIGURACIÓN DE IMPUESTOS
+  const [configImpuestos, setConfigImpuestos] = useState({
+    cobrarIVA: false,
+    tasaIVA: 16,
+    cobrarIGTF: false,
+    tasaIGTF: 3,
+  });
+
   const [busqueda, setBusqueda] = useState("");
   const [mostrarProductos, setMostrarProductos] = useState(false);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [cargando, setCargando] = useState(false);
 
-  // Estados de Cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<string | null>(
     null,
   );
   const [busquedaCliente, setBusquedaCliente] = useState("");
 
-  // Estados para el Nuevo Cliente
   const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
   const [nombreCliente, setNombreCliente] = useState("");
   const [cedulaCliente, setCedulaCliente] = useState("");
   const [telefonoCliente, setTelefonoCliente] = useState("");
 
-  // 🔥 Lógica para ocultar los clientes registrados a menos que se busque
   const clientesFiltrados = useMemo(() => {
-    if (!busquedaCliente.trim()) return []; // Si no hay búsqueda, no mostramos NINGÚN cliente
+    if (!busquedaCliente.trim()) return [];
     const query = busquedaCliente.toLowerCase();
     return clientesBD.filter(
       (c) =>
@@ -91,24 +95,62 @@ export default function PantallaNuevaVenta() {
   const [montoCreditoInicial, setMontoCreditoInicial] = useState("");
 
   const [fotoComprobante, setFotoComprobante] = useState<string | null>(null);
-
   const [faseModal, setFaseModal] = useState<"pago" | "confirmacion" | "exito">(
     "pago",
   );
   const animacionEscala = React.useRef(new Animated.Value(0)).current;
+  const [ventaRealizada, setVentaRealizada] = useState<any>(null); // 🔥 Guarda datos para el recibo
+
+  useFocusEffect(
+    useCallback(() => {
+      cargarDatos();
+    }, []),
+  );
 
   useEffect(() => {
-    cargarDatos();
-  }, []);
+    const suscripcion = DeviceEventEmitter.addListener(
+      "onCodigoEscaneado",
+      (codigo) => {
+        // Buscamos si el código escaneado coincide con algún código de barras o SKU
+        const productoEncontrado = productosBD.find(
+          (p: any) => p.codigo_barras === codigo || p.sku === codigo,
+        );
 
+        if (productoEncontrado) {
+          agregarAlCarrito(productoEncontrado);
+        } else {
+          Alert.alert(
+            "No encontrado",
+            `No existe ningún producto con el código de barras: ${codigo}`,
+          );
+        }
+      },
+    );
+
+    return () => suscripcion.remove();
+  }, [productosBD]);
   const cargarDatos = async () => {
     try {
-      const [resProds, resClis]: any = await Promise.all([
+      // 🔥 Ahora pedimos los productos, clientes Y las configuraciones fiscales
+      const [resProds, resClis, resConf]: any = await Promise.all([
         api.get("/productos"),
         api.get("/clientes"),
+        api.get("/configuracion").catch(() => ({})), // Evita que explote si no hay config
       ]);
       setProductosBD(resProds || []);
       setClientesBD(resClis || []);
+
+      if (resConf) {
+        setConfigImpuestos({
+          cobrarIVA:
+            resConf.impuestos_habilitados === "1" ||
+            resConf.impuestos_habilitados === true,
+          tasaIVA: resConf.tasa_iva ? parseFloat(resConf.tasa_iva) : 16,
+          cobrarIGTF:
+            resConf.igtf_habilitado === "1" || resConf.igtf_habilitado === true,
+          tasaIGTF: resConf.tasa_igtf ? parseFloat(resConf.tasa_igtf) : 3,
+        });
+      }
     } catch (error) {
       console.error("Error cargando DB para POS:", error);
     } finally {
@@ -118,8 +160,26 @@ export default function PantallaNuevaVenta() {
 
   const formatearMoneda = (monto: number) =>
     `$ ${Math.abs(monto || 0).toFixed(2)}`;
-  const calcularTotal = () =>
-    carrito.reduce((sum, item) => sum + item.subtotal, 0);
+
+  // 🔥 LÓGICA MATEMÁTICA DE IMPUESTOS
+  const calcularMontos = () => {
+    const subtotalBase = carrito.reduce((sum, item) => sum + item.subtotal, 0);
+
+    const montoIVA = configImpuestos.cobrarIVA
+      ? subtotalBase * (configImpuestos.tasaIVA / 100)
+      : 0;
+    const totalConIVA = subtotalBase + montoIVA;
+
+    // Solo aplicamos IGTF si está activo y el pago es en EFECTIVO (divisa)
+    const aplicaIGTF = configImpuestos.cobrarIGTF && metodoPago === "efectivo";
+    const montoIGTF = aplicaIGTF
+      ? totalConIVA * (configImpuestos.tasaIGTF / 100)
+      : 0;
+
+    const granTotal = totalConIVA + montoIGTF;
+
+    return { subtotalBase, montoIVA, montoIGTF, granTotal };
+  };
 
   const getImageSource = (imagen?: string) => {
     if (!imagen) return null;
@@ -135,20 +195,21 @@ export default function PantallaNuevaVenta() {
   );
 
   const agregarAlCarrito = (producto: Producto) => {
-    if (producto.stock <= 0)
+    if (producto.stock <= 0) {
       return Alert.alert("Agotado", "Este producto no tiene stock disponible.");
+    }
 
-    const itemExistente = carrito.find(
-      (item) => item.producto.id === producto.id,
-    );
-    if (itemExistente) {
-      if (itemExistente.cantidad >= producto.stock)
-        return Alert.alert(
-          "Stock Máximo",
-          `Solo hay ${producto.stock} en stock.`,
-        );
-      setCarrito(
-        carrito.map((item) =>
+    setCarrito((prevCarrito) => {
+      const itemExistente = prevCarrito.find(
+        (item) => item.producto.id === producto.id,
+      );
+
+      if (itemExistente) {
+        if (itemExistente.cantidad >= producto.stock) {
+          Alert.alert("Stock Máximo", `Solo hay ${producto.stock} en stock.`);
+          return prevCarrito;
+        }
+        return prevCarrito.map((item) =>
           item.producto.id === producto.id
             ? {
                 ...item,
@@ -156,14 +217,15 @@ export default function PantallaNuevaVenta() {
                 subtotal: (item.cantidad + 1) * item.producto.precio,
               }
             : item,
-        ),
-      );
-    } else {
-      setCarrito([
-        ...carrito,
-        { producto, cantidad: 1, subtotal: producto.precio },
-      ]);
-    }
+        );
+      } else {
+        return [
+          ...prevCarrito,
+          { producto, cantidad: 1, subtotal: producto.precio },
+        ];
+      }
+    });
+
     setBusqueda("");
     setMostrarProductos(false);
   };
@@ -260,7 +322,7 @@ export default function PantallaNuevaVenta() {
     setFotoComprobante(null);
     setMetodoPago("efectivo");
     setMostrarNuevoCliente(false);
-    setBusquedaCliente(""); // Limpiamos la búsqueda
+    setBusquedaCliente("");
     setModalVisible(true);
   };
 
@@ -297,14 +359,16 @@ export default function PantallaNuevaVenta() {
     }
   };
 
-  // 🔥 Nuevo estado para guardar la venta completada
-  const [ventaRealizada, setVentaRealizada] = useState<any>(null);
-
   const procesarVenta = async () => {
-    const total = calcularTotal();
-    const recibidoFloat = parseFloat(montoRecibido.replace(",", ".")) || total;
+    const { subtotalBase, montoIVA, montoIGTF, granTotal } = calcularMontos();
+    const recibidoFloat =
+      parseFloat(montoRecibido.replace(",", ".")) || granTotal;
 
-    if (metodoPago === "efectivo" && montoRecibido && recibidoFloat < total) {
+    if (
+      metodoPago === "efectivo" &&
+      montoRecibido &&
+      recibidoFloat < granTotal
+    ) {
       return Alert.alert(
         "Error",
         "El dinero recibido no alcanza para cubrir el total.",
@@ -322,8 +386,10 @@ export default function PantallaNuevaVenta() {
       const payload: any = {
         fecha: fechaLocalMySQL,
         clienteId: clienteSeleccionado,
-        total: total,
-        subtotal: total,
+        total: granTotal, // 🔥 Enviamos el total con impuestos
+        subtotal: subtotalBase, // 🔥 Enviamos el subtotal neto
+        montoIVA: montoIVA, // 🔥 Mandamos la data fiscal al backend
+        montoIGTF: montoIGTF,
         metodoPago: metodoPago,
         montoPagado:
           metodoPago === "credito"
@@ -332,7 +398,6 @@ export default function PantallaNuevaVenta() {
         estadoPago: metodoPago === "credito" ? "pendiente" : "completo",
         items: carrito.map((item) => ({
           productoId: item.producto.id,
-          // 🔥 Pasamos el nombre para el recibo
           nombre: item.producto.nombre,
           cantidad: item.cantidad,
           precioUnitario: item.producto.precio,
@@ -346,10 +411,10 @@ export default function PantallaNuevaVenta() {
 
       const response: any = await api.post("/ventas", payload);
 
-      // 🔥 Guardamos los datos de la venta, mezclando lo del backend con el payload local para tenerlo completo
+      // Guardamos para el recibo
       setVentaRealizada({
         ...payload,
-        id: response?.id || Date.now().toString(), // Usamos el ID del backend si existe
+        id: response?.id || Date.now().toString(),
         clienteNombre: clienteSeleccionado
           ? clientesBD.find((c) => c.id === clienteSeleccionado)?.nombre
           : "Mostrador",
@@ -385,11 +450,17 @@ export default function PantallaNuevaVenta() {
         <Text style={estilos.titulo}>Nueva Venta</Text>
         <TouchableOpacity
           style={estilos.botonEscanear}
-          onPress={() => router.push("/productos/escaner")}
+          // 🔥 Le pasamos por parámetro que el origen es "ventas"
+          onPress={() =>
+            router.push({
+              pathname: "/productos/escaner",
+              params: { origen: "ventas" },
+            })
+          }
         >
           <FontAwesome5 name="camera" size={16} color={colores.textoOscuro} />
           <Text style={estilos.textoBotonEscanear}>Escanear</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> 
       </View>
 
       <View style={{ zIndex: 999 }}>
@@ -550,10 +621,29 @@ export default function PantallaNuevaVenta() {
       />
 
       <View style={estilos.footer}>
+        {/* 🔥 Pequeño Desglose en el Footer si hay impuestos */}
+        {configImpuestos.cobrarIVA && carrito.length > 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: 15,
+              marginBottom: 5,
+            }}
+          >
+            <Text style={{ color: colores.textoGris, fontSize: 12 }}>
+              Sub: {formatearMoneda(calcularMontos().subtotalBase)}
+            </Text>
+            <Text style={{ color: colores.textoGris, fontSize: 12 }}>
+              IVA: {formatearMoneda(calcularMontos().montoIVA)}
+            </Text>
+          </View>
+        )}
+
         <View style={estilos.totalContenedor}>
           <Text style={estilos.textoTotal}>TOTAL</Text>
           <Text style={estilos.montoTotal}>
-            {formatearMoneda(calcularTotal())}
+            {formatearMoneda(calcularMontos().granTotal)}
           </Text>
         </View>
         <TouchableOpacity
@@ -605,8 +695,44 @@ export default function PantallaNuevaVenta() {
                 <View style={estilos.totalDisplay}>
                   <Text style={estilos.totalLabel}>Total a Pagar</Text>
                   <Text style={estilos.totalValue}>
-                    {formatearMoneda(calcularTotal())}
+                    {formatearMoneda(calcularMontos().granTotal)}
                   </Text>
+
+                  {/* 🔥 Desglose debajo del número grande */}
+                  {(configImpuestos.cobrarIVA ||
+                    configImpuestos.cobrarIGTF) && (
+                    <View style={{ marginTop: 10, alignItems: "center" }}>
+                      {configImpuestos.cobrarIVA && (
+                        <>
+                          <Text
+                            style={{ color: colores.textoGris, fontSize: 12 }}
+                          >
+                            Subtotal:{" "}
+                            {formatearMoneda(calcularMontos().subtotalBase)}
+                          </Text>
+                          <Text
+                            style={{ color: colores.textoGris, fontSize: 12 }}
+                          >
+                            IVA ({configImpuestos.tasaIVA}%):{" "}
+                            {formatearMoneda(calcularMontos().montoIVA)}
+                          </Text>
+                        </>
+                      )}
+                      {configImpuestos.cobrarIGTF &&
+                        metodoPago === "efectivo" && (
+                          <Text
+                            style={{
+                              color: colores.primario,
+                              fontSize: 12,
+                              fontWeight: "bold",
+                            }}
+                          >
+                            + IGTF ({configImpuestos.tasaIGTF}%):{" "}
+                            {formatearMoneda(calcularMontos().montoIGTF)}
+                          </Text>
+                        )}
+                    </View>
+                  )}
                 </View>
 
                 {/* SECCIÓN CLIENTE */}
@@ -638,7 +764,6 @@ export default function PantallaNuevaVenta() {
                   </View>
 
                   {mostrarNuevoCliente ? (
-                    // 1. Formulario de Nuevo Cliente
                     <View style={estilos.formNuevoCliente}>
                       <TextInput
                         style={estilos.inputFormCliente}
@@ -697,7 +822,6 @@ export default function PantallaNuevaVenta() {
                       </View>
                     </View>
                   ) : clienteSeleccionado ? (
-                    // 2. Cliente Seleccionado (Tarjeta Activa)
                     <View
                       style={{
                         flexDirection: "row",
@@ -758,7 +882,6 @@ export default function PantallaNuevaVenta() {
                       </View>
                     </View>
                   ) : (
-                    // 3. Buscador de Clientes (La lista oculta por defecto)
                     <>
                       <View style={estilos.buscadorClientes}>
                         <FontAwesome5
@@ -787,7 +910,6 @@ export default function PantallaNuevaVenta() {
                         )}
                       </View>
 
-                      {/* Solo mostramos la caja si hay texto en la búsqueda */}
                       {busquedaCliente.trim().length > 0 && (
                         <View style={estilos.contenedorListaClientes}>
                           <ScrollView
@@ -909,11 +1031,12 @@ export default function PantallaNuevaVenta() {
                       onChangeText={setMontoRecibido}
                     />
                     {montoRecibido &&
-                    parseFloat(montoRecibido) > calcularTotal() ? (
+                    parseFloat(montoRecibido) > calcularMontos().granTotal ? (
                       <Text style={estilos.textoCambio}>
                         Cambio:{" "}
                         {formatearMoneda(
-                          parseFloat(montoRecibido) - calcularTotal(),
+                          parseFloat(montoRecibido) -
+                            calcularMontos().granTotal,
                         )}
                       </Text>
                     ) : null}
@@ -936,7 +1059,7 @@ export default function PantallaNuevaVenta() {
                     <Text style={estilos.textoDeuda}>
                       Saldo Pendiente:{" "}
                       {formatearMoneda(
-                        calcularTotal() -
+                        calcularMontos().granTotal -
                           (parseFloat(montoCreditoInicial) || 0),
                       )}
                     </Text>
@@ -1036,13 +1159,49 @@ export default function PantallaNuevaVenta() {
                       {metodoPago.replace("_", " ")}
                     </Text>
                   </View>
+
+                  {/* 🔥 Desglose Confirmación */}
+                  {(configImpuestos.cobrarIVA ||
+                    configImpuestos.cobrarIGTF) && (
+                    <>
+                      <View style={estilos.divisorResumen} />
+                      <View style={estilos.filaResumen}>
+                        <Text style={estilos.labelResumen}>Subtotal:</Text>
+                        <Text style={estilos.valorResumen}>
+                          {formatearMoneda(calcularMontos().subtotalBase)}
+                        </Text>
+                      </View>
+                      {configImpuestos.cobrarIVA && (
+                        <View style={estilos.filaResumen}>
+                          <Text style={estilos.labelResumen}>
+                            IVA ({configImpuestos.tasaIVA}%):
+                          </Text>
+                          <Text style={estilos.valorResumen}>
+                            {formatearMoneda(calcularMontos().montoIVA)}
+                          </Text>
+                        </View>
+                      )}
+                      {configImpuestos.cobrarIGTF &&
+                        metodoPago === "efectivo" && (
+                          <View style={estilos.filaResumen}>
+                            <Text style={estilos.labelResumen}>
+                              IGTF ({configImpuestos.tasaIGTF}%):
+                            </Text>
+                            <Text style={estilos.valorResumen}>
+                              {formatearMoneda(calcularMontos().montoIGTF)}
+                            </Text>
+                          </View>
+                        )}
+                    </>
+                  )}
+
                   <View style={estilos.divisorResumen} />
                   <View style={estilos.filaResumenTotal}>
                     <Text style={estilos.textoTotalResumen}>
                       TOTAL A PAGAR:
                     </Text>
                     <Text style={estilos.valorTotalResumen}>
-                      {formatearMoneda(calcularTotal())}
+                      {formatearMoneda(calcularMontos().granTotal)}
                     </Text>
                   </View>
                 </View>
@@ -1092,6 +1251,7 @@ export default function PantallaNuevaVenta() {
                 </Text>
 
                 <View style={estilos.filaBotonesExito}>
+                  {/* 🔥 Botón de Generar Recibo Conectado */}
                   <TouchableOpacity
                     style={estilos.botonGenerarRecibo}
                     onPress={async () => {
@@ -1119,6 +1279,7 @@ export default function PantallaNuevaVenta() {
                       Generar Recibo
                     </Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={estilos.botonFinalizar}
                     onPress={() => {
@@ -1138,7 +1299,7 @@ export default function PantallaNuevaVenta() {
   );
 }
 
-// 🔥 ESTILOS DINÁMICOS
+// --- ESTILOS DINÁMICOS ---
 const crearEstilos = (c: any) =>
   StyleSheet.create({
     contenedor: { flex: 1, backgroundColor: c.fondoOscuro },

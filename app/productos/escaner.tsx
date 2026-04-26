@@ -10,15 +10,16 @@ import {
   DeviceEventEmitter,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router"; // 🔥 Importamos useLocalSearchParams
 import { FontAwesome5 } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
 export default function PantallaEscaner() {
   const router = useRouter();
+  // 🔥 Leemos de dónde venimos
+  const { origen } = useLocalSearchParams();
 
-  // 🔥 Conectamos al Tema Global
   const { colores } = useTheme();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
@@ -44,6 +45,14 @@ export default function PantallaEscaner() {
     scannerLock.current = true;
     setEscaneado(true);
 
+    // 🔥 Si venimos de la pantalla de VENTAS, agregamos instantáneamente sin preguntar
+    if (origen === "ventas") {
+      DeviceEventEmitter.emit("onCodigoEscaneado", data);
+      router.back();
+      return;
+    }
+
+    // Si venimos de crear/editar un producto, mostramos la alerta por seguridad
     Alert.alert("Código Escaneado", `Código: ${data}`, [
       {
         text: "Escanear Otro",
@@ -207,7 +216,6 @@ const crearEstilos = (c: any) =>
     },
     botonCancelar: { padding: 15 },
     textoCancelar: { color: c.textoGris, fontSize: 16 },
-
     uiOverlay: {
       ...StyleSheet.absoluteFillObject,
       justifyContent: "space-between",
@@ -240,9 +248,7 @@ const crearEstilos = (c: any) =>
       marginHorizontal: 5,
     },
     textoZoom: { color: "white", fontSize: 12, fontWeight: "bold" },
-
     centro: { alignItems: "center", justifyContent: "center", flex: 1 },
-    // 🔥 RESTAURADO EL MARCO CUADRADO DEL ESCÁNER ORIGINAL
     marco: {
       width: width * 0.7,
       height: width * 0.7,

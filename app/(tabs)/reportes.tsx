@@ -16,15 +16,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import ToggleTema from "../../components/ToggleTema";
 import { useAuth } from "../../contexts/ContextAuth";
-import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el contexto del tema
+import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
 import { Image } from "expo-image";
 
-const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/pagos";
-
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 type FiltroType = "ninguno" | "fecha" | "pagos" | "vendedor" | "producto";
+
+const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 export default function PantallaReportes() {
   const { user } = useAuth();
@@ -33,28 +34,20 @@ export default function PantallaReportes() {
     user?.rol === "administrador" ||
     user?.rol === "superadmin";
 
-// 🔥 Estado para ver el capture a pantalla completa
-  const [comprobanteVisible, setComprobanteVisible] = useState<string | null>(null);
-
-  // 🔥 Conectamos al Tema Global
   const { colores, isDark } = useTheme();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
-  // --- ESTADOS GLOBALES ---
   const [vistaActual, setVistaActual] = useState<VistaType>("resumen");
   const [cargando, setCargando] = useState(true);
 
-  // --- ESTADOS DE DATOS ---
   const [ventas, setVentas] = useState<any[]>([]);
   const [productos, setProductos] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
 
-  // Caja
   const [cajaActual, setCajaActual] = useState<any>(null);
   const [movimientosCaja, setMovimientosCaja] = useState<any[]>([]);
   const [historialCaja, setHistorialCaja] = useState<any[]>([]);
 
-  // --- ESTADOS DE FILTROS ---
   const [filtroActivo, setFiltroActivo] = useState<FiltroType>("ninguno");
   const [rangoFecha, setRangoFecha] = useState<
     "hoy" | "semana" | "mes" | "historico" | "personalizado"
@@ -63,13 +56,11 @@ export default function PantallaReportes() {
   const [filtroVendedor, setFiltroVendedor] = useState<string>("todos");
   const [busquedaProducto, setBusquedaProducto] = useState("");
 
-  // Fechas personalizadas
   const [fechaInicio, setFechaInicio] = useState(new Date());
   const [fechaFin, setFechaFin] = useState(new Date());
   const [showPickerInicio, setShowPickerInicio] = useState(false);
   const [showPickerFin, setShowPickerFin] = useState(false);
 
-  // --- ESTADOS DE MODALES CAJA ---
   const [montoInicialCaja, setMontoInicialCaja] = useState("");
   const [modalCierreVisible, setModalCierreVisible] = useState(false);
   const [montoCierre, setMontoCierre] = useState("");
@@ -82,7 +73,11 @@ export default function PantallaReportes() {
   const [montoMovimiento, setMontoMovimiento] = useState("");
   const [descMovimiento, setDescMovimiento] = useState("");
 
-  // --- CARGA DE DATOS ---
+  // Estado para el modal de ver capture
+  const [comprobanteVisible, setComprobanteVisible] = useState<string | null>(
+    null,
+  );
+
   const cargarDatos = async () => {
     try {
       setCargando(true);
@@ -116,7 +111,6 @@ export default function PantallaReportes() {
     }, []),
   );
 
-  // --- UTILIDADES ---
   const formatearMoneda = (monto: any) => `$ ${Number(monto || 0).toFixed(2)}`;
   const formatearFechaHora = (fecha: string) => {
     if (!fecha) return "";
@@ -127,19 +121,17 @@ export default function PantallaReportes() {
   const normalizarMetodo = (str: string) => {
     return String(str || "")
       .toLowerCase()
-      .normalize("NFD") // Quita acentos (ó -> o)
+      .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, "_") // Cambia espacios por guiones bajos
+      .replace(/\s+/g, "_")
       .trim();
   };
 
-  // --- LOGICA: FILTRADO GLOBAL DE VENTAS ---
   const ventasFiltradas = useMemo(() => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     return ventas
       .filter((v) => {
-        // Vendedor
         const vId = v.vendedorId || v.vendedor_id;
         if (!esAdmin()) {
           if (vId !== user?.id) return false;
@@ -148,7 +140,6 @@ export default function PantallaReportes() {
             return false;
         }
 
-        // Pagos (USANDO EL NORMALIZADOR)
         const metodoVenta = normalizarMetodo(
           v.metodoPago || v.metodo_pago || "N/A",
         );
@@ -156,7 +147,6 @@ export default function PantallaReportes() {
         if (filtroPago !== "todos" && metodoVenta !== metodoFiltro)
           return false;
 
-        // Fecha
         if (!busquedaProducto) {
           const f = new Date(v.fecha);
           if (rangoFecha === "hoy" && f < hoy) return false;
@@ -179,7 +169,6 @@ export default function PantallaReportes() {
           }
         }
 
-        // Producto
         if (busquedaProducto) {
           const search = busquedaProducto.toLowerCase();
           const tiene = v.items?.some((i: any) => {
@@ -212,7 +201,6 @@ export default function PantallaReportes() {
     productos,
   ]);
 
-  // --- LOGICA: RESUMEN (KPIs) ---
   const kpis = useMemo(() => {
     let brutas = 0,
       costoTotal = 0;
@@ -263,7 +251,7 @@ export default function PantallaReportes() {
     return { brutas, utilidad, margen, porMetodo, top };
   }, [ventasFiltradas, productos]);
 
-  // --- LOGICA: CAJA ---
+  // 🔥 AQUÍ AGREGAMOS LA LÓGICA DE CONTEO PARA LA CAJA
   const calculosCaja = useMemo(() => {
     if (!cajaActual) return null;
     let ventasEf = 0,
@@ -272,23 +260,32 @@ export default function PantallaReportes() {
       ventasCr = 0,
       ing = 0,
       gas = 0;
-    let totalIVA = 0,
-      totalIGTF = 0;
+    let countEf = 0,
+      countBanco = 0,
+      countPm = 0,
+      countCr = 0; // Contadores de transacciones
     const fApertura = new Date(cajaActual.fecha_apertura);
 
     ventas
       .filter((v) => new Date(v.fecha) >= fApertura)
       .forEach((v) => {
         const m = v.metodoPago || v.metodo_pago;
-        if (m === "efectivo") ventasEf += Number(v.total);
-        if (m === "tarjeta" || m === "transferencia")
+        if (m === "efectivo") {
+          ventasEf += Number(v.total);
+          countEf++;
+        }
+        if (m === "tarjeta" || m === "transferencia") {
           ventasBanco += Number(v.total);
-        if (m === "pago_movil") ventasPm += Number(v.total);
-        if (m === "credito" || v.estadoPago === "pendiente")
+          countBanco++;
+        }
+        if (m === "pago_movil") {
+          ventasPm += Number(v.total);
+          countPm++;
+        }
+        if (m === "credito" || v.estadoPago === "pendiente") {
           ventasCr += Number(v.montoRestante || v.total);
-
-        totalIVA += Number(v.montoIVA || 0);
-        totalIGTF += Number(v.montoIGTF || 0);
+          countCr++;
+        }
       });
 
     movimientosCaja.forEach((m) => {
@@ -300,18 +297,19 @@ export default function PantallaReportes() {
     return {
       base,
       ventasEf,
+      countEf,
       ventasBanco,
+      countBanco,
       ventasPm,
+      countPm,
       ventasCr,
-      ing,
-      gas,
-      totalIVA,
-      totalIGTF,
-      esperado: base + ventasEf + ing - gas,
+      countCr,
+      ingresosExtra: ing,
+      gastos: gas,
+      esperado: base + ventasEf + ing - gas, // Solo el efectivo suma al esperado en caja física
     };
   }, [cajaActual, ventas, movimientosCaja]);
 
-  // --- ACCIONES CAJA (API) ---
   const handleAbrirCaja = async () => {
     const monto = parseFloat(montoInicialCaja);
     if (isNaN(monto)) return Alert.alert("Error", "Monto inválido");
@@ -373,9 +371,6 @@ export default function PantallaReportes() {
     }
   };
 
-  // =======================================================================
-  // RENDER: PESTAÑA RESUMEN
-  // =======================================================================
   const renderVistaResumen = () => (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -452,7 +447,6 @@ export default function PantallaReportes() {
           if (total === 0) return null;
           const pct = kpis.brutas > 0 ? (total / kpis.brutas) * 100 : 0;
           let colorBarra = colores.primario;
-          // Fallback por si colores.cyan no existe en el tema
           if (metodo === "pago_movil") colorBarra = colores.cyan || "#00D1FF";
           if (metodo === "tarjeta" || metodo === "transferencia")
             colorBarra = "#BF5AF2";
@@ -478,7 +472,9 @@ export default function PantallaReportes() {
               <View
                 style={{
                   height: 6,
-                  backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(0,0,0,0.1)",
                   borderRadius: 3,
                   overflow: "hidden",
                 }}
@@ -548,9 +544,6 @@ export default function PantallaReportes() {
     </ScrollView>
   );
 
-  // =======================================================================
-  // RENDER: PESTAÑA VENTAS (Con Filtros y Calendario)
-  // =======================================================================
   const renderVistaVentas = () => (
     <View style={estilos.flex1}>
       <View style={estilos.contenedorFiltros}>
@@ -672,7 +665,6 @@ export default function PantallaReportes() {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* SUB-FILTROS DESPLEGABLES */}
         {filtroActivo === "fecha" && (
           <View style={estilos.panelSubFiltro}>
             <ScrollView
@@ -701,7 +693,6 @@ export default function PantallaReportes() {
               ))}
             </ScrollView>
 
-            {/* CALENDARIO SOLO SE MUESTRA EN 'HOY' O 'PERSONALIZADO' */}
             {(rangoFecha === "hoy" || rangoFecha === "personalizado") && (
               <>
                 <Text
@@ -939,11 +930,14 @@ export default function PantallaReportes() {
                   )}
                 </Text>
               </View>
-              {/* 🔥 Botón de Capture Dinámico */}
               {(item.fotoComprobante || item.foto_comprobante) && (
                 <TouchableOpacity
                   style={{ marginTop: 5, padding: 5 }}
-                  onPress={() => setComprobanteVisible(item.fotoComprobante || item.foto_comprobante)}
+                  onPress={() =>
+                    setComprobanteVisible(
+                      item.fotoComprobante || item.foto_comprobante,
+                    )
+                  }
                 >
                   <Text
                     style={{
@@ -963,9 +957,6 @@ export default function PantallaReportes() {
     </View>
   );
 
-  // =======================================================================
-  // RENDER: PESTAÑA CRÉDITOS
-  // =======================================================================
   const renderVistaCreditos = () => {
     const creditos = ventas.filter(
       (v) =>
@@ -1072,9 +1063,6 @@ export default function PantallaReportes() {
     );
   };
 
-  // =======================================================================
-  // RENDER: PESTAÑA CAJA
-  // =======================================================================
   const renderVistaCaja = () => (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -1210,7 +1198,9 @@ export default function PantallaReportes() {
               </Text>
             </View>
           </View>
+
           <View style={{ gap: 10 }}>
+            {/* 🔥 TARJETAS DE CAJA CON CONTADORES DE TRANSACCIONES */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View
                 style={[
@@ -1236,7 +1226,7 @@ export default function PantallaReportes() {
                     color: colores.textoOscuro,
                   }}
                 >
-                  {formatearMoneda(calculosCaja?.efectivoEsperado || 0)}
+                  {formatearMoneda(calculosCaja?.ventasEf || 0)}
                 </Text>
                 <Text
                   style={{
@@ -1245,13 +1235,23 @@ export default function PantallaReportes() {
                     color: "rgba(0,0,0,0.6)",
                   }}
                 >
-                  Base: {formatearMoneda(calculosCaja?.baseInicial || 0)}
+                  Base: {formatearMoneda(calculosCaja?.base || 0)} •{" "}
+                  {calculosCaja?.countEf || 0} trans.
                 </Text>
               </View>
               <View style={estilos.cardCaja}>
                 <Text style={estilos.labelCaja}>BANCO (TRANS/TARJ)</Text>
                 <Text style={estilos.montoCaja}>
-                  {formatearMoneda(calculosCaja?.ventasTarjetaTransfer || 0)}
+                  {formatearMoneda(calculosCaja?.ventasBanco || 0)}
+                </Text>
+                <Text
+                  style={{
+                    color: colores.textoGris,
+                    fontSize: 10,
+                    marginTop: 4,
+                  }}
+                >
+                  {calculosCaja?.countBanco || 0} transacciones
                 </Text>
               </View>
             </View>
@@ -1259,7 +1259,16 @@ export default function PantallaReportes() {
               <View style={estilos.cardCaja}>
                 <Text style={estilos.labelCaja}>PAGO MÓVIL</Text>
                 <Text style={estilos.montoCaja}>
-                  {formatearMoneda(calculosCaja?.ventasPagoMovil || 0)}
+                  {formatearMoneda(calculosCaja?.ventasPm || 0)}
+                </Text>
+                <Text
+                  style={{
+                    color: colores.textoGris,
+                    fontSize: 10,
+                    marginTop: 4,
+                  }}
+                >
+                  {calculosCaja?.countPm || 0} transacciones
                 </Text>
               </View>
               <View
@@ -1276,11 +1285,17 @@ export default function PantallaReportes() {
                   POR COBRAR
                 </Text>
                 <Text style={[estilos.montoCaja, { color: colores.error }]}>
-                  {formatearMoneda(calculosCaja?.ventasCredito || 0)}
+                  {formatearMoneda(calculosCaja?.ventasCr || 0)}
+                </Text>
+                <Text
+                  style={{ color: colores.error, fontSize: 10, marginTop: 4 }}
+                >
+                  {calculosCaja?.countCr || 0} transacciones
                 </Text>
               </View>
             </View>
           </View>
+
           <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
             <TouchableOpacity
               style={[estilos.botonCajaMin, { borderColor: colores.exito }]}
@@ -1408,10 +1423,8 @@ export default function PantallaReportes() {
         </View>
       )}
 
-      {/* Historial Corto */}
       <View style={{ marginTop: 40, width: "100%" }}>
         <Text style={estilos.seccionTitulo}>Historial de Cajas</Text>
-
         {historialCaja.length === 0 ? (
           <Text style={estilos.textoVacio}>No se encontraron registros.</Text>
         ) : (
@@ -1486,9 +1499,6 @@ export default function PantallaReportes() {
     </ScrollView>
   );
 
-  // =======================================================================
-  // RENDER PRINCIPAL DEL ARCHIVO
-  // =======================================================================
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1499,7 +1509,9 @@ export default function PantallaReportes() {
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: isDark ? "rgba(18,18,18,0.8)" : "rgba(255,255,255,0.8)",
+              backgroundColor: isDark
+                ? "rgba(18,18,18,0.8)"
+                : "rgba(255,255,255,0.8)",
               zIndex: 100,
               justifyContent: "center",
             },
@@ -1509,11 +1521,24 @@ export default function PantallaReportes() {
         </View>
       )}
 
-      {/* HEADER TABS SUPERIOR CON TOGGLE */}
       <View style={estilos.header}>
-        {/* 🔥 Título y Botón del Tema */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-            <Text style={{ color: colores.textoBlanco, fontSize: 28, fontWeight: 'bold' }}>Reportes</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 15,
+          }}
+        >
+          <Text
+            style={{
+              color: colores.textoBlanco,
+              fontSize: 28,
+              fontWeight: "bold",
+            }}
+          >
+            Reportes
+          </Text>
         </View>
 
         <View style={estilos.selectorVista}>
@@ -1546,13 +1571,11 @@ export default function PantallaReportes() {
         </View>
       </View>
 
-      {/* VISTAS */}
       {vistaActual === "resumen" && renderVistaResumen()}
       {vistaActual === "ventas" && renderVistaVentas()}
       {vistaActual === "creditos" && renderVistaCreditos()}
       {vistaActual === "caja" && renderVistaCaja()}
 
-      {/* MODALES DE CAJA (Ocultos si no se usan) */}
       <Modal visible={modalCierreVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1735,27 +1758,39 @@ export default function PantallaReportes() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      {/* 🔥 MODAL PARA VISUALIZAR EL COMPROBANTE DE PAGO */}
+
       <Modal visible={!!comprobanteVisible} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center" }}>
-          
-          {/* Botón de Cerrar (X) */}
-          <TouchableOpacity 
-            style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.9)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <TouchableOpacity
+            style={{
+              position: "absolute",
+              top: 50,
+              right: 20,
+              zIndex: 10,
+              padding: 10,
+              backgroundColor: "rgba(255,255,255,0.2)",
+              borderRadius: 20,
+            }}
             onPress={() => setComprobanteVisible(null)}
           >
             <FontAwesome5 name="times" size={24} color="#FFF" />
           </TouchableOpacity>
-
-          {/* Imagen a pantalla completa */}
           {comprobanteVisible && (
-            <Image 
-              source={{ 
-                uri: comprobanteVisible.startsWith("http") || comprobanteVisible.startsWith("data:")
-                  ? comprobanteVisible 
-                  // 🔥 AQUÍ ESTÁ LA MAGIA: Le agregamos "pagos/" a la ruta
-                  : `http://192.168.1.111:8000/uploads/pagos/${comprobanteVisible}` 
-              }} 
+            <Image
+              source={{
+                uri:
+                  comprobanteVisible.startsWith("http") ||
+                  comprobanteVisible.startsWith("data:")
+                    ? comprobanteVisible
+                    : `http://192.168.1.111:8000/uploads/pagos/${comprobanteVisible}`,
+              }}
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />
           )}
@@ -1765,205 +1800,189 @@ export default function PantallaReportes() {
   );
 }
 
-// 🔥 Envolvemos la creación de estilos en una función que recibe los colores dinámicos
-const crearEstilos = (c: any) => StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
-  flex1: { flex: 1 },
-  header: {
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 15,
-    paddingHorizontal: 20,
-    backgroundColor: c.fondoOscuro,
-  },
-  selectorVista: {
-    flexDirection: "row",
-    backgroundColor: c.fondoInput,
-    borderRadius: 25,
-    padding: 5,
-  },
-  botonVista: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 20,
-  },
-  contenidoScroll: { padding: 20, paddingBottom: 100 },
-
-  // Utilidades Compartidas
-  seccionTitulo: {
-    color: c.textoBlanco,
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  textoVacio: { color: c.textoGris, textAlign: "center", marginTop: 20 },
-  filaChipsFiltro: { flexDirection: "row", gap: 10, marginBottom: 20 },
-
-  // Chips Resumen (Bordes redondeados)
-  chipFiltroResumen: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: c.fondoInput,
-  },
-
-  // Chips Filtros Ventas (Cuadrados y oscuros como en tu foto)
-  chipFiltro: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "rgba(128,128,128,0.1)", // Ajuste para que se vea en modo claro y oscuro
-  },
-  chipFiltroActivo: { backgroundColor: c.primario },
-  textoChip: { color: c.textoGris, fontWeight: "bold", fontSize: 14 },
-  textoChipActivo: { color: c.textoOscuro },
-
-  // Tarjetas Resumen
-  tarjetaKPI: {
-    flex: 1,
-    padding: 20,
-    borderRadius: 16,
-    justifyContent: "center",
-    minHeight: 120,
-  },
-  tituloKPI: {
-    fontSize: 12,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  valorKPI: { fontSize: 32, fontWeight: "900" },
-  itemTopProducto: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: c.borde,
-  },
-
-  // Filtros Ventas
-  contenedorFiltros: {
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: c.borde,
-  },
-  botonFiltroPrincipal: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: c.fondoTarjeta,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  botonFiltroPrincipalActivo: { backgroundColor: c.primario },
-  textoFiltroPrincipal: {
-    color: c.textoGris,
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  panelSubFiltro: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: c.fondoOscuro,
-  },
-  inputBusquedaFiltro: {
-    backgroundColor: c.fondoInput,
-    color: c.textoBlanco,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: c.borde,
-  },
-  inputFecha: {
-    flex: 1,
-    backgroundColor: c.fondoOscuro,
-    padding: 15,
-    borderRadius: 8,
-  },
-  inputFechaActivo: { borderWidth: 1, borderColor: c.primario },
-  labelFecha: {
-    fontSize: 10,
-    color: c.textoGris,
-    marginBottom: 5,
-    fontWeight: "bold",
-  },
-  valorFecha: { color: c.textoBlanco, fontWeight: "bold", fontSize: 14 },
-
-  // Lista Ventas/Creditos
-  itemVentaLista: {
-    backgroundColor: c.fondoTarjeta,
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  // Caja
-  inputGiganteCaja: {
-    backgroundColor: c.fondoInput,
-    color: c.textoBlanco,
-    fontSize: 32,
-    padding: 20,
-    borderRadius: 16,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-  cardCaja: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 12,
-    justifyContent: "center",
-    backgroundColor: c.fondoTarjeta,
-  },
-  labelCaja: {
-    fontSize: 10,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    color: c.textoBlanco,
-  },
-  montoCaja: { fontSize: 24, fontWeight: "bold", color: c.textoBlanco },
-  botonCajaMin: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 15,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-
-  // Modales
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalContenido: {
-    backgroundColor: c.fondoTarjeta,
-    padding: 25,
-    borderRadius: 20,
-  },
-  tituloModal: {
-    color: c.textoBlanco,
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  inputModal: {
-    backgroundColor: c.fondoOscuro,
-    color: c.textoBlanco,
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: c.borde,
-  },
-}); 
+const crearEstilos = (c: any) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
+    flex1: { flex: 1 },
+    header: {
+      paddingTop: Platform.OS === "ios" ? 60 : 40,
+      paddingBottom: 15,
+      paddingHorizontal: 20,
+      backgroundColor: c.fondoOscuro,
+    },
+    selectorVista: {
+      flexDirection: "row",
+      backgroundColor: c.fondoInput,
+      borderRadius: 25,
+      padding: 5,
+    },
+    botonVista: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      borderRadius: 20,
+    },
+    contenidoScroll: { padding: 20, paddingBottom: 100 },
+    seccionTitulo: {
+      color: c.textoBlanco,
+      fontSize: 18,
+      fontWeight: "bold",
+      marginBottom: 15,
+    },
+    textoVacio: { color: c.textoGris, textAlign: "center", marginTop: 20 },
+    filaChipsFiltro: { flexDirection: "row", gap: 10, marginBottom: 20 },
+    chipFiltroResumen: {
+      paddingHorizontal: 15,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: c.fondoInput,
+    },
+    chipFiltro: {
+      paddingHorizontal: 15,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: "rgba(128,128,128,0.1)",
+    },
+    chipFiltroActivo: { backgroundColor: c.primario },
+    textoChip: { color: c.textoGris, fontWeight: "bold", fontSize: 14 },
+    textoChipActivo: { color: c.textoOscuro },
+    tarjetaKPI: {
+      flex: 1,
+      padding: 20,
+      borderRadius: 16,
+      justifyContent: "center",
+      minHeight: 120,
+    },
+    tituloKPI: {
+      fontSize: 12,
+      fontWeight: "bold",
+      letterSpacing: 1,
+      marginBottom: 10,
+    },
+    valorKPI: { fontSize: 32, fontWeight: "900" },
+    itemTopProducto: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    contenedorFiltros: {
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: c.borde,
+    },
+    botonFiltroPrincipal: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.fondoTarjeta,
+      paddingHorizontal: 15,
+      paddingVertical: 10,
+      borderRadius: 10,
+      gap: 8,
+      borderWidth: 1,
+      borderColor: "transparent",
+    },
+    botonFiltroPrincipalActivo: { backgroundColor: c.primario },
+    textoFiltroPrincipal: {
+      color: c.textoGris,
+      fontWeight: "bold",
+      fontSize: 14,
+    },
+    panelSubFiltro: {
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      backgroundColor: c.fondoOscuro,
+    },
+    inputBusquedaFiltro: {
+      backgroundColor: c.fondoInput,
+      color: c.textoBlanco,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    inputFecha: {
+      flex: 1,
+      backgroundColor: c.fondoOscuro,
+      padding: 15,
+      borderRadius: 8,
+    },
+    inputFechaActivo: { borderWidth: 1, borderColor: c.primario },
+    labelFecha: {
+      fontSize: 10,
+      color: c.textoGris,
+      marginBottom: 5,
+      fontWeight: "bold",
+    },
+    valorFecha: { color: c.textoBlanco, fontWeight: "bold", fontSize: 14 },
+    itemVentaLista: {
+      backgroundColor: c.fondoTarjeta,
+      padding: 15,
+      borderRadius: 12,
+      marginBottom: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    inputGiganteCaja: {
+      backgroundColor: c.fondoInput,
+      color: c.textoBlanco,
+      fontSize: 32,
+      padding: 20,
+      borderRadius: 16,
+      textAlign: "center",
+      fontWeight: "bold",
+    },
+    cardCaja: {
+      flex: 1,
+      padding: 15,
+      borderRadius: 12,
+      justifyContent: "center",
+      backgroundColor: c.fondoTarjeta,
+    },
+    labelCaja: {
+      fontSize: 10,
+      fontWeight: "bold",
+      letterSpacing: 0.5,
+      marginBottom: 8,
+      color: c.textoBlanco,
+    },
+    montoCaja: { fontSize: 24, fontWeight: "bold", color: c.textoBlanco },
+    botonCajaMin: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 15,
+      borderRadius: 10,
+      borderWidth: 1,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.8)",
+      justifyContent: "center",
+      padding: 20,
+    },
+    modalContenido: {
+      backgroundColor: c.fondoTarjeta,
+      padding: 25,
+      borderRadius: 20,
+    },
+    tituloModal: {
+      color: c.textoBlanco,
+      fontSize: 22,
+      fontWeight: "bold",
+      marginBottom: 20,
+      textAlign: "center",
+    },
+    inputModal: {
+      backgroundColor: c.fondoOscuro,
+      color: c.textoBlanco,
+      padding: 15,
+      borderRadius: 10,
+      marginBottom: 15,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+  });

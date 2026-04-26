@@ -27,7 +27,10 @@ export default function PantallaCuenta() {
 
   // --- CONEXIÓN AL TEMA GLOBAL ---
   const { colores, isDark, setModo } = useTheme();
-  const estilos = useMemo(() => crearEstilos(colores, isDark), [colores, isDark]);
+  const estilos = useMemo(
+    () => crearEstilos(colores, isDark),
+    [colores, isDark],
+  );
 
   const esAdmin = () =>
     user?.rol === "admin" ||
@@ -58,22 +61,20 @@ export default function PantallaCuenta() {
     }, []),
   );
 
+  // En cargarConfiguracion, asegúrate de comparar correctamente los strings de PHP
   const cargarConfiguracion = async () => {
     try {
       setCargandoConfig(true);
       const res: any = await api.get("/configuracion");
       if (res) {
-        setCobrarIVA(
-          res.impuestos_habilitados === 1 || res.impuestos_habilitados === true,
-        );
+        // PHP devuelve "1" o "0", convertimos a booleano explícitamente
+        setCobrarIVA(res.impuestos_habilitados == "1");
         setTasaIVA(res.tasa_iva ? parseFloat(res.tasa_iva) : 16);
-        setCobrarIGTF(
-          res.igtf_habilitado === 1 || res.igtf_habilitado === true,
-        );
+        setCobrarIGTF(res.igtf_habilitado == "1");
         setTasaIGTF(res.tasa_igtf ? parseFloat(res.tasa_igtf) : 3);
       }
     } catch (error) {
-      console.log("No se pudo cargar la configuración o no existe aún.");
+      console.log("Error al cargar config");
     } finally {
       setCargandoConfig(false);
     }
@@ -81,18 +82,29 @@ export default function PantallaCuenta() {
 
   const guardarConfiguracion = async (tipo: "iva" | "igtf", valor: boolean) => {
     try {
-      const payload = {
-        impuestos_habilitados: tipo === "iva" ? valor : cobrarIVA,
-        tasa_iva: tasaIVA,
-        igtf_habilitado: tipo === "igtf" ? valor : cobrarIGTF,
-        tasa_igtf: tasaIGTF,
-      };
-      await api.post("/configuracion", payload);
+      // El backend espera un objeto estricto con { clave: "...", valor: "..." }
+      const claveEstado =
+        tipo === "iva" ? "impuestos_habilitados" : "igtf_habilitado";
+      const claveTasa = tipo === "iva" ? "tasa_iva" : "tasa_igtf";
 
+      // 1. Guardamos si está encendido o apagado (enviamos "1" o "0" para MySQL)
+      await api.post("/configuracion", {
+        clave: claveEstado,
+        valor: valor ? "1" : "0",
+      });
+
+      // 2. Guardamos la tasa actual (ej. "16" o "3")
+      await api.post("/configuracion", {
+        clave: claveTasa,
+        valor: tipo === "iva" ? tasaIVA.toString() : tasaIGTF.toString(),
+      });
+
+      // Si todo sale bien, actualizamos el switch en la pantalla
       if (tipo === "iva") setCobrarIVA(valor);
       if (tipo === "igtf") setCobrarIGTF(valor);
     } catch (error) {
       Alert.alert("Error", "No se pudo guardar la configuración");
+      // Si falla, devolvemos el switch a como estaba antes
       if (tipo === "iva") setCobrarIVA(!valor);
       if (tipo === "igtf") setCobrarIGTF(!valor);
     }
@@ -255,7 +267,10 @@ export default function PantallaCuenta() {
             <Switch
               value={isDark}
               onValueChange={(val) => setModo(val ? "oscuro" : "claro")}
-              trackColor={{ false: "rgba(128,128,128,0.3)", true: colores.primario }}
+              trackColor={{
+                false: "rgba(128,128,128,0.3)",
+                true: colores.primario,
+              }}
               thumbColor={isDark ? colores.textoOscuro : "#FFF"}
             />
           </View>
@@ -273,7 +288,12 @@ export default function PantallaCuenta() {
                 marginLeft: 5,
               }}
             >
-              <Text style={[estilos.tituloSeccion, { marginBottom: 0, marginLeft: 0 }]}>
+              <Text
+                style={[
+                  estilos.tituloSeccion,
+                  { marginBottom: 0, marginLeft: 0 },
+                ]}
+              >
                 Configuración de Impuestos
               </Text>
               {cargandoConfig && (
@@ -295,7 +315,10 @@ export default function PantallaCuenta() {
               <Switch
                 value={cobrarIVA}
                 onValueChange={(val) => guardarConfiguracion("iva", val)}
-                trackColor={{ false: "rgba(128,128,128,0.3)", true: colores.primario }}
+                trackColor={{
+                  false: "rgba(128,128,128,0.3)",
+                  true: colores.primario,
+                }}
                 thumbColor={cobrarIVA ? colores.textoOscuro : "#FFF"}
                 disabled={cargandoConfig}
               />
@@ -315,7 +338,10 @@ export default function PantallaCuenta() {
               <Switch
                 value={cobrarIGTF}
                 onValueChange={(val) => guardarConfiguracion("igtf", val)}
-                trackColor={{ false: "rgba(128,128,128,0.3)", true: colores.primario }}
+                trackColor={{
+                  false: "rgba(128,128,128,0.3)",
+                  true: colores.primario,
+                }}
                 thumbColor={cobrarIGTF ? colores.textoOscuro : "#FFF"}
                 disabled={cargandoConfig}
               />
@@ -352,7 +378,9 @@ export default function PantallaCuenta() {
                 <FontAwesome5
                   name={opcion.icono}
                   size={16}
-                  color={opcion.destacado ? colores.primario : colores.textoBlanco}
+                  color={
+                    opcion.destacado ? colores.primario : colores.textoBlanco
+                  }
                 />
               </View>
               <Text
@@ -568,8 +596,18 @@ const crearEstilos = (c: any, isDark: boolean) =>
       alignItems: "center",
       marginRight: 15,
     },
-    tituloOpcion: { flex: 1, fontSize: 16, color: c.textoBlanco, fontWeight: "500" },
-    tituloOpcionSwitch: { flex: 1, fontSize: 16, color: c.textoBlanco, fontWeight: "500" },
+    tituloOpcion: {
+      flex: 1,
+      fontSize: 16,
+      color: c.textoBlanco,
+      fontWeight: "500",
+    },
+    tituloOpcionSwitch: {
+      flex: 1,
+      fontSize: 16,
+      color: c.textoBlanco,
+      fontWeight: "500",
+    },
     contendorDisclaimer: {
       flexDirection: "row",
       backgroundColor: c.fondoTarjeta,
@@ -605,7 +643,7 @@ const crearEstilos = (c: any, isDark: boolean) =>
     version: {
       fontSize: 14,
       color: c.textoGris,
-      textAlign: 'center',
+      textAlign: "center",
       marginBottom: 40,
     },
     modalContainer: {
