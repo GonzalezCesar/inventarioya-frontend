@@ -271,7 +271,13 @@ export default function PantallaNuevaVenta() {
 
     setCargando(true);
     try {
+      const tzOffset = new Date().getTimezoneOffset() * 60000;
+      const fechaLocalMySQL = new Date(Date.now() - tzOffset)
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ");
       const payload: any = {
+        fecha: fechaLocalMySQL,
         clienteId: clienteSeleccionado,
         total: total,
         subtotal: total,
@@ -746,7 +752,7 @@ export default function PantallaNuevaVenta() {
                         size={24}
                         color={
                           metodoPago === metodo.id
-                            ? colores.primario
+                            ? colores.subtitulos
                             : colores.textoGris
                         }
                       />
@@ -965,14 +971,20 @@ export default function PantallaNuevaVenta() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={estilos.botonFinalizar}
-                    onPress={() => {
-                      setModalVisible(false);
-                      router.push("/(tabs)");
-                    }}
-                  >
-                    <Text style={estilos.textoBotonFinalizar}>Finalizar</Text>
-                  </TouchableOpacity>
+  style={estilos.botonFinalizar}
+  onPress={() => {
+    // 1. Ocultamos el modal primero
+    setModalVisible(false);
+    
+    // 2. Le damos medio segundo para que la animación de cierre termine por completo
+    setTimeout(() => {
+      // 3. Reemplazamos la ruta para forzar la recarga del layout
+      router.replace("/(tabs)"); 
+    }, 500); 
+  }}
+>
+  <Text style={estilos.textoBotonFinalizar}>Finalizar</Text>
+</TouchableOpacity>
                 </View>
               </View>
             )}
@@ -1120,7 +1132,7 @@ const crearEstilos = (c: any) =>
 
     // Controles Carrito (Cantidad)
     controlesCarrito: { flexDirection: "row", alignItems: "center" },
-      btnCant: {
+    btnCant: {
       backgroundColor: c.fondoOscuro,
       width: 35,
       height: 35,
@@ -1201,11 +1213,11 @@ const crearEstilos = (c: any) =>
       backgroundColor: c.fondoOscuro,
       borderRadius: 15,
       borderWidth: 1,
-      borderColor: c.primario,
+      borderColor: c.subtitulos,
       marginBottom: 25,
     },
     totalLabel: { color: c.textoGris, fontSize: 16, marginBottom: 5 },
-    totalValue: { color: c.primario, fontSize: 45, fontWeight: "900" },
+    totalValue: { color: c.subtitulos, fontSize: 45, fontWeight: "900" },
 
     seccion: { marginBottom: 25 },
     seccionTitulo: {
@@ -1285,12 +1297,12 @@ const crearEstilos = (c: any) =>
       marginBottom: 5,
     },
     opcionPagoActivo: {
-      borderColor: c.primario,
+      borderColor: c.subtitulos,
       borderWidth: 2,
       backgroundColor: c.fondoInput,
     },
     textoPago: { color: c.textoGris, fontSize: 14, marginTop: 10 },
-    textoPagoActivo: { color: c.primario, fontWeight: "bold" },
+    textoPagoActivo: { color: c.subtitulos, fontWeight: "bold" },
 
     labelInput: { color: c.textoBlanco, marginBottom: 10, fontWeight: "bold" },
     inputDinero: {
@@ -1349,7 +1361,7 @@ const crearEstilos = (c: any) =>
       marginTop: 5,
     },
     textoTotalResumen: { color: c.textoGris, fontWeight: "bold", fontSize: 16 },
-    valorTotalResumen: { color: c.primario, fontWeight: "900", fontSize: 26 },
+    valorTotalResumen: { color: c.subtitulos, fontWeight: "900", fontSize: 26 },
 
     filaBotonesAccion: { flexDirection: "row", gap: 15, width: "100%" },
     botonVolverAccion: {

@@ -91,7 +91,9 @@ export default function PantallaDashboard() {
         <View style={estilos.encabezado}>
           <Text style={estilos.saludo}>Hola, {user?.nombre || "Usuario"}</Text>
           <Text style={estilos.rol}>
-            {user?.rol === "admin" || user?.rol === "superadmin"
+            {user?.rol?.toLowerCase() === "superadmin"
+              ? "Superadministrador"
+              : user?.rol?.toLowerCase() === "administrador" || user?.rol?.toLowerCase() === "admin"
               ? "Administrador"
               : "Vendedor"}
           </Text>
@@ -209,29 +211,37 @@ export default function PantallaDashboard() {
               <View key={index} style={estilos.itemActividad}>
                 <View style={estilos.iconoActividad}>
                   <FontAwesome5
-                    name="dollar-sign"
+                    name={item.accion === "Conexión" ? "user-clock" : "dollar-sign"}
                     size={16}
                     color={colores.textoResaltado}
                   />
                 </View>
                 <View style={estilos.infoActividad}>
-                  <Text style={estilos.textoActividad}>
-                    Venta #{item.id.substring(0, 8)} •{" "}
+                  <Text style={estilos.textoActividad} numberOfLines={1}>
+                    {/* 🔥 Magia aquí: Si tiene ID, es una venta de tienda. Si no, es actividad de Superadmin */}
+                    {item.id 
+                      ? `Venta #${item.id.substring(0, 8)}` 
+                      : `${item.accion} • ${item.nombre || item.email}`}
+                  </Text>
+                  <Text style={estilos.subtextoActividad}>
                     {new Date(item.fecha).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                   </Text>
-                  <Text style={estilos.subtextoActividad}>Total pagado</Text>
                 </View>
-                <Text style={estilos.montoActividad}>
-                  {formatearMoneda(item.monto)}
-                </Text>
+                
+                {/* 🔥 Solo renderizamos el monto si realmente existe en el JSON */}
+                {item.monto !== undefined && (
+                  <Text style={estilos.montoActividad}>
+                    {formatearMoneda(item.monto)}
+                  </Text>
+                )}
               </View>
             ))
           ) : (
             <Text style={estilos.textoVacio}>
-              No hay ventas registradas hoy.
+              No hay actividad reciente.
             </Text>
           )}
         </View>

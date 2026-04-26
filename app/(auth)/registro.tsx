@@ -132,9 +132,15 @@ export default function PantallaRegistro() {
         "exito",
       );
 
+      // 1. Esperamos 2 segundos para que el usuario lea el mensaje de éxito
       setTimeout(() => {
-        setModalVisible(false);
-        router.replace("/(auth)/login");
+        setModalVisible(false); // 2. Ordenamos que el modal se empiece a cerrar
+        
+        // 3. Le damos 500ms al modal para que desaparezca completamente
+        setTimeout(() => {
+          router.replace("/login"); // 4. AHORA SÍ, navegamos seguros
+        }, 500);
+
       }, 2000);
     } catch (error: any) {
       mostrarAviso(
