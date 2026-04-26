@@ -20,6 +20,8 @@ import {
 } from "react-native";
 import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
+import { generarYCompartirRecibo } from "@/utils";
+import { useAuth } from "../../contexts/ContextAuth"; // <--- Importar esto para sacar el nombre del negocio
 
 const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
@@ -45,6 +47,8 @@ interface Cliente {
 
 export default function PantallaNuevaVenta() {
   const router = useRouter();
+  const { user } = useAuth();
+
 
   const { colores } = useTheme();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
@@ -293,6 +297,9 @@ export default function PantallaNuevaVenta() {
     }
   };
 
+  // 🔥 Nuevo estado para guardar la venta completada
+  const [ventaRealizada, setVentaRealizada] = useState<any>(null);
+
   const procesarVenta = async () => {
     const total = calcularTotal();
     const recibidoFloat = parseFloat(montoRecibido.replace(",", ".")) || total;
@@ -325,6 +332,8 @@ export default function PantallaNuevaVenta() {
         estadoPago: metodoPago === "credito" ? "pendiente" : "completo",
         items: carrito.map((item) => ({
           productoId: item.producto.id,
+          // 🔥 Pasamos el nombre para el recibo
+          nombre: item.producto.nombre,
           cantidad: item.cantidad,
           precioUnitario: item.producto.precio,
           subtotal: item.subtotal,
@@ -335,7 +344,16 @@ export default function PantallaNuevaVenta() {
         payload.fotoComprobante = fotoComprobante;
       }
 
-      await api.post("/ventas", payload);
+      const response: any = await api.post("/ventas", payload);
+
+      // 🔥 Guardamos los datos de la venta, mezclando lo del backend con el payload local para tenerlo completo
+      setVentaRealizada({
+        ...payload,
+        id: response?.id || Date.now().toString(), // Usamos el ID del backend si existe
+        clienteNombre: clienteSeleccionado
+          ? clientesBD.find((c) => c.id === clienteSeleccionado)?.nombre
+          : "Mostrador",
+      });
 
       setFaseModal("exito");
       Animated.spring(animacionEscala, {
@@ -1076,12 +1094,26 @@ export default function PantallaNuevaVenta() {
                 <View style={estilos.filaBotonesExito}>
                   <TouchableOpacity
                     style={estilos.botonGenerarRecibo}
-                    onPress={() =>
-                      Alert.alert(
-                        "Recibo",
-                        "Generador de recibos en construcción",
-                      )
-                    }
+                    onPress={async () => {
+                      try {
+                        if (ventaRealizada) {
+                          await generarYCompartirRecibo(
+                            ventaRealizada,
+                            user?.nombre || "INVENTARIO YA",
+                          );
+                        } else {
+                          Alert.alert(
+                            "Error",
+                            "No se encontraron los datos de la venta.",
+                          );
+                        }
+                      } catch (error) {
+                        Alert.alert(
+                          "Error",
+                          "No se pudo generar el recibo en este momento.",
+                        );
+                      }
+                    }}
                   >
                     <Text style={estilos.textoBotonGenerarRecibo}>
                       Generar Recibo

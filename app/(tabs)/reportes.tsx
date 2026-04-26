@@ -16,10 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ToggleTema from "../../components/ToggleTema"; // 🔥 Importamos el botón de cambio de tema
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el contexto del tema
 import api from "../../services/api";
+import { Image } from "expo-image";
+
+const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 type FiltroType = "ninguno" | "fecha" | "pagos" | "vendedor" | "producto";
@@ -30,6 +32,9 @@ export default function PantallaReportes() {
     user?.rol === "admin" ||
     user?.rol === "administrador" ||
     user?.rol === "superadmin";
+
+// 🔥 Estado para ver el capture a pantalla completa
+  const [comprobanteVisible, setComprobanteVisible] = useState<string | null>(null);
 
   // 🔥 Conectamos al Tema Global
   const { colores, isDark } = useTheme();
@@ -934,16 +939,20 @@ export default function PantallaReportes() {
                   )}
                 </Text>
               </View>
-              {item.fotoComprobante && (
-                <TouchableOpacity>
+              {/* 🔥 Botón de Capture Dinámico */}
+              {(item.fotoComprobante || item.foto_comprobante) && (
+                <TouchableOpacity
+                  style={{ marginTop: 5, padding: 5 }}
+                  onPress={() => setComprobanteVisible(item.fotoComprobante || item.foto_comprobante)}
+                >
                   <Text
                     style={{
-                      color: "rgb(100, 156, 60)",
-                      fontSize: 12,
+                      color: colores.exito,
+                      fontSize: 13,
                       fontWeight: "bold",
                     }}
                   >
-                    Ver Capture
+                    <FontAwesome5 name="image" size={12} /> Ver Capture
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1726,6 +1735,32 @@ export default function PantallaReportes() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {/* 🔥 MODAL PARA VISUALIZAR EL COMPROBANTE DE PAGO */}
+      <Modal visible={!!comprobanteVisible} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center" }}>
+          
+          {/* Botón de Cerrar (X) */}
+          <TouchableOpacity 
+            style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}
+            onPress={() => setComprobanteVisible(null)}
+          >
+            <FontAwesome5 name="times" size={24} color="#FFF" />
+          </TouchableOpacity>
+
+          {/* Imagen a pantalla completa */}
+          {comprobanteVisible && (
+            <Image 
+              source={{ 
+                uri: comprobanteVisible.startsWith("http") || comprobanteVisible.startsWith("data:")
+                  ? comprobanteVisible 
+                  : `${API_URL_UPLOADS}${comprobanteVisible}` 
+              }} 
+              style={{ width: "95%", height: "80%", resizeMode: "contain" }}
+            />
+          )}
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }

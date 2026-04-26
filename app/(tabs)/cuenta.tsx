@@ -27,12 +27,13 @@ export default function PantallaCuenta() {
 
   // --- CONEXIÓN AL TEMA GLOBAL ---
   const { colores, isDark, setModo } = useTheme();
-  const estilos = useMemo(() => crearEstilos(colores), [colores]);
+  const estilos = useMemo(() => crearEstilos(colores, isDark), [colores, isDark]);
 
   const esAdmin = () =>
     user?.rol === "admin" ||
     user?.rol === "administrador" ||
-    user?.rol === "superadmin";
+    user?.rol === "superadmin" ||
+    user?.rol === "beta_tester";
 
   // --- ESTADOS DE CONFIGURACIÓN ---
   const [cobrarIVA, setCobrarIVA] = useState(false);
@@ -162,7 +163,7 @@ export default function PantallaCuenta() {
             titulo: "Gestionar Vendedores",
             icono: "users",
             onPress: () => router.push("/admin/usuarios"),
-            destacado: true,
+            destacado: true, // 🔥 Esto hará que resalte como en tu diseño viejo
           },
         ]
       : []),
@@ -181,7 +182,7 @@ export default function PantallaCuenta() {
       onPress: () =>
         Alert.alert(
           "INVENTARIO YA",
-          "Versión 2.0.0\n\nSistema de gestión de inventario y ventas.\n\n© 2026",
+          "Versión 2.0.0\n\nSistema de gestión de inventario y ventas.\n\n© 2026 Agencia Ancla",
           [{ text: "Aceptar" }],
         ),
     },
@@ -216,9 +217,7 @@ export default function PantallaCuenta() {
               solid={esAdmin()}
             />
             <Text style={estilos.textoRol}>
-              {user?.rol
-                ? user.rol.charAt(0).toUpperCase() + user.rol.slice(1)
-                : "Vendedor"}
+              {esAdmin() ? "Administrador" : "Vendedor"}
             </Text>
           </View>
         </View>
@@ -256,8 +255,8 @@ export default function PantallaCuenta() {
             <Switch
               value={isDark}
               onValueChange={(val) => setModo(val ? "oscuro" : "claro")}
-              trackColor={{ false: "#4A4A4C", true: colores.primario }}
-              thumbColor={isDark ? colores.textoOscuro : colores.textoBlanco}
+              trackColor={{ false: "rgba(128,128,128,0.3)", true: colores.primario }}
+              thumbColor={isDark ? colores.textoOscuro : "#FFF"}
             />
           </View>
         </View>
@@ -274,12 +273,7 @@ export default function PantallaCuenta() {
                 marginLeft: 5,
               }}
             >
-              <Text
-                style={[
-                  estilos.tituloSeccion,
-                  { marginBottom: 0, marginLeft: 0 },
-                ]}
-              >
+              <Text style={[estilos.tituloSeccion, { marginBottom: 0, marginLeft: 0 }]}>
                 Configuración de Impuestos
               </Text>
               {cargandoConfig && (
@@ -301,10 +295,8 @@ export default function PantallaCuenta() {
               <Switch
                 value={cobrarIVA}
                 onValueChange={(val) => guardarConfiguracion("iva", val)}
-                trackColor={{ false: "#4A4A4C", true: colores.primario }}
-                thumbColor={
-                  cobrarIVA ? colores.textoOscuro : colores.textoBlanco
-                }
+                trackColor={{ false: "rgba(128,128,128,0.3)", true: colores.primario }}
+                thumbColor={cobrarIVA ? colores.textoOscuro : "#FFF"}
                 disabled={cargandoConfig}
               />
             </View>
@@ -323,10 +315,8 @@ export default function PantallaCuenta() {
               <Switch
                 value={cobrarIGTF}
                 onValueChange={(val) => guardarConfiguracion("igtf", val)}
-                trackColor={{ false: "#4A4A4C", true: colores.primario }}
-                thumbColor={
-                  cobrarIGTF ? colores.textoOscuro : colores.textoBlanco
-                }
+                trackColor={{ false: "rgba(128,128,128,0.3)", true: colores.primario }}
+                thumbColor={cobrarIGTF ? colores.textoOscuro : "#FFF"}
                 disabled={cargandoConfig}
               />
             </View>
@@ -335,7 +325,7 @@ export default function PantallaCuenta() {
               <FontAwesome5
                 name="exclamation-triangle"
                 size={14}
-                color={colores.advertencia}
+                color="#FF9500"
                 style={{ marginTop: 2 }}
               />
               <Text style={estilos.textoDisclaimer}>
@@ -362,9 +352,7 @@ export default function PantallaCuenta() {
                 <FontAwesome5
                   name={opcion.icono}
                   size={16}
-                  color={
-                    opcion.destacado ? colores.primario : colores.textoBlanco
-                  }
+                  color={opcion.destacado ? colores.primario : colores.textoBlanco}
                 />
               </View>
               <Text
@@ -395,6 +383,8 @@ export default function PantallaCuenta() {
         >
           <Text style={estilos.textoBotonCerrar}>Cerrar Sesión</Text>
         </TouchableOpacity>
+
+        <Text style={estilos.version}>Versión 2.0.0</Text>
       </ScrollView>
 
       {/* MODAL DE CONTRASEÑA */}
@@ -476,7 +466,7 @@ export default function PantallaCuenta() {
 }
 
 // --- ESTILOS DINÁMICOS ---
-const crearEstilos = (c: any) =>
+const crearEstilos = (c: any, isDark: boolean) =>
   StyleSheet.create({
     contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
     scrollContent: { padding: 20, paddingTop: 60 },
@@ -490,26 +480,26 @@ const crearEstilos = (c: any) =>
       alignItems: "center",
       marginBottom: 15,
     },
-    iniciales: { fontSize: 40, fontWeight: "bold", color: c.textoOscuro },
+    iniciales: { fontSize: 40, fontWeight: "900", color: c.textoOscuro },
     nombre: {
-      fontSize: 22,
+      fontSize: 24,
       fontWeight: "bold",
       color: c.textoBlanco,
       marginBottom: 5,
     },
-    email: { fontSize: 15, color: c.textoGris, marginBottom: 15 },
+    email: { fontSize: 16, color: c.textoGris, marginBottom: 15 },
     badgeRol: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "transparent",
-      paddingHorizontal: 15,
+      backgroundColor: c.fondoTarjeta,
+      paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 20,
       borderWidth: 1,
       borderColor: c.primario,
     },
     textoRol: {
-      fontSize: 13,
+      fontSize: 14,
       fontWeight: "bold",
       color: c.primario,
       marginLeft: 8,
@@ -519,6 +509,8 @@ const crearEstilos = (c: any) =>
       padding: 20,
       borderRadius: 16,
       marginBottom: 30,
+      borderWidth: 1,
+      borderColor: c.borde,
     },
     filaInfo: {
       flexDirection: "row",
@@ -530,14 +522,14 @@ const crearEstilos = (c: any) =>
     valorInfo: { fontSize: 15, fontWeight: "bold", color: c.textoBlanco },
     divisor: { height: 1, backgroundColor: c.borde, marginVertical: 8 },
     badgeActivo: {
-      backgroundColor: c.exito,
+      backgroundColor: "#34C759", // Verde de éxito fijo
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 8,
       flexDirection: "row",
       alignItems: "center",
     },
-    textoActivo: { fontSize: 13, fontWeight: "bold", color: c.textoBlanco },
+    textoActivo: { fontSize: 13, fontWeight: "bold", color: "#FFF" },
     seccionOpciones: { marginBottom: 30 },
     tituloSeccion: {
       fontSize: 15,
@@ -553,6 +545,8 @@ const crearEstilos = (c: any) =>
       padding: 16,
       borderRadius: 16,
       marginBottom: 10,
+      borderWidth: 1,
+      borderColor: c.borde,
     },
     opcionSwitch: {
       flexDirection: "row",
@@ -562,18 +556,20 @@ const crearEstilos = (c: any) =>
       paddingLeft: 16,
       borderRadius: 16,
       marginBottom: 10,
+      borderWidth: 1,
+      borderColor: c.borde,
     },
     iconoOpcion: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      backgroundColor: c.fondoOscuro,
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
       justifyContent: "center",
       alignItems: "center",
       marginRight: 15,
     },
-    tituloOpcion: { flex: 1, fontSize: 16, color: c.textoBlanco },
-    tituloOpcionSwitch: { flex: 1, fontSize: 16, color: c.textoBlanco },
+    tituloOpcion: { flex: 1, fontSize: 16, color: c.textoBlanco, fontWeight: "500" },
+    tituloOpcionSwitch: { flex: 1, fontSize: 16, color: c.textoBlanco, fontWeight: "500" },
     contendorDisclaimer: {
       flexDirection: "row",
       backgroundColor: c.fondoTarjeta,
@@ -581,7 +577,7 @@ const crearEstilos = (c: any) =>
       borderRadius: 12,
       marginTop: 5,
       borderWidth: 1,
-      borderColor: "rgba(255, 214, 10, 0.3)",
+      borderColor: "rgba(255, 149, 0, 0.3)",
     },
     textoDisclaimer: {
       flex: 1,
@@ -592,17 +588,25 @@ const crearEstilos = (c: any) =>
       marginLeft: 10,
     },
     botonCerrarSesion: {
-      backgroundColor: c.error,
+      backgroundColor: "rgba(255, 59, 48, 0.1)", // Fondo rojo clarito
       padding: 16,
       borderRadius: 16,
       justifyContent: "center",
       alignItems: "center",
       marginBottom: 20,
+      borderWidth: 1,
+      borderColor: "#FF3B30",
     },
     textoBotonCerrar: {
-      color: "#FFFFFF",
+      color: "#FF3B30",
       fontSize: 16,
       fontWeight: "bold",
+    },
+    version: {
+      fontSize: 14,
+      color: c.textoGris,
+      textAlign: 'center',
+      marginBottom: 40,
     },
     modalContainer: {
       flex: 1,
