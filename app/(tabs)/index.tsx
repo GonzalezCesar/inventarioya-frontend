@@ -13,12 +13,17 @@ import {
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
+import { useTasa } from "../../contexts/ContextTasa"; // 🔥 Importamos el contexto de la tasa
 import api from "../../services/api";
 
 export default function PantallaDashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const { colores } = useTheme();
+
+  // 🔥 Extraemos la tasa y la función de actualizar. Le ponemos el alias 'cargandoTasa'
+  const { tasaBCV, cargando: cargandoTasa, actualizarTasa } = useTasa();
+
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   const [cargando, setCargando] = useState(true);
@@ -29,7 +34,6 @@ export default function PantallaDashboard() {
 
   const cargarDatos = async () => {
     try {
-      // 🔥 Ahora TODOS consumen la ruta de su tienda personal
       const respuesta: any = await api.get("/dashboard");
       setDatos(respuesta);
     } catch (error) {
@@ -49,7 +53,8 @@ export default function PantallaDashboard() {
   const onRefresh = useCallback(() => {
     setRefrescando(true);
     cargarDatos();
-  }, [user]);
+    actualizarTasa(); // 🔥 Si el usuario jala la pantalla hacia abajo, también refresca la tasa
+  }, [user, actualizarTasa]);
 
   const formatearMoneda = (monto: any) => {
     const num = typeof monto === "string" ? parseFloat(monto) : monto;
@@ -162,6 +167,28 @@ export default function PantallaDashboard() {
               </Text>
             </View>
           </View>
+        </View>
+
+        {/* 🔥 TARJETA DE TASA DE CAMBIO */}
+        <View style={estilos.tarjetaTasa}>
+          <View style={estilos.infoTasa}>
+            <Text style={estilos.tituloTasa}>TASA OFICIAL BCV</Text>
+            <Text style={estilos.valorTasa}>
+              {cargandoTasa ? "Cargando..." : `Bs. ${tasaBCV.toFixed(2)}`}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={estilos.botonRefrescarTasa}
+            onPress={actualizarTasa}
+            disabled={cargandoTasa}
+          >
+            <FontAwesome5
+              name="sync-alt"
+              size={22}
+              color={colores.textoOscuro}
+              style={cargandoTasa ? { opacity: 0.5 } : {}}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* ACCIONES RÁPIDAS */}
@@ -307,6 +334,37 @@ const crearEstilos = (c: any) =>
       fontWeight: "900",
       color: c.textoResaltado,
     },
+
+    // 🔥 Estilos de la Tasa
+    tarjetaTasa: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: c.fondoTarjeta,
+      padding: 20,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: "rgba(198, 255, 0, 0.2)",
+      marginBottom: 30,
+    },
+    infoTasa: { flex: 1 },
+    tituloTasa: {
+      fontSize: 12,
+      fontWeight: "bold",
+      color: c.textoGris,
+      letterSpacing: 1,
+      marginBottom: 5,
+    },
+    valorTasa: { fontSize: 28, fontWeight: "900", color: c.textoBlanco },
+    botonRefrescarTasa: {
+      width: 50,
+      height: 50,
+      borderRadius: 15,
+      backgroundColor: c.primario,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+
     gridAcciones: {
       flexDirection: "row",
       flexWrap: "wrap",

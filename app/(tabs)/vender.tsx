@@ -21,8 +21,9 @@ import {
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
+import { useTasa } from "../../contexts/ContextTasa"; // 🔥 Importamos la Tasa
 import api from "../../services/api";
-import { generarYCompartirRecibo } from "../../utils/generadorRecibos"; // 🔥 Importamos tu generador
+import { generarYCompartirRecibo } from "../../utils/generadorRecibos";
 
 const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
@@ -48,15 +49,18 @@ interface Cliente {
 
 export default function PantallaNuevaVenta() {
   const router = useRouter();
-  const { user } = useAuth(); // 🔥 Necesario para el nombre del negocio en el recibo
+  const { user } = useAuth();
   const { colores } = useTheme();
+
+  // 🔥 Sacamos la tasa del contexto
+  const { tasaBCV } = useTasa();
+
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   const [productosBD, setProductosBD] = useState<Producto[]>([]);
   const [clientesBD, setClientesBD] = useState<Cliente[]>([]);
   const [cargandoInicial, setCargandoInicial] = useState(true);
 
-  // 🔥 ESTADOS PARA CONFIGURACIÓN DE IMPUESTOS
   const [configImpuestos, setConfigImpuestos] = useState({
     cobrarIVA: false,
     tasaIVA: 16,
@@ -99,7 +103,7 @@ export default function PantallaNuevaVenta() {
     "pago",
   );
   const animacionEscala = React.useRef(new Animated.Value(0)).current;
-  const [ventaRealizada, setVentaRealizada] = useState<any>(null); // 🔥 Guarda datos para el recibo
+  const [ventaRealizada, setVentaRealizada] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,31 +115,28 @@ export default function PantallaNuevaVenta() {
     const suscripcion = DeviceEventEmitter.addListener(
       "onCodigoEscaneado",
       (codigo) => {
-        // Buscamos si el código escaneado coincide con algún código de barras o SKU
         const productoEncontrado = productosBD.find(
           (p: any) => p.codigo_barras === codigo || p.sku === codigo,
         );
-
         if (productoEncontrado) {
           agregarAlCarrito(productoEncontrado);
         } else {
           Alert.alert(
             "No encontrado",
-            `No existe ningún producto con el código de barras: ${codigo}`,
+            `No existe ningún producto con el código: ${codigo}`,
           );
         }
       },
     );
-
     return () => suscripcion.remove();
   }, [productosBD]);
+
   const cargarDatos = async () => {
     try {
-      // 🔥 Ahora pedimos los productos, clientes Y las configuraciones fiscales
       const [resProds, resClis, resConf]: any = await Promise.all([
         api.get("/productos"),
         api.get("/clientes"),
-        api.get("/configuracion").catch(() => ({})), // Evita que explote si no hay config
+        api.get("/configuracion").catch(() => ({})),
       ]);
       setProductosBD(resProds || []);
       setClientesBD(resClis || []);
@@ -161,23 +162,21 @@ export default function PantallaNuevaVenta() {
   const formatearMoneda = (monto: number) =>
     `$ ${Math.abs(monto || 0).toFixed(2)}`;
 
-  // 🔥 LÓGICA MATEMÁTICA DE IMPUESTOS
+  // 🔥 FUNCIÓN PARA FORMATEAR BOLÍVARES
+  const formatearBs = (montoDolares: number) =>
+    `Bs. ${(Math.abs(montoDolares || 0) * tasaBCV).toFixed(2)}`;
+
   const calcularMontos = () => {
     const subtotalBase = carrito.reduce((sum, item) => sum + item.subtotal, 0);
-
     const montoIVA = configImpuestos.cobrarIVA
       ? subtotalBase * (configImpuestos.tasaIVA / 100)
       : 0;
     const totalConIVA = subtotalBase + montoIVA;
-
-    // Solo aplicamos IGTF si está activo y el pago es en EFECTIVO (divisa)
     const aplicaIGTF = configImpuestos.cobrarIGTF && metodoPago === "efectivo";
     const montoIGTF = aplicaIGTF
       ? totalConIVA * (configImpuestos.tasaIGTF / 100)
       : 0;
-
     const granTotal = totalConIVA + montoIGTF;
-
     return { subtotalBase, montoIVA, montoIGTF, granTotal };
   };
 
@@ -195,9 +194,8 @@ export default function PantallaNuevaVenta() {
   );
 
   const agregarAlCarrito = (producto: Producto) => {
-    if (producto.stock <= 0) {
+    if (producto.stock <= 0)
       return Alert.alert("Agotado", "Este producto no tiene stock disponible.");
-    }
 
     setCarrito((prevCarrito) => {
       const itemExistente = prevCarrito.find(
@@ -331,7 +329,6 @@ export default function PantallaNuevaVenta() {
       Alert.alert("Error", "El nombre del cliente es obligatorio");
       return;
     }
-
     setCargando(true);
     try {
       const payload = {
@@ -339,15 +336,11 @@ export default function PantallaNuevaVenta() {
         cedula: cedulaCliente.trim() || undefined,
         telefono: telefonoCliente.trim() || undefined,
       };
-
       const response: any = await api.post("/clientes", payload);
-
       await cargarDatos();
-
       if (response && response.id) {
         setClienteSeleccionado(response.id);
       }
-
       setMostrarNuevoCliente(false);
       setNombreCliente("");
       setCedulaCliente("");
@@ -386,9 +379,9 @@ export default function PantallaNuevaVenta() {
       const payload: any = {
         fecha: fechaLocalMySQL,
         clienteId: clienteSeleccionado,
-        total: granTotal, // 🔥 Enviamos el total con impuestos
-        subtotal: subtotalBase, // 🔥 Enviamos el subtotal neto
-        montoIVA: montoIVA, // 🔥 Mandamos la data fiscal al backend
+        total: granTotal,
+        subtotal: subtotalBase,
+        montoIVA: montoIVA,
         montoIGTF: montoIGTF,
         metodoPago: metodoPago,
         montoPagado:
@@ -411,7 +404,6 @@ export default function PantallaNuevaVenta() {
 
       const response: any = await api.post("/ventas", payload);
 
-      // Guardamos para el recibo
       setVentaRealizada({
         ...payload,
         id: response?.id || Date.now().toString(),
@@ -450,7 +442,6 @@ export default function PantallaNuevaVenta() {
         <Text style={estilos.titulo}>Nueva Venta</Text>
         <TouchableOpacity
           style={estilos.botonEscanear}
-          // 🔥 Le pasamos por parámetro que el origen es "ventas"
           onPress={() =>
             router.push({
               pathname: "/productos/escaner",
@@ -460,7 +451,7 @@ export default function PantallaNuevaVenta() {
         >
           <FontAwesome5 name="camera" size={16} color={colores.textoOscuro} />
           <Text style={estilos.textoBotonEscanear}>Escanear</Text>
-        </TouchableOpacity> 
+        </TouchableOpacity>
       </View>
 
       <View style={{ zIndex: 999 }}>
@@ -621,7 +612,6 @@ export default function PantallaNuevaVenta() {
       />
 
       <View style={estilos.footer}>
-        {/* 🔥 Pequeño Desglose en el Footer si hay impuestos */}
         {configImpuestos.cobrarIVA && carrito.length > 0 && (
           <View
             style={{
@@ -640,12 +630,28 @@ export default function PantallaNuevaVenta() {
           </View>
         )}
 
+        {/* 🔥 MOSTRAR BOLÍVARES EN EL TOTAL DEL CARRITO */}
         <View style={estilos.totalContenedor}>
-          <Text style={estilos.textoTotal}>TOTAL</Text>
+          <View>
+            <Text style={estilos.textoTotal}>TOTAL</Text>
+            {tasaBCV > 0 && (
+              <Text
+                style={{
+                  color: colores.textoGris,
+                  fontSize: 14,
+                  marginTop: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                {formatearBs(calcularMontos().granTotal)}
+              </Text>
+            )}
+          </View>
           <Text style={estilos.montoTotal}>
             {formatearMoneda(calcularMontos().granTotal)}
           </Text>
         </View>
+
         <TouchableOpacity
           style={[
             estilos.botonPrimario,
@@ -692,13 +698,26 @@ export default function PantallaNuevaVenta() {
             {/* --- FASE 1: COMPLETAR VENTA --- */}
             {faseModal === "pago" && (
               <ScrollView showsVerticalScrollIndicator={false}>
+                {/* 🔥 MOSTRAR BOLÍVARES EN EL MODAL DE PAGO */}
                 <View style={estilos.totalDisplay}>
                   <Text style={estilos.totalLabel}>Total a Pagar</Text>
                   <Text style={estilos.totalValue}>
                     {formatearMoneda(calcularMontos().granTotal)}
                   </Text>
 
-                  {/* 🔥 Desglose debajo del número grande */}
+                  {tasaBCV > 0 && (
+                    <Text
+                      style={{
+                        color: colores.textoBlanco,
+                        fontSize: 20,
+                        fontWeight: "bold",
+                        marginTop: 5,
+                      }}
+                    >
+                      {formatearBs(calcularMontos().granTotal)}
+                    </Text>
+                  )}
+
                   {(configImpuestos.cobrarIVA ||
                     configImpuestos.cobrarIGTF) && (
                     <View style={{ marginTop: 10, alignItems: "center" }}>
@@ -909,7 +928,6 @@ export default function PantallaNuevaVenta() {
                           </TouchableOpacity>
                         )}
                       </View>
-
                       {busquedaCliente.trim().length > 0 && (
                         <View style={estilos.contenedorListaClientes}>
                           <ScrollView
@@ -1160,7 +1178,6 @@ export default function PantallaNuevaVenta() {
                     </Text>
                   </View>
 
-                  {/* 🔥 Desglose Confirmación */}
                   {(configImpuestos.cobrarIVA ||
                     configImpuestos.cobrarIGTF) && (
                     <>
@@ -1196,13 +1213,28 @@ export default function PantallaNuevaVenta() {
                   )}
 
                   <View style={estilos.divisorResumen} />
+
+                  {/* 🔥 MOSTRAR BOLÍVARES EN LA CONFIRMACIÓN FINAL */}
                   <View style={estilos.filaResumenTotal}>
                     <Text style={estilos.textoTotalResumen}>
                       TOTAL A PAGAR:
                     </Text>
-                    <Text style={estilos.valorTotalResumen}>
-                      {formatearMoneda(calcularMontos().granTotal)}
-                    </Text>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={estilos.valorTotalResumen}>
+                        {formatearMoneda(calcularMontos().granTotal)}
+                      </Text>
+                      {tasaBCV > 0 && (
+                        <Text
+                          style={{
+                            color: colores.textoBlanco,
+                            fontSize: 16,
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {formatearBs(calcularMontos().granTotal)}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 </View>
 
@@ -1251,22 +1283,20 @@ export default function PantallaNuevaVenta() {
                 </Text>
 
                 <View style={estilos.filaBotonesExito}>
-                  {/* 🔥 Botón de Generar Recibo Conectado */}
                   <TouchableOpacity
                     style={estilos.botonGenerarRecibo}
                     onPress={async () => {
                       try {
-                        if (ventaRealizada) {
+                        if (ventaRealizada)
                           await generarYCompartirRecibo(
                             ventaRealizada,
                             user?.nombre || "INVENTARIO YA",
                           );
-                        } else {
+                        else
                           Alert.alert(
                             "Error",
                             "No se encontraron los datos de la venta.",
                           );
-                        }
                       } catch (error) {
                         Alert.alert(
                           "Error",
@@ -1480,7 +1510,6 @@ const crearEstilos = (c: any) =>
       fontSize: 16,
       fontWeight: "bold",
     },
-
     modalContainer: {
       flex: 1,
       justifyContent: "flex-end",
@@ -1500,7 +1529,6 @@ const crearEstilos = (c: any) =>
       marginBottom: 25,
     },
     modalTitulo: { fontSize: 22, fontWeight: "bold", color: c.textoBlanco },
-
     totalDisplay: {
       alignItems: "center",
       paddingVertical: 25,
@@ -1512,7 +1540,6 @@ const crearEstilos = (c: any) =>
     },
     totalLabel: { color: c.textoGris, fontSize: 16, marginBottom: 5 },
     totalValue: { color: c.primario, fontSize: 45, fontWeight: "900" },
-
     seccion: { marginBottom: 25 },
     seccionTitulo: {
       fontSize: 18,
@@ -1520,7 +1547,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
       marginBottom: 15,
     },
-
     buscadorClientes: {
       flexDirection: "row",
       alignItems: "center",
@@ -1562,7 +1588,6 @@ const crearEstilos = (c: any) =>
       marginRight: 12,
     },
     textoItemCliente: { color: c.textoBlanco, fontSize: 14 },
-
     chipCliente: {
       paddingHorizontal: 16,
       paddingVertical: 10,
@@ -1572,7 +1597,6 @@ const crearEstilos = (c: any) =>
     },
     chipClienteActivo: { backgroundColor: c.primario },
     textoChipCliente: { color: c.textoGris, fontWeight: "bold" },
-
     formNuevoCliente: {
       backgroundColor: c.fondoTarjeta,
       padding: 20,
@@ -1600,7 +1624,6 @@ const crearEstilos = (c: any) =>
       paddingVertical: 15,
       borderRadius: 10,
     },
-
     gridPagos: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -1624,7 +1647,6 @@ const crearEstilos = (c: any) =>
     },
     textoPago: { color: c.textoGris, fontSize: 14, marginTop: 10 },
     textoPagoActivo: { color: c.primario, fontWeight: "bold" },
-
     labelInput: { color: c.textoBlanco, marginBottom: 10, fontWeight: "bold" },
     inputDinero: {
       backgroundColor: c.fondoOscuro,
@@ -1642,7 +1664,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
     },
     textoDeuda: { color: c.error, marginTop: 10, fontSize: 16 },
-
     tituloConfirmacion: {
       fontSize: 26,
       color: c.textoBlanco,
@@ -1709,7 +1730,6 @@ const crearEstilos = (c: any) =>
       fontSize: 16,
       fontWeight: "bold",
     },
-
     circuloExito: {
       width: 120,
       height: 120,

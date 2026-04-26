@@ -1,3 +1,4 @@
+import { TasaProvider } from "@/contexts/ContextTasa"; // 🔥 Importamos el proveedor de la Tasa
 import { ThemeProvider } from "@/contexts/ContextTheme";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -11,22 +12,18 @@ import {
 SplashScreen.preventAutoHideAsync().catch(() => []);
 
 function RootLayoutContent() {
-  const { isLoading, token } = useAuth(); // Ahora escuchamos también el token
-  const segments = useSegments(); // Nos dice en qué carpeta estamos (ej. '(auth)' o '(tabs)')
+  const { isLoading, token } = useAuth();
+  const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    // Si todavía está cargando la sesión del SecureStore, no hacemos nada
     if (isLoading) return;
 
-    // Verificamos si el usuario está dentro de la carpeta (auth)
     const inAuthGroup = segments[0] === "(auth)";
 
     if (token && inAuthGroup) {
-      // 🟢 Si tiene token (logueado) y está en la pantalla de Login, lo mandamos al Dashboard
       router.replace("/(tabs)");
     } else if (!token && !inAuthGroup) {
-      // 🔴 Si NO tiene token (deslogueado) y está intentando ver el Dashboard, lo devolvemos al Login
       router.replace("/(auth)/login");
     }
 
@@ -36,20 +33,23 @@ function RootLayoutContent() {
   }, [isLoading, token, segments, router]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false, // Oculta la cabecera por defecto en toda la app
-      }}
-    />
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="panel-web" />
+    </Stack>
   );
 }
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <ContextoAutenticacionProvider>
-        <RootLayoutContent />
-      </ContextoAutenticacionProvider>
-    </ThemeProvider>
+    <ContextoAutenticacionProvider>
+      <ThemeProvider>
+        {/* 🔥 Envolvemos todo con el TasaProvider */}
+        <TasaProvider>
+          <RootLayoutContent />
+        </TasaProvider>
+      </ThemeProvider>
+    </ContextoAutenticacionProvider>
   );
 }
