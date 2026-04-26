@@ -16,23 +16,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import ToggleTema from "../../components/ToggleTema"; // 🔥 Importamos el botón de cambio de tema
 import { useAuth } from "../../contexts/ContextAuth";
+import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el contexto del tema
 import api from "../../services/api";
-
-// --- TEMA HARDCODEADO (Pixel Perfect) ---
-const COLORES = {
-  fondoOscuro: "#121212",
-  fondoTarjeta: "#1E1E1E",
-  fondoInput: "#1A1A1A",
-  primario: "#D4FF00", // Verde Neón
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#121212",
-  borde: "#2C2C2E",
-  exito: "#34C759", // Verde confirmación
-  error: "#FF3B30", // Rojo créditos/egresos
-  cyan: "#00D1FF", // Barra progreso pago móvil
-};
 
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 type FiltroType = "ninguno" | "fecha" | "pagos" | "vendedor" | "producto";
@@ -43,6 +30,10 @@ export default function PantallaReportes() {
     user?.rol === "admin" ||
     user?.rol === "administrador" ||
     user?.rol === "superadmin";
+
+  // 🔥 Conectamos al Tema Global
+  const { colores, isDark } = useTheme();
+  const estilos = useMemo(() => crearEstilos(colores), [colores]);
 
   // --- ESTADOS GLOBALES ---
   const [vistaActual, setVistaActual] = useState<VistaType>("resumen");
@@ -412,12 +403,12 @@ export default function PantallaReportes() {
 
       <View style={{ flexDirection: "row", gap: 15, marginBottom: 25 }}>
         <View
-          style={[estilos.tarjetaKPI, { backgroundColor: COLORES.primario }]}
+          style={[estilos.tarjetaKPI, { backgroundColor: colores.primario }]}
         >
-          <Text style={[estilos.tituloKPI, { color: COLORES.textoOscuro }]}>
+          <Text style={[estilos.tituloKPI, { color: colores.textoOscuro }]}>
             VENTAS BRUTAS
           </Text>
-          <Text style={[estilos.valorKPI, { color: COLORES.textoOscuro }]}>
+          <Text style={[estilos.valorKPI, { color: colores.textoOscuro }]}>
             {formatearMoneda(kpis.brutas)}
           </Text>
         </View>
@@ -425,19 +416,19 @@ export default function PantallaReportes() {
           style={[
             estilos.tarjetaKPI,
             {
-              backgroundColor: COLORES.fondoTarjeta,
+              backgroundColor: colores.fondoTarjeta,
               borderWidth: 1,
-              borderColor: COLORES.primario,
+              borderColor: colores.primario,
             },
           ]}
         >
-          <Text style={[estilos.tituloKPI, { color: COLORES.primario }]}>
+          <Text style={[estilos.tituloKPI, { color: colores.primario }]}>
             UTILIDAD NETA
           </Text>
-          <Text style={[estilos.valorKPI, { color: COLORES.primario }]}>
+          <Text style={[estilos.valorKPI, { color: colores.primario }]}>
             {formatearMoneda(kpis.utilidad)}
           </Text>
-          <Text style={{ color: COLORES.primario, fontSize: 12, marginTop: 5 }}>
+          <Text style={{ color: colores.primario, fontSize: 12, marginTop: 5 }}>
             Margen: {kpis.margen.toFixed(1)}%
           </Text>
         </View>
@@ -446,7 +437,7 @@ export default function PantallaReportes() {
       <Text style={estilos.seccionTitulo}>Métodos de Pago</Text>
       <View
         style={{
-          backgroundColor: COLORES.fondoTarjeta,
+          backgroundColor: colores.fondoTarjeta,
           padding: 20,
           borderRadius: 16,
           marginBottom: 25,
@@ -455,8 +446,9 @@ export default function PantallaReportes() {
         {Object.entries(kpis.porMetodo).map(([metodo, total]: any) => {
           if (total === 0) return null;
           const pct = kpis.brutas > 0 ? (total / kpis.brutas) * 100 : 0;
-          let colorBarra = COLORES.primario;
-          if (metodo === "pago_movil") colorBarra = COLORES.cyan;
+          let colorBarra = colores.primario;
+          // Fallback por si colores.cyan no existe en el tema
+          if (metodo === "pago_movil") colorBarra = colores.cyan || "#00D1FF";
           if (metodo === "tarjeta" || metodo === "transferencia")
             colorBarra = "#BF5AF2";
 
@@ -469,11 +461,11 @@ export default function PantallaReportes() {
                   marginBottom: 5,
                 }}
               >
-                <Text style={{ color: COLORES.textoBlanco, fontSize: 14 }}>
+                <Text style={{ color: colores.textoBlanco, fontSize: 14 }}>
                   {(metodo || "N/A").replace("_", " ").toUpperCase()}
                 </Text>
                 <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  style={{ color: colores.textoBlanco, fontWeight: "bold" }}
                 >
                   {formatearMoneda(total)}
                 </Text>
@@ -481,7 +473,7 @@ export default function PantallaReportes() {
               <View
                 style={{
                   height: 6,
-                  backgroundColor: "rgba(255,255,255,0.1)",
+                  backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
                   borderRadius: 3,
                   overflow: "hidden",
                 }}
@@ -520,7 +512,7 @@ export default function PantallaReportes() {
               >
                 <Text
                   style={{
-                    color: COLORES.primario,
+                    color: colores.primario,
                     fontWeight: "bold",
                     fontSize: 16,
                   }}
@@ -528,7 +520,7 @@ export default function PantallaReportes() {
                   #{i + 1}
                 </Text>
                 <Text
-                  style={{ color: COLORES.textoBlanco, fontSize: 16, flex: 1 }}
+                  style={{ color: colores.textoBlanco, fontSize: 16, flex: 1 }}
                   numberOfLines={1}
                 >
                   {p.nombre}
@@ -536,7 +528,7 @@ export default function PantallaReportes() {
               </View>
               <Text
                 style={{
-                  color: COLORES.primario,
+                  color: colores.primario,
                   fontWeight: "bold",
                   fontSize: 16,
                   marginLeft: 10,
@@ -580,14 +572,14 @@ export default function PantallaReportes() {
               size={16}
               color={
                 filtroActivo === "fecha"
-                  ? COLORES.textoOscuro
-                  : COLORES.textoGris
+                  ? colores.textoOscuro
+                  : colores.textoGris
               }
             />
             <Text
               style={[
                 estilos.textoFiltroPrincipal,
-                filtroActivo === "fecha" && { color: COLORES.textoOscuro },
+                filtroActivo === "fecha" && { color: colores.textoOscuro },
               ]}
             >
               Fechas
@@ -607,14 +599,14 @@ export default function PantallaReportes() {
               size={16}
               color={
                 filtroActivo === "pagos"
-                  ? COLORES.textoOscuro
-                  : COLORES.textoGris
+                  ? colores.textoOscuro
+                  : colores.textoGris
               }
             />
             <Text
               style={[
                 estilos.textoFiltroPrincipal,
-                filtroActivo === "pagos" && { color: COLORES.textoOscuro },
+                filtroActivo === "pagos" && { color: colores.textoOscuro },
               ]}
             >
               Pagos
@@ -638,14 +630,14 @@ export default function PantallaReportes() {
                 size={16}
                 color={
                   filtroActivo === "vendedor"
-                    ? COLORES.textoOscuro
-                    : COLORES.textoGris
+                    ? colores.textoOscuro
+                    : colores.textoGris
                 }
               />
               <Text
                 style={[
                   estilos.textoFiltroPrincipal,
-                  filtroActivo === "vendedor" && { color: COLORES.textoOscuro },
+                  filtroActivo === "vendedor" && { color: colores.textoOscuro },
                 ]}
               >
                 Vendedor
@@ -668,8 +660,8 @@ export default function PantallaReportes() {
               size={16}
               color={
                 filtroActivo === "producto"
-                  ? COLORES.textoOscuro
-                  : COLORES.textoGris
+                  ? colores.textoOscuro
+                  : colores.textoGris
               }
             />
           </TouchableOpacity>
@@ -709,7 +701,7 @@ export default function PantallaReportes() {
               <>
                 <Text
                   style={{
-                    color: COLORES.textoGris,
+                    color: colores.textoGris,
                     fontSize: 12,
                     fontWeight: "bold",
                     marginBottom: 10,
@@ -853,7 +845,7 @@ export default function PantallaReportes() {
             <TextInput
               style={estilos.inputBusquedaFiltro}
               placeholder="Buscar producto por nombre..."
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
               value={busquedaProducto}
               onChangeText={setBusquedaProducto}
             />
@@ -875,7 +867,7 @@ export default function PantallaReportes() {
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Text
                 style={{
-                  color: COLORES.primario,
+                  color: colores.primario,
                   fontWeight: "bold",
                   fontSize: 16,
                 }}
@@ -884,7 +876,7 @@ export default function PantallaReportes() {
               </Text>
               <Text
                 style={{
-                  color: COLORES.textoGris,
+                  color: colores.textoGris,
                   fontSize: 12,
                   marginVertical: 4,
                 }}
@@ -892,7 +884,7 @@ export default function PantallaReportes() {
                 {formatearFechaHora(item.fecha)}
               </Text>
               <Text
-                style={{ color: COLORES.textoBlanco, fontSize: 14 }}
+                style={{ color: colores.textoBlanco, fontSize: 14 }}
                 numberOfLines={1}
               >
                 {item.items
@@ -912,7 +904,7 @@ export default function PantallaReportes() {
             <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
               <Text
                 style={{
-                  color: COLORES.textoBlanco,
+                  color: colores.textoBlanco,
                   fontSize: 24,
                   fontWeight: "bold",
                   marginBottom: 5,
@@ -922,7 +914,7 @@ export default function PantallaReportes() {
               </Text>
               <View
                 style={{
-                  backgroundColor: COLORES.primario,
+                  backgroundColor: colores.primario,
                   paddingHorizontal: 10,
                   paddingVertical: 4,
                   borderRadius: 4,
@@ -931,7 +923,7 @@ export default function PantallaReportes() {
               >
                 <Text
                   style={{
-                    color: COLORES.textoOscuro,
+                    color: colores.textoOscuro,
                     fontSize: 12,
                     fontWeight: "bold",
                   }}
@@ -980,12 +972,12 @@ export default function PantallaReportes() {
       <View style={estilos.flex1}>
         <View style={{ alignItems: "center", paddingVertical: 40 }}>
           <Text
-            style={{ color: COLORES.textoGris, fontSize: 16, marginBottom: 5 }}
+            style={{ color: colores.textoGris, fontSize: 16, marginBottom: 5 }}
           >
             Total por Cobrar
           </Text>
           <Text
-            style={{ color: COLORES.error, fontSize: 40, fontWeight: "bold" }}
+            style={{ color: colores.error, fontSize: 40, fontWeight: "bold" }}
           >
             {formatearMoneda(totalCobrar)}
           </Text>
@@ -1003,7 +995,7 @@ export default function PantallaReportes() {
               <View style={{ flex: 1 }}>
                 <Text
                   style={{
-                    color: COLORES.textoBlanco,
+                    color: colores.textoBlanco,
                     fontWeight: "bold",
                     fontSize: 16,
                   }}
@@ -1012,14 +1004,14 @@ export default function PantallaReportes() {
                 </Text>
                 <Text
                   style={{
-                    color: COLORES.textoGris,
+                    color: colores.textoGris,
                     fontSize: 12,
                     marginVertical: 4,
                   }}
                 >
                   {formatearFechaHora(item.fecha)}
                 </Text>
-                <Text style={{ color: COLORES.textoGris, fontSize: 14 }}>
+                <Text style={{ color: colores.textoGris, fontSize: 14 }}>
                   Total Venta: {formatearMoneda(item.total)}
                 </Text>
               </View>
@@ -1028,7 +1020,7 @@ export default function PantallaReportes() {
               >
                 <Text
                   style={{
-                    color: COLORES.error,
+                    color: colores.error,
                     fontSize: 10,
                     fontWeight: "bold",
                   }}
@@ -1037,7 +1029,7 @@ export default function PantallaReportes() {
                 </Text>
                 <Text
                   style={{
-                    color: COLORES.error,
+                    color: colores.error,
                     fontSize: 24,
                     fontWeight: "bold",
                   }}
@@ -1046,7 +1038,7 @@ export default function PantallaReportes() {
                 </Text>
                 <TouchableOpacity
                   style={{
-                    backgroundColor: COLORES.primario,
+                    backgroundColor: colores.primario,
                     paddingHorizontal: 15,
                     paddingVertical: 6,
                     borderRadius: 6,
@@ -1055,7 +1047,7 @@ export default function PantallaReportes() {
                 >
                   <Text
                     style={{
-                      color: COLORES.textoOscuro,
+                      color: colores.textoOscuro,
                       fontSize: 12,
                       fontWeight: "bold",
                     }}
@@ -1084,14 +1076,14 @@ export default function PantallaReportes() {
           <FontAwesome5
             name="lock"
             size={60}
-            color={COLORES.textoGris}
+            color={colores.textoGris}
             style={{ marginBottom: 20 }}
           />
           <Text
             style={{
               fontSize: 24,
               fontWeight: "bold",
-              color: COLORES.textoBlanco,
+              color: colores.textoBlanco,
             }}
           >
             Caja Cerrada
@@ -1099,7 +1091,7 @@ export default function PantallaReportes() {
           <Text
             style={{
               fontSize: 14,
-              color: COLORES.textoGris,
+              color: colores.textoGris,
               textAlign: "center",
               marginTop: 10,
               marginBottom: 30,
@@ -1110,7 +1102,7 @@ export default function PantallaReportes() {
           <View style={{ width: "100%", marginBottom: 20 }}>
             <Text
               style={{
-                color: COLORES.textoGris,
+                color: colores.textoGris,
                 marginBottom: 8,
                 fontSize: 12,
               }}
@@ -1123,12 +1115,12 @@ export default function PantallaReportes() {
               onChangeText={setMontoInicialCaja}
               keyboardType="decimal-pad"
               placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
             />
           </View>
           <TouchableOpacity
             style={{
-              backgroundColor: COLORES.primario,
+              backgroundColor: colores.primario,
               padding: 18,
               borderRadius: 12,
               width: 200,
@@ -1138,7 +1130,7 @@ export default function PantallaReportes() {
           >
             <Text
               style={{
-                color: COLORES.textoOscuro,
+                color: colores.textoOscuro,
                 fontWeight: "bold",
                 fontSize: 16,
               }}
@@ -1155,7 +1147,7 @@ export default function PantallaReportes() {
               justifyContent: "space-between",
               alignItems: "center",
               marginBottom: 20,
-              backgroundColor: COLORES.fondoInput,
+              backgroundColor: colores.fondoInput,
               padding: 15,
               borderRadius: 15,
             }}
@@ -1163,7 +1155,7 @@ export default function PantallaReportes() {
             <View>
               <Text
                 style={{
-                  color: COLORES.textoGris,
+                  color: colores.textoGris,
                   fontSize: 10,
                   fontWeight: "bold",
                   letterSpacing: 1,
@@ -1173,7 +1165,7 @@ export default function PantallaReportes() {
               </Text>
               <Text
                 style={{
-                  color: COLORES.textoBlanco,
+                  color: colores.textoBlanco,
                   fontSize: 14,
                   fontWeight: "bold",
                   marginTop: 4,
@@ -1186,7 +1178,7 @@ export default function PantallaReportes() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                backgroundColor: COLORES.primario,
+                backgroundColor: colores.primario,
                 paddingHorizontal: 12,
                 paddingVertical: 6,
                 borderRadius: 20,
@@ -1196,11 +1188,11 @@ export default function PantallaReportes() {
               <FontAwesome5
                 name="check-circle"
                 size={12}
-                color={COLORES.textoOscuro}
+                color={colores.textoOscuro}
               />
               <Text
                 style={{
-                  color: COLORES.textoOscuro,
+                  color: colores.textoOscuro,
                   fontSize: 10,
                   fontWeight: "bold",
                 }}
@@ -1214,7 +1206,7 @@ export default function PantallaReportes() {
               <View
                 style={[
                   estilos.cardCaja,
-                  { backgroundColor: COLORES.primario },
+                  { backgroundColor: colores.primario },
                 ]}
               >
                 <Text
@@ -1223,7 +1215,7 @@ export default function PantallaReportes() {
                     fontWeight: "bold",
                     letterSpacing: 0.5,
                     marginBottom: 8,
-                    color: COLORES.textoOscuro,
+                    color: colores.textoOscuro,
                   }}
                 >
                   EFECTIVO
@@ -1232,7 +1224,7 @@ export default function PantallaReportes() {
                   style={{
                     fontSize: 24,
                     fontWeight: "bold",
-                    color: COLORES.textoOscuro,
+                    color: colores.textoOscuro,
                   }}
                 >
                   {formatearMoneda(calculosCaja?.efectivoEsperado || 0)}
@@ -1267,14 +1259,14 @@ export default function PantallaReportes() {
                   {
                     backgroundColor: "rgba(255, 59, 48, 0.1)",
                     borderWidth: 1,
-                    borderColor: COLORES.error,
+                    borderColor: colores.error,
                   },
                 ]}
               >
-                <Text style={[estilos.labelCaja, { color: COLORES.error }]}>
+                <Text style={[estilos.labelCaja, { color: colores.error }]}>
                   POR COBRAR
                 </Text>
-                <Text style={[estilos.montoCaja, { color: COLORES.error }]}>
+                <Text style={[estilos.montoCaja, { color: colores.error }]}>
                   {formatearMoneda(calculosCaja?.ventasCredito || 0)}
                 </Text>
               </View>
@@ -1282,14 +1274,14 @@ export default function PantallaReportes() {
           </View>
           <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
             <TouchableOpacity
-              style={[estilos.botonCajaMin, { borderColor: COLORES.exito }]}
+              style={[estilos.botonCajaMin, { borderColor: colores.exito }]}
               onPress={() => {
                 setTipoMovimiento("ingreso");
                 setModalMovimientoVisible(true);
               }}
             >
               <Text
-                style={{ color: COLORES.exito, fontSize: 18, marginRight: 5 }}
+                style={{ color: colores.exito, fontSize: 18, marginRight: 5 }}
               >
                 +
               </Text>
@@ -1297,21 +1289,21 @@ export default function PantallaReportes() {
                 style={{
                   fontSize: 12,
                   fontWeight: "bold",
-                  color: COLORES.exito,
+                  color: colores.exito,
                 }}
               >
                 INGRESO EXTRA
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[estilos.botonCajaMin, { borderColor: COLORES.error }]}
+              style={[estilos.botonCajaMin, { borderColor: colores.error }]}
               onPress={() => {
                 setTipoMovimiento("egreso");
                 setModalMovimientoVisible(true);
               }}
             >
               <Text
-                style={{ color: COLORES.error, fontSize: 18, marginRight: 5 }}
+                style={{ color: colores.error, fontSize: 18, marginRight: 5 }}
               >
                 -
               </Text>
@@ -1319,7 +1311,7 @@ export default function PantallaReportes() {
                 style={{
                   fontSize: 12,
                   fontWeight: "bold",
-                  color: COLORES.error,
+                  color: colores.error,
                 }}
               >
                 EGRESO / GASTO
@@ -1333,13 +1325,13 @@ export default function PantallaReportes() {
               padding: 15,
               borderBottomWidth: 1,
               borderTopWidth: 1,
-              borderColor: COLORES.borde,
+              borderColor: colores.borde,
             }}
           >
             <View style={{ flex: 1, alignItems: "center" }}>
               <Text
                 style={{
-                  color: COLORES.textoGris,
+                  color: colores.textoGris,
                   fontSize: 10,
                   fontWeight: "bold",
                   marginBottom: 5,
@@ -1351,7 +1343,7 @@ export default function PantallaReportes() {
                 style={{
                   fontSize: 16,
                   fontWeight: "bold",
-                  color: COLORES.exito,
+                  color: colores.exito,
                 }}
               >
                 {formatearMoneda(calculosCaja?.ingresosExtra || 0)}
@@ -1360,7 +1352,7 @@ export default function PantallaReportes() {
             <View style={{ flex: 1, alignItems: "center" }}>
               <Text
                 style={{
-                  color: COLORES.textoGris,
+                  color: colores.textoGris,
                   fontSize: 10,
                   fontWeight: "bold",
                   marginBottom: 5,
@@ -1372,7 +1364,7 @@ export default function PantallaReportes() {
                 style={{
                   fontSize: 16,
                   fontWeight: "bold",
-                  color: COLORES.error,
+                  color: colores.error,
                 }}
               >
                 {formatearMoneda(calculosCaja?.gastos || 0)}
@@ -1384,7 +1376,7 @@ export default function PantallaReportes() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: COLORES.error,
+              backgroundColor: colores.error,
               marginTop: 30,
               borderRadius: 12,
               paddingVertical: 18,
@@ -1422,13 +1414,13 @@ export default function PantallaReportes() {
                 justifyContent: "space-between",
                 paddingVertical: 15,
                 borderBottomWidth: 1,
-                borderBottomColor: COLORES.borde,
+                borderBottomColor: colores.borde,
               }}
             >
               <View>
                 <Text
                   style={{
-                    color: COLORES.textoBlanco,
+                    color: colores.textoBlanco,
                     fontWeight: "bold",
                     fontSize: 15,
                   }}
@@ -1439,8 +1431,8 @@ export default function PantallaReportes() {
                   style={{
                     color:
                       c.estado === "cerrada"
-                        ? COLORES.textoGris
-                        : COLORES.exito,
+                        ? colores.textoGris
+                        : colores.exito,
                     fontSize: 12,
                     marginTop: 4,
                   }}
@@ -1455,7 +1447,7 @@ export default function PantallaReportes() {
               >
                 <Text
                   style={{
-                    color: COLORES.textoBlanco,
+                    color: colores.textoBlanco,
                     fontWeight: "bold",
                     fontSize: 16,
                   }}
@@ -1467,8 +1459,8 @@ export default function PantallaReportes() {
                     style={{
                       color:
                         (c.diferencia || 0) >= 0
-                          ? COLORES.exito
-                          : COLORES.error,
+                          ? colores.exito
+                          : colores.error,
                       fontSize: 12,
                       marginTop: 2,
                     }}
@@ -1498,18 +1490,24 @@ export default function PantallaReportes() {
           style={[
             StyleSheet.absoluteFill,
             {
-              backgroundColor: "rgba(18,18,18,0.8)",
+              backgroundColor: isDark ? "rgba(18,18,18,0.8)" : "rgba(255,255,255,0.8)",
               zIndex: 100,
               justifyContent: "center",
             },
           ]}
         >
-          <ActivityIndicator size="large" color={COLORES.primario} />
+          <ActivityIndicator size="large" color={colores.primario} />
         </View>
       )}
 
-      {/* HEADER TABS SUPERIOR */}
+      {/* HEADER TABS SUPERIOR CON TOGGLE */}
       <View style={estilos.header}>
+        {/* 🔥 Título y Botón del Tema */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+            <Text style={{ color: colores.textoBlanco, fontSize: 28, fontWeight: 'bold' }}>Reportes</Text>
+            <ToggleTema />
+        </View>
+
         <View style={estilos.selectorVista}>
           {(esAdmin()
             ? ["resumen", "ventas", "creditos", "caja"]
@@ -1519,18 +1517,18 @@ export default function PantallaReportes() {
               key={vista}
               style={[
                 estilos.botonVista,
-                vistaActual === vista && { backgroundColor: COLORES.primario },
+                vistaActual === vista && { backgroundColor: colores.primario },
               ]}
               onPress={() => setVistaActual(vista as VistaType)}
             >
               <Text
                 style={[
                   {
-                    color: COLORES.textoGris,
+                    color: colores.textoGris,
                     fontSize: 14,
                     fontWeight: "bold",
                   },
-                  vistaActual === vista && { color: COLORES.textoOscuro },
+                  vistaActual === vista && { color: colores.textoOscuro },
                 ]}
               >
                 {vista.charAt(0).toUpperCase() + vista.slice(1)}
@@ -1557,7 +1555,7 @@ export default function PantallaReportes() {
             <View style={{ alignItems: "center", marginBottom: 20 }}>
               <Text
                 style={{
-                  color: COLORES.textoGris,
+                  color: colores.textoGris,
                   marginBottom: 8,
                   fontSize: 12,
                 }}
@@ -1566,7 +1564,7 @@ export default function PantallaReportes() {
               </Text>
               <Text
                 style={{
-                  color: COLORES.textoBlanco,
+                  color: colores.textoBlanco,
                   fontSize: 32,
                   fontWeight: "bold",
                 }}
@@ -1576,7 +1574,7 @@ export default function PantallaReportes() {
             </View>
             <Text
               style={{
-                color: COLORES.textoGris,
+                color: colores.textoGris,
                 marginBottom: 8,
                 fontSize: 12,
               }}
@@ -1589,11 +1587,11 @@ export default function PantallaReportes() {
               value={montoCierre}
               onChangeText={setMontoCierre}
               placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
             />
             <Text
               style={{
-                color: COLORES.textoGris,
+                color: colores.textoGris,
                 marginBottom: 8,
                 fontSize: 12,
               }}
@@ -1606,11 +1604,11 @@ export default function PantallaReportes() {
               value={fondoSiguiente}
               onChangeText={setFondoSiguiente}
               placeholder="0.00"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
             />
             <Text
               style={{
-                color: COLORES.textoGris,
+                color: colores.textoGris,
                 marginBottom: 8,
                 fontSize: 12,
               }}
@@ -1623,7 +1621,7 @@ export default function PantallaReportes() {
               value={notasCierre}
               onChangeText={setNotasCierre}
               placeholder="..."
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
             />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <TouchableOpacity
@@ -1632,12 +1630,12 @@ export default function PantallaReportes() {
                   padding: 15,
                   borderRadius: 10,
                   alignItems: "center",
-                  backgroundColor: COLORES.fondoInput,
+                  backgroundColor: colores.fondoInput,
                 }}
                 onPress={() => setModalCierreVisible(false)}
               >
                 <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  style={{ color: colores.textoBlanco, fontWeight: "bold" }}
                 >
                   Cancelar
                 </Text>
@@ -1648,12 +1646,12 @@ export default function PantallaReportes() {
                   padding: 15,
                   borderRadius: 10,
                   alignItems: "center",
-                  backgroundColor: COLORES.primario,
+                  backgroundColor: colores.primario,
                 }}
                 onPress={handleCerrarCaja}
               >
                 <Text
-                  style={{ color: COLORES.textoOscuro, fontWeight: "bold" }}
+                  style={{ color: colores.textoOscuro, fontWeight: "bold" }}
                 >
                   Confirmar
                 </Text>
@@ -1680,14 +1678,14 @@ export default function PantallaReportes() {
               value={montoMovimiento}
               onChangeText={setMontoMovimiento}
               placeholder="Monto (0.00)"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
             />
             <TextInput
               style={estilos.inputModal}
               value={descMovimiento}
               onChangeText={setDescMovimiento}
               placeholder="Motivo / Descripción"
-              placeholderTextColor={COLORES.textoGris}
+              placeholderTextColor={colores.textoGris}
             />
             <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <TouchableOpacity
@@ -1696,12 +1694,12 @@ export default function PantallaReportes() {
                   padding: 15,
                   borderRadius: 10,
                   alignItems: "center",
-                  backgroundColor: COLORES.fondoInput,
+                  backgroundColor: colores.fondoInput,
                 }}
                 onPress={() => setModalMovimientoVisible(false)}
               >
                 <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  style={{ color: colores.textoBlanco, fontWeight: "bold" }}
                 >
                   Cancelar
                 </Text>
@@ -1714,13 +1712,13 @@ export default function PantallaReportes() {
                   alignItems: "center",
                   backgroundColor:
                     tipoMovimiento === "ingreso"
-                      ? COLORES.exito
-                      : COLORES.error,
+                      ? colores.exito
+                      : colores.error,
                 }}
                 onPress={handleMovimiento}
               >
                 <Text
-                  style={{ color: COLORES.textoBlanco, fontWeight: "bold" }}
+                  style={{ color: colores.textoBlanco, fontWeight: "bold" }}
                 >
                   Registrar
                 </Text>
@@ -1733,18 +1731,19 @@ export default function PantallaReportes() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
+// 🔥 Envolvemos la creación de estilos en una función que recibe los colores dinámicos
+const crearEstilos = (c: any) => StyleSheet.create({
+  contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
   flex1: { flex: 1 },
   header: {
     paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 15,
     paddingHorizontal: 20,
-    backgroundColor: COLORES.fondoOscuro,
+    backgroundColor: c.fondoOscuro,
   },
   selectorVista: {
     flexDirection: "row",
-    backgroundColor: COLORES.fondoInput,
+    backgroundColor: c.fondoInput,
     borderRadius: 25,
     padding: 5,
   },
@@ -1758,12 +1757,12 @@ const estilos = StyleSheet.create({
 
   // Utilidades Compartidas
   seccionTitulo: {
-    color: COLORES.textoBlanco,
+    color: c.textoBlanco,
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 15,
   },
-  textoVacio: { color: COLORES.textoGris, textAlign: "center", marginTop: 20 },
+  textoVacio: { color: c.textoGris, textAlign: "center", marginTop: 20 },
   filaChipsFiltro: { flexDirection: "row", gap: 10, marginBottom: 20 },
 
   // Chips Resumen (Bordes redondeados)
@@ -1771,7 +1770,7 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: COLORES.fondoInput,
+    backgroundColor: c.fondoInput,
   },
 
   // Chips Filtros Ventas (Cuadrados y oscuros como en tu foto)
@@ -1779,11 +1778,11 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(128,128,128,0.1)", // Ajuste para que se vea en modo claro y oscuro
   },
-  chipFiltroActivo: { backgroundColor: COLORES.primario },
-  textoChip: { color: COLORES.textoGris, fontWeight: "bold", fontSize: 14 },
-  textoChipActivo: { color: COLORES.textoOscuro },
+  chipFiltroActivo: { backgroundColor: c.primario },
+  textoChip: { color: c.textoGris, fontWeight: "bold", fontSize: 14 },
+  textoChipActivo: { color: c.textoOscuro },
 
   // Tarjetas Resumen
   tarjetaKPI: {
@@ -1805,19 +1804,19 @@ const estilos = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
+    borderBottomColor: c.borde,
   },
 
   // Filtros Ventas
   contenedorFiltros: {
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORES.borde,
+    borderBottomColor: c.borde,
   },
   botonFiltroPrincipal: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: c.fondoTarjeta,
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 10,
@@ -1825,43 +1824,43 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: "transparent",
   },
-  botonFiltroPrincipalActivo: { backgroundColor: COLORES.primario },
+  botonFiltroPrincipalActivo: { backgroundColor: c.primario },
   textoFiltroPrincipal: {
-    color: COLORES.textoGris,
+    color: c.textoGris,
     fontWeight: "bold",
     fontSize: 14,
   },
   panelSubFiltro: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: COLORES.fondoOscuro,
+    backgroundColor: c.fondoOscuro,
   },
   inputBusquedaFiltro: {
-    backgroundColor: COLORES.fondoInput,
-    color: COLORES.textoBlanco,
+    backgroundColor: c.fondoInput,
+    color: c.textoBlanco,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORES.borde,
+    borderColor: c.borde,
   },
   inputFecha: {
     flex: 1,
-    backgroundColor: COLORES.fondoOscuro,
+    backgroundColor: c.fondoOscuro,
     padding: 15,
     borderRadius: 8,
   },
-  inputFechaActivo: { borderWidth: 1, borderColor: COLORES.primario },
+  inputFechaActivo: { borderWidth: 1, borderColor: c.primario },
   labelFecha: {
     fontSize: 10,
-    color: COLORES.textoGris,
+    color: c.textoGris,
     marginBottom: 5,
     fontWeight: "bold",
   },
-  valorFecha: { color: COLORES.textoBlanco, fontWeight: "bold", fontSize: 14 },
+  valorFecha: { color: c.textoBlanco, fontWeight: "bold", fontSize: 14 },
 
   // Lista Ventas/Creditos
   itemVentaLista: {
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: c.fondoTarjeta,
     padding: 15,
     borderRadius: 12,
     marginBottom: 10,
@@ -1871,8 +1870,8 @@ const estilos = StyleSheet.create({
 
   // Caja
   inputGiganteCaja: {
-    backgroundColor: COLORES.fondoInput,
-    color: COLORES.textoBlanco,
+    backgroundColor: c.fondoInput,
+    color: c.textoBlanco,
     fontSize: 32,
     padding: 20,
     borderRadius: 16,
@@ -1884,16 +1883,16 @@ const estilos = StyleSheet.create({
     padding: 15,
     borderRadius: 12,
     justifyContent: "center",
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: c.fondoTarjeta,
   },
   labelCaja: {
     fontSize: 10,
     fontWeight: "bold",
     letterSpacing: 0.5,
     marginBottom: 8,
-    color: COLORES.textoBlanco,
+    color: c.textoBlanco,
   },
-  montoCaja: { fontSize: 24, fontWeight: "bold", color: COLORES.textoBlanco },
+  montoCaja: { fontSize: 24, fontWeight: "bold", color: c.textoBlanco },
   botonCajaMin: {
     flex: 1,
     flexDirection: "row",
@@ -1912,25 +1911,25 @@ const estilos = StyleSheet.create({
     padding: 20,
   },
   modalContenido: {
-    backgroundColor: COLORES.fondoTarjeta,
+    backgroundColor: c.fondoTarjeta,
     padding: 25,
     borderRadius: 20,
   },
   tituloModal: {
-    color: COLORES.textoBlanco,
+    color: c.textoBlanco,
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
   },
   inputModal: {
-    backgroundColor: COLORES.fondoOscuro,
-    color: COLORES.textoBlanco,
+    backgroundColor: c.fondoOscuro,
+    color: c.textoBlanco,
     padding: 15,
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: COLORES.borde,
+    borderColor: c.borde,
   },
 });
