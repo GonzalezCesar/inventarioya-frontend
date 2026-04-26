@@ -1,10 +1,11 @@
 import * as SecureStore from "expo-secure-store";
 import React, { createContext, useCallback, useEffect, useState } from "react";
+import { Platform } from "react-native"; // 🔥 Faltaba importar Platform
 import api from "../services/api";
 import { Usuario } from "../types";
 
 interface ContextoAutenticacionType {
-  user: Usuario | null; // Cambiado a 'user' para mantener consistencia con las pantallas que creamos
+  user: Usuario | null; 
   token: string | null;
   isLoading: boolean;
   isSignout: boolean;
@@ -39,11 +40,20 @@ export const ContextoAutenticacionProvider: React.FC<
   const restoreToken = useCallback(async () => {
     try {
       setIsLoading(true);
-      const savedToken = await SecureStore.getItemAsync("admin_token");
-      const savedUsuario = await SecureStore.getItemAsync("admin_usuario");
+      
+      let savedToken = null;
+      let savedUsuario = null;
+
+      // 🔥 LÓGICA MULTIPLATAFORMA
+      if (Platform.OS === 'web') {
+        savedToken = localStorage.getItem("admin_token");
+        savedUsuario = localStorage.getItem("admin_usuario");
+      } else {
+        savedToken = await SecureStore.getItemAsync("admin_token");
+        savedUsuario = await SecureStore.getItemAsync("admin_usuario");
+      }
 
       if (savedToken && savedUsuario) {
-        // Le inyectamos el token a Axios para futuras peticiones
         api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
         setToken(savedToken);
         setUser(JSON.parse(savedUsuario));
@@ -68,13 +78,11 @@ export const ContextoAutenticacionProvider: React.FC<
     try {
       setIsLoading(true);
 
-      // 1. Petición real al backend PHP
       const response: any = await api.post("/auth/login", {
         email,
         contrasena,
       });
 
-      // 2. Extraemos la data (Asumiendo que PHP devuelve { usuario: {...}, token: "..." })
       const userData = response.usuario;
       const userToken = response.token;
 
@@ -82,14 +90,17 @@ export const ContextoAutenticacionProvider: React.FC<
         throw new Error("El servidor no devolvió las credenciales correctamente.");
       }
 
-      // 3. Inyectamos el Token en Axios para que las siguientes peticiones funcionen
       api.defaults.headers.common['Authorization'] = `Bearer ${userToken}`;
 
-      // 4. Guardamos en almacenamiento seguro nativo
-      await SecureStore.setItemAsync("admin_token", userToken);
-      await SecureStore.setItemAsync("admin_usuario", JSON.stringify(userData));
+      // 🔥 LÓGICA MULTIPLATAFORMA
+      if (Platform.OS === 'web') {
+        localStorage.setItem("admin_token", userToken);
+        localStorage.setItem("admin_usuario", JSON.stringify(userData));
+      } else {
+        await SecureStore.setItemAsync("admin_token", userToken);
+        await SecureStore.setItemAsync("admin_usuario", JSON.stringify(userData));
+      }
 
-      // 5. Actualizamos el estado global
       setToken(userToken);
       setUser(userData);
       setIsSignout(false);
@@ -106,11 +117,15 @@ export const ContextoAutenticacionProvider: React.FC<
     try {
       setIsLoading(true);
 
-      // Limpia la bóveda segura
-      await SecureStore.deleteItemAsync("admin_token");
-      await SecureStore.deleteItemAsync("admin_usuario");
+      // 🔥 LÓGICA MULTIPLATAFORMA
+      if (Platform.OS === 'web') {
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_usuario");
+      } else {
+        await SecureStore.deleteItemAsync("admin_token");
+        await SecureStore.deleteItemAsync("admin_usuario");
+      }
       
-      // Quitamos el token de Axios
       delete api.defaults.headers.common['Authorization'];
 
       setToken(null);
