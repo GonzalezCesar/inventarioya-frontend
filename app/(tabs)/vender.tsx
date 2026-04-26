@@ -1,5 +1,5 @@
 import { FontAwesome5 } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker"; // 🔥 Importación necesaria para el comprobante
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -58,19 +58,21 @@ export default function PantallaNuevaVenta() {
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [cargando, setCargando] = useState(false);
 
+  // Estados de Cliente
   const [clienteSeleccionado, setClienteSeleccionado] = useState<string | null>(
     null,
   );
-  const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
-  const [nuevoCliente, setNuevoCliente] = useState({
-    nombre: "",
-    cedula: "",
-    telefono: "",
-  });
   const [busquedaCliente, setBusquedaCliente] = useState("");
 
+  // Estados para el Nuevo Cliente
+  const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
+  const [nombreCliente, setNombreCliente] = useState("");
+  const [cedulaCliente, setCedulaCliente] = useState("");
+  const [telefonoCliente, setTelefonoCliente] = useState("");
+
+  // 🔥 Lógica para ocultar los clientes registrados a menos que se busque
   const clientesFiltrados = useMemo(() => {
-    if (!busquedaCliente.trim()) return clientesBD;
+    if (!busquedaCliente.trim()) return []; // Si no hay búsqueda, no mostramos NINGÚN cliente
     const query = busquedaCliente.toLowerCase();
     return clientesBD.filter(
       (c) =>
@@ -84,7 +86,6 @@ export default function PantallaNuevaVenta() {
   const [montoRecibido, setMontoRecibido] = useState("");
   const [montoCreditoInicial, setMontoCreditoInicial] = useState("");
 
-  // 🔥 Estado para el comprobante de Pago Móvil
   const [fotoComprobante, setFotoComprobante] = useState<string | null>(null);
 
   const [faseModal, setFaseModal] = useState<"pago" | "confirmacion" | "exito">(
@@ -191,7 +192,6 @@ export default function PantallaNuevaVenta() {
     setCarrito(carrito.filter((item) => item.producto.id !== id));
   };
 
-  // 🔥 Función para seleccionar la imagen del comprobante
   const seleccionarImagen = async () => {
     Alert.alert(
       "Adjuntar Comprobante",
@@ -253,9 +253,44 @@ export default function PantallaNuevaVenta() {
     setFaseModal("pago");
     setMontoRecibido("");
     setMontoCreditoInicial("");
-    setFotoComprobante(null); // Resetear el comprobante
+    setFotoComprobante(null);
     setMetodoPago("efectivo");
+    setMostrarNuevoCliente(false);
+    setBusquedaCliente(""); // Limpiamos la búsqueda
     setModalVisible(true);
+  };
+
+  const crearClienteRapido = async () => {
+    if (!nombreCliente.trim()) {
+      Alert.alert("Error", "El nombre del cliente es obligatorio");
+      return;
+    }
+
+    setCargando(true);
+    try {
+      const payload = {
+        nombre: nombreCliente.trim(),
+        cedula: cedulaCliente.trim() || undefined,
+        telefono: telefonoCliente.trim() || undefined,
+      };
+
+      const response: any = await api.post("/clientes", payload);
+
+      await cargarDatos();
+
+      if (response && response.id) {
+        setClienteSeleccionado(response.id);
+      }
+
+      setMostrarNuevoCliente(false);
+      setNombreCliente("");
+      setCedulaCliente("");
+      setTelefonoCliente("");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo crear el cliente");
+    } finally {
+      setCargando(false);
+    }
   };
 
   const procesarVenta = async () => {
@@ -276,6 +311,7 @@ export default function PantallaNuevaVenta() {
         .toISOString()
         .slice(0, 19)
         .replace("T", " ");
+
       const payload: any = {
         fecha: fechaLocalMySQL,
         clienteId: clienteSeleccionado,
@@ -295,7 +331,6 @@ export default function PantallaNuevaVenta() {
         })),
       };
 
-      // Adjuntar foto solo si es pago móvil
       if (metodoPago === "pago_movil" && fotoComprobante) {
         payload.fotoComprobante = fotoComprobante;
       }
@@ -309,7 +344,9 @@ export default function PantallaNuevaVenta() {
         tension: 30,
         useNativeDriver: true,
       }).start();
+
       setCarrito([]);
+      setClienteSeleccionado(null);
       cargarDatos();
     } catch (error: any) {
       Alert.alert("Error", error.message || "Error procesando venta.");
@@ -326,7 +363,6 @@ export default function PantallaNuevaVenta() {
         </View>
       )}
 
-      {/* Encabezado */}
       <View style={estilos.encabezado}>
         <Text style={estilos.titulo}>Nueva Venta</Text>
         <TouchableOpacity
@@ -338,7 +374,6 @@ export default function PantallaNuevaVenta() {
         </TouchableOpacity>
       </View>
 
-      {/* Buscador */}
       <View style={{ zIndex: 999 }}>
         <View style={estilos.barraBusqueda}>
           <FontAwesome5 name="search" size={18} color={colores.textoGris} />
@@ -398,7 +433,6 @@ export default function PantallaNuevaVenta() {
 
       <Text style={estilos.tituloCarrito}>Carrito ({carrito.length})</Text>
 
-      {/* 🔥 Lista del Carrito Pixel Perfect */}
       <FlatList
         data={carrito}
         keyExtractor={(item) => item.producto.id.toString()}
@@ -407,7 +441,6 @@ export default function PantallaNuevaVenta() {
           const source = getImageSource(item.producto.imagen);
           return (
             <View style={estilos.itemCarrito}>
-              {/* Izquierda: Icono/Imagen */}
               {source ? (
                 <Image source={source} style={estilos.iconoProducto} />
               ) : (
@@ -419,8 +452,6 @@ export default function PantallaNuevaVenta() {
                   />
                 </View>
               )}
-
-              {/* Centro & Derecha */}
               <View style={{ flex: 1, marginLeft: 15 }}>
                 <Text style={estilos.nombreItem} numberOfLines={2}>
                   {item.producto.nombre}
@@ -428,8 +459,6 @@ export default function PantallaNuevaVenta() {
                 <Text style={estilos.precioItem}>
                   {formatearMoneda(item.producto.precio)}
                 </Text>
-
-                {/* Fila Inferior: Controles y Totales */}
                 <View
                   style={{
                     flexDirection: "row",
@@ -438,7 +467,6 @@ export default function PantallaNuevaVenta() {
                     marginTop: 8,
                   }}
                 >
-                  {/* Controles de Cantidad */}
                   <View style={estilos.controlesCarrito}>
                     <TouchableOpacity
                       style={estilos.btnCant}
@@ -454,8 +482,6 @@ export default function PantallaNuevaVenta() {
                       <Text style={estilos.txtCant}>+</Text>
                     </TouchableOpacity>
                   </View>
-
-                  {/* Subtotal y Papelera */}
                   <View
                     style={{
                       flexDirection: "row",
@@ -505,7 +531,6 @@ export default function PantallaNuevaVenta() {
         }
       />
 
-      {/* Footer Total */}
       <View style={estilos.footer}>
         <View style={estilos.totalContenedor}>
           <Text style={estilos.textoTotal}>TOTAL</Text>
@@ -525,7 +550,6 @@ export default function PantallaNuevaVenta() {
         </TouchableOpacity>
       </View>
 
-      {/* MODAL DE PAGO / CONFIRMACIÓN */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -560,7 +584,6 @@ export default function PantallaNuevaVenta() {
             {/* --- FASE 1: COMPLETAR VENTA --- */}
             {faseModal === "pago" && (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Cuadro del Total (Borde verde) */}
                 <View style={estilos.totalDisplay}>
                   <Text style={estilos.totalLabel}>Total a Pagar</Text>
                   <Text style={estilos.totalValue}>
@@ -575,151 +598,238 @@ export default function PantallaNuevaVenta() {
                       flexDirection: "row",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      marginBottom: 10,
+                      marginBottom: 15,
                     }}
                   >
-                    <Text style={estilos.seccionTitulo}>Cliente</Text>
-                  </View>
-
-                  <View style={estilos.buscadorClientes}>
-                    <FontAwesome5
-                      name="search"
-                      size={14}
-                      color={colores.textoGris}
-                    />
-                    <TextInput
-                      style={estilos.inputBuscadorMod}
-                      placeholder="Buscar por nombre o cédula..."
-                      placeholderTextColor={colores.textoGris}
-                      value={busquedaCliente}
-                      onChangeText={setBusquedaCliente}
-                    />
-                    {busquedaCliente.length > 0 && (
+                    <Text style={estilos.seccionTitulo}>Cliente *</Text>
+                    {!mostrarNuevoCliente && !clienteSeleccionado && (
                       <TouchableOpacity
-                        onPress={() => setBusquedaCliente("")}
-                        style={{ padding: 5 }}
-                      >
-                        <FontAwesome5
-                          name="times-circle"
-                          size={14}
-                          color={colores.textoGris}
-                        />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={{ marginBottom: 15 }}
-                  >
-                    <TouchableOpacity
-                      style={[
-                        estilos.chipCliente,
-                        clienteSeleccionado === null &&
-                          estilos.chipClienteActivo,
-                      ]}
-                      onPress={() => setClienteSeleccionado(null)}
-                    >
-                      <Text
-                        style={[
-                          estilos.textoChipCliente,
-                          clienteSeleccionado === null && {
-                            color: colores.textoOscuro,
-                          },
-                        ]}
-                      >
-                        Mostrador
-                      </Text>
-                    </TouchableOpacity>
-
-                    {clienteSeleccionado && (
-                      <TouchableOpacity
-                        style={[estilos.chipCliente, estilos.chipClienteActivo]}
-                        onPress={() =>
-                          setClienteSeleccionado(clienteSeleccionado)
-                        }
+                        onPress={() => setMostrarNuevoCliente(true)}
                       >
                         <Text
                           style={{
-                            color: colores.textoOscuro,
+                            color: colores.primario,
                             fontWeight: "bold",
+                            fontSize: 14,
                           }}
                         >
-                          {
-                            clientesBD.find((c) => c.id === clienteSeleccionado)
-                              ?.nombre
-                          }
+                          + Nuevo Cliente
                         </Text>
                       </TouchableOpacity>
                     )}
-                  </ScrollView>
+                  </View>
 
-                  {busquedaCliente.length > 0 && (
-                    <View style={estilos.contenedorListaClientes}>
-                      <ScrollView
-                        nestedScrollEnabled
-                        showsVerticalScrollIndicator={true}
-                      >
-                        {clientesFiltrados.map((c) => (
-                          <TouchableOpacity
-                            key={c.id}
-                            style={[
-                              estilos.itemClienteList,
-                              clienteSeleccionado === c.id && {
-                                backgroundColor: colores.fondoInput,
-                              },
-                            ]}
-                            onPress={() => {
-                              setClienteSeleccionado(c.id);
-                              setBusquedaCliente("");
+                  {mostrarNuevoCliente ? (
+                    // 1. Formulario de Nuevo Cliente
+                    <View style={estilos.formNuevoCliente}>
+                      <TextInput
+                        style={estilos.inputFormCliente}
+                        placeholder="Nombre del cliente"
+                        placeholderTextColor={colores.textoGris}
+                        value={nombreCliente}
+                        onChangeText={setNombreCliente}
+                      />
+                      <TextInput
+                        style={estilos.inputFormCliente}
+                        placeholder="Cédula (opcional)"
+                        placeholderTextColor={colores.textoGris}
+                        value={cedulaCliente}
+                        onChangeText={setCedulaCliente}
+                        keyboardType="numeric"
+                      />
+                      <TextInput
+                        style={estilos.inputFormCliente}
+                        placeholder="Teléfono (opcional)"
+                        placeholderTextColor={colores.textoGris}
+                        value={telefonoCliente}
+                        onChangeText={setTelefonoCliente}
+                        keyboardType="phone-pad"
+                      />
+                      <View style={estilos.filaBotonesForm}>
+                        <TouchableOpacity
+                          onPress={() => setMostrarNuevoCliente(false)}
+                          style={{ padding: 15 }}
+                        >
+                          <Text
+                            style={{
+                              color: colores.textoBlanco,
+                              fontWeight: "bold",
                             }}
                           >
-                            <View style={estilos.iconoClienteAvatar}>
-                              <FontAwesome5
-                                name="user"
-                                size={14}
-                                color={colores.textoGris}
-                              />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text
-                                style={[
-                                  estilos.textoItemCliente,
-                                  { fontWeight: "bold" },
-                                ]}
-                              >
-                                {c.nombre}
-                              </Text>
-                              {c.cedula && (
-                                <Text
-                                  style={{
-                                    color: colores.textoGris,
-                                    fontSize: 12,
-                                  }}
-                                >
-                                  C.I: {c.cedula}
-                                </Text>
-                              )}
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                            Cancelar
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={crearClienteRapido}
+                          style={estilos.botonGuardarCliente}
+                        >
+                          {cargando ? (
+                            <ActivityIndicator color={colores.textoOscuro} />
+                          ) : (
+                            <Text
+                              style={{
+                                color: colores.textoOscuro,
+                                fontWeight: "bold",
+                              }}
+                            >
+                              Guardar Cliente
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  )}
-                  <TouchableOpacity
-                    onPress={() => router.push("/(tabs)/cuenta")}
-                  >
-                    <Text
+                  ) : clienteSeleccionado ? (
+                    // 2. Cliente Seleccionado (Tarjeta Activa)
+                    <View
                       style={{
-                        color: colores.primario,
-                        fontWeight: "bold",
-                        fontSize: 14,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 15,
                       }}
                     >
-                      + Nuevo Cliente
-                    </Text>
-                  </TouchableOpacity>
+                      <View
+                        style={[
+                          estilos.chipCliente,
+                          estilos.chipClienteActivo,
+                          {
+                            flex: 1,
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            paddingVertical: 16,
+                            paddingHorizontal: 20,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <FontAwesome5
+                            name="user-check"
+                            size={16}
+                            color={colores.textoOscuro}
+                          />
+                          <Text
+                            style={{
+                              color: colores.textoOscuro,
+                              fontWeight: "bold",
+                              fontSize: 16,
+                            }}
+                          >
+                            {
+                              clientesBD.find(
+                                (c) => c.id === clienteSeleccionado,
+                              )?.nombre
+                            }
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => setClienteSeleccionado(null)}
+                          style={{ padding: 5 }}
+                        >
+                          <FontAwesome5
+                            name="times-circle"
+                            size={20}
+                            color={colores.textoOscuro}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    // 3. Buscador de Clientes (La lista oculta por defecto)
+                    <>
+                      <View style={estilos.buscadorClientes}>
+                        <FontAwesome5
+                          name="search"
+                          size={14}
+                          color={colores.textoGris}
+                        />
+                        <TextInput
+                          style={estilos.inputBuscadorMod}
+                          placeholder="Buscar por nombre o cédula..."
+                          placeholderTextColor={colores.textoGris}
+                          value={busquedaCliente}
+                          onChangeText={setBusquedaCliente}
+                        />
+                        {busquedaCliente.length > 0 && (
+                          <TouchableOpacity
+                            onPress={() => setBusquedaCliente("")}
+                            style={{ padding: 5 }}
+                          >
+                            <FontAwesome5
+                              name="times-circle"
+                              size={14}
+                              color={colores.textoGris}
+                            />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* Solo mostramos la caja si hay texto en la búsqueda */}
+                      {busquedaCliente.trim().length > 0 && (
+                        <View style={estilos.contenedorListaClientes}>
+                          <ScrollView
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator={true}
+                          >
+                            {clientesFiltrados.map((c) => (
+                              <TouchableOpacity
+                                key={c.id}
+                                style={estilos.itemClienteList}
+                                onPress={() => {
+                                  setClienteSeleccionado(c.id);
+                                  setBusquedaCliente("");
+                                }}
+                              >
+                                <View style={estilos.iconoClienteAvatar}>
+                                  <FontAwesome5
+                                    name="user"
+                                    size={14}
+                                    color={colores.textoGris}
+                                  />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text
+                                    style={[
+                                      estilos.textoItemCliente,
+                                      { fontWeight: "bold" },
+                                    ]}
+                                  >
+                                    {c.nombre}
+                                  </Text>
+                                  {c.cedula && (
+                                    <Text
+                                      style={{
+                                        color: colores.textoGris,
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      C.I: {c.cedula}
+                                    </Text>
+                                  )}
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                            {clientesFiltrados.length === 0 && (
+                              <Text
+                                style={{
+                                  color: colores.textoGris,
+                                  textAlign: "center",
+                                  padding: 15,
+                                }}
+                              >
+                                No se encontraron clientes.
+                              </Text>
+                            )}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </>
+                  )}
                 </View>
 
                 {/* MÉTODOS DE PAGO */}
@@ -752,7 +862,7 @@ export default function PantallaNuevaVenta() {
                         size={24}
                         color={
                           metodoPago === metodo.id
-                            ? colores.subtitulos
+                            ? colores.primario
                             : colores.textoGris
                         }
                       />
@@ -815,7 +925,6 @@ export default function PantallaNuevaVenta() {
                   </View>
                 )}
 
-                {/* 🔥 BOTÓN DE COMPROBANTE SOLO PARA PAGO MÓVIL */}
                 {metodoPago === "pago_movil" && (
                   <View style={{ marginTop: 20 }}>
                     <Text style={estilos.labelInput}>
@@ -861,7 +970,16 @@ export default function PantallaNuevaVenta() {
 
                 <TouchableOpacity
                   style={[estilos.botonPrimario, { marginTop: 30 }]}
-                  onPress={() => setFaseModal("confirmacion")}
+                  onPress={() => {
+                    if (!clienteSeleccionado) {
+                      Alert.alert(
+                        "Cliente Requerido",
+                        "Por favor, busque y seleccione un cliente para la venta.",
+                      );
+                      return;
+                    }
+                    setFaseModal("confirmacion");
+                  }}
                 >
                   <Text style={estilos.textoBotonPrimario}>Continuar</Text>
                 </TouchableOpacity>
@@ -874,7 +992,6 @@ export default function PantallaNuevaVenta() {
                 <Text style={estilos.tituloConfirmacion}>
                   ¿Confirmar Venta?
                 </Text>
-
                 <View style={estilos.cuadroResumen}>
                   <View style={estilos.filaResumen}>
                     <Text style={estilos.labelResumen}>Cliente:</Text>
@@ -882,7 +999,7 @@ export default function PantallaNuevaVenta() {
                       {clienteSeleccionado
                         ? clientesBD.find((c) => c.id === clienteSeleccionado)
                             ?.nombre
-                        : "Mostrador"}
+                        : ""}
                     </Text>
                   </View>
                   <View style={estilos.filaResumen}>
@@ -971,20 +1088,14 @@ export default function PantallaNuevaVenta() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-  style={estilos.botonFinalizar}
-  onPress={() => {
-    // 1. Ocultamos el modal primero
-    setModalVisible(false);
-    
-    // 2. Le damos medio segundo para que la animación de cierre termine por completo
-    setTimeout(() => {
-      // 3. Reemplazamos la ruta para forzar la recarga del layout
-      router.replace("/(tabs)"); 
-    }, 500); 
-  }}
->
-  <Text style={estilos.textoBotonFinalizar}>Finalizar</Text>
-</TouchableOpacity>
+                    style={estilos.botonFinalizar}
+                    onPress={() => {
+                      setModalVisible(false);
+                      setTimeout(() => router.replace("/(tabs)"), 500);
+                    }}
+                  >
+                    <Text style={estilos.textoBotonFinalizar}>Finalizar</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
@@ -995,7 +1106,7 @@ export default function PantallaNuevaVenta() {
   );
 }
 
-// 🔥 ESTILOS DINÁMICOS Y PIXEL PERFECT
+// 🔥 ESTILOS DINÁMICOS
 const crearEstilos = (c: any) =>
   StyleSheet.create({
     contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
@@ -1028,8 +1139,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
       color: c.textoOscuro,
     },
-
-    // Buscador Main
     barraBusqueda: {
       flexDirection: "row",
       alignItems: "center",
@@ -1094,8 +1203,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
     },
     textoVacio: { color: c.textoGris, padding: 20, textAlign: "center" },
-
-    // Carrito
     tituloCarrito: {
       fontSize: 18,
       fontWeight: "bold",
@@ -1127,10 +1234,8 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
       marginBottom: 2,
     },
-    precioItem: { fontSize: 14, color: c.subtitulos },
-    subtotalItem: { fontSize: 20, color: c.subtitulos, fontWeight: "900" },
-
-    // Controles Carrito (Cantidad)
+    precioItem: { fontSize: 14, color: c.textoGris },
+    subtotalItem: { fontSize: 20, color: c.primario, fontWeight: "900" },
     controlesCarrito: { flexDirection: "row", alignItems: "center" },
     btnCant: {
       backgroundColor: c.fondoOscuro,
@@ -1143,7 +1248,7 @@ const crearEstilos = (c: any) =>
       borderColor: c.borde,
     },
     txtCant: {
-      color: c.subtitulos,
+      color: c.primario,
       fontSize: 20,
       fontWeight: "bold",
       marginTop: -2,
@@ -1155,8 +1260,6 @@ const crearEstilos = (c: any) =>
       width: 40,
       textAlign: "center",
     },
-
-    // Footer
     footer: {
       backgroundColor: c.fondoOscuro,
       padding: 20,
@@ -1171,7 +1274,7 @@ const crearEstilos = (c: any) =>
       marginBottom: 15,
     },
     textoTotal: { fontSize: 16, color: c.textoGris, fontWeight: "bold" },
-    montoTotal: { fontSize: 32, color: c.subtitulos, fontWeight: "900" },
+    montoTotal: { fontSize: 32, color: c.primario, fontWeight: "900" },
     botonPrimario: {
       backgroundColor: c.primario,
       padding: 18,
@@ -1185,7 +1288,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
     },
 
-    // Modal Global
     modalContainer: {
       flex: 1,
       justifyContent: "flex-end",
@@ -1206,18 +1308,17 @@ const crearEstilos = (c: any) =>
     },
     modalTitulo: { fontSize: 22, fontWeight: "bold", color: c.textoBlanco },
 
-    // Fase Pago
     totalDisplay: {
       alignItems: "center",
       paddingVertical: 25,
-      backgroundColor: c.fondoOscuro,
+      backgroundColor: c.fondoInput,
       borderRadius: 15,
       borderWidth: 1,
-      borderColor: c.subtitulos,
+      borderColor: c.primario,
       marginBottom: 25,
     },
     totalLabel: { color: c.textoGris, fontSize: 16, marginBottom: 5 },
-    totalValue: { color: c.subtitulos, fontSize: 45, fontWeight: "900" },
+    totalValue: { color: c.primario, fontSize: 45, fontWeight: "900" },
 
     seccion: { marginBottom: 25 },
     seccionTitulo: {
@@ -1227,7 +1328,6 @@ const crearEstilos = (c: any) =>
       marginBottom: 15,
     },
 
-    // Buscador Clientes Modal
     buscadorClientes: {
       flexDirection: "row",
       alignItems: "center",
@@ -1269,6 +1369,7 @@ const crearEstilos = (c: any) =>
       marginRight: 12,
     },
     textoItemCliente: { color: c.textoBlanco, fontSize: 14 },
+
     chipCliente: {
       paddingHorizontal: 16,
       paddingVertical: 10,
@@ -1279,7 +1380,34 @@ const crearEstilos = (c: any) =>
     chipClienteActivo: { backgroundColor: c.primario },
     textoChipCliente: { color: c.textoGris, fontWeight: "bold" },
 
-    // Grid Pagos
+    formNuevoCliente: {
+      backgroundColor: c.fondoTarjeta,
+      padding: 20,
+      borderRadius: 16,
+      gap: 15,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    inputFormCliente: {
+      backgroundColor: c.fondoInput,
+      color: c.textoBlanco,
+      padding: 15,
+      borderRadius: 10,
+      fontSize: 14,
+    },
+    filaBotonesForm: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      alignItems: "center",
+      marginTop: 5,
+    },
+    botonGuardarCliente: {
+      backgroundColor: c.primario,
+      paddingHorizontal: 20,
+      paddingVertical: 15,
+      borderRadius: 10,
+    },
+
     gridPagos: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -1297,12 +1425,12 @@ const crearEstilos = (c: any) =>
       marginBottom: 5,
     },
     opcionPagoActivo: {
-      borderColor: c.subtitulos,
+      borderColor: c.primario,
       borderWidth: 2,
       backgroundColor: c.fondoInput,
     },
     textoPago: { color: c.textoGris, fontSize: 14, marginTop: 10 },
-    textoPagoActivo: { color: c.subtitulos, fontWeight: "bold" },
+    textoPagoActivo: { color: c.primario, fontWeight: "bold" },
 
     labelInput: { color: c.textoBlanco, marginBottom: 10, fontWeight: "bold" },
     inputDinero: {
@@ -1322,7 +1450,6 @@ const crearEstilos = (c: any) =>
     },
     textoDeuda: { color: c.error, marginTop: 10, fontSize: 16 },
 
-    // Fase Confirmación
     tituloConfirmacion: {
       fontSize: 26,
       color: c.textoBlanco,
@@ -1361,8 +1488,7 @@ const crearEstilos = (c: any) =>
       marginTop: 5,
     },
     textoTotalResumen: { color: c.textoGris, fontWeight: "bold", fontSize: 16 },
-    valorTotalResumen: { color: c.subtitulos, fontWeight: "900", fontSize: 26 },
-
+    valorTotalResumen: { color: c.primario, fontWeight: "900", fontSize: 26 },
     filaBotonesAccion: { flexDirection: "row", gap: 15, width: "100%" },
     botonVolverAccion: {
       flex: 1,
@@ -1391,7 +1517,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
     },
 
-    // Fase Éxito
     circuloExito: {
       width: 120,
       height: 120,

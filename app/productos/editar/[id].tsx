@@ -19,10 +19,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ToggleTema from "../../../components/ToggleTema"; // 🔥 Importamos el botón
 import { useTheme } from "../../../contexts/ContextTheme";
 import api from "../../../services/api";
 
-// Asumiendo tu IP local para las fotos del servidor
 const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 interface Categoria {
@@ -86,7 +86,6 @@ export default function PantallaEditarProducto() {
         setProveedor(resProducto.proveedor || "");
 
         if (resProducto.imagen) {
-          // Lógica de URL para imagen existente
           setImagen(
             resProducto.imagen.startsWith("http")
               ? resProducto.imagen
@@ -171,6 +170,7 @@ export default function PantallaEditarProducto() {
     setGuardando(true);
     try {
       const payload: any = {
+        id: id, // 🔥 ESTA ES LA LÍNEA MÁGICA QUE FALTABA
         nombre: nombre.trim(),
         sku: sku.trim(),
         descripcion: descripcion.trim(),
@@ -253,6 +253,7 @@ export default function PantallaEditarProducto() {
           />
         </TouchableOpacity>
         <Text style={estilos.titulo}>Editar Producto</Text>
+        
         <View style={{ width: 40 }} />
       </View>
 
@@ -602,7 +603,7 @@ const crearEstilos = (c: any, isDark: boolean) =>
     },
 
     stockContainer: { flexDirection: "row", alignItems: "center", gap: 10 },
-    inputDisabled: { backgroundColor: c.secundario, opacity: 0.6, flex: 1 },
+    inputDisabled: { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", opacity: 0.6, flex: 1 },
     botonAjustar: {
       backgroundColor: c.primario,
       paddingHorizontal: 12,

@@ -1505,7 +1505,6 @@ export default function PantallaReportes() {
         {/* 🔥 Título y Botón del Tema */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
             <Text style={{ color: colores.textoBlanco, fontSize: 28, fontWeight: 'bold' }}>Reportes</Text>
-            <ToggleTema />
         </View>
 
         <View style={estilos.selectorVista}>
@@ -1932,4 +1931,4 @@ const crearEstilos = (c: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: c.borde,
   },
-});
+}); 

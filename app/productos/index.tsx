@@ -1,6 +1,6 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,21 +13,9 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../contexts/ContextAuth";
+import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el tema
 import api from "../../services/api";
 
-// --- TEMA HARDCODEADO ---
-const COLORES = {
-  fondoOscuro: "#1C1C1E",
-  fondoTarjeta: "#2C2C2E",
-  primario: "#D4FF00", // Verde Neón
-  textoBlanco: "#FFFFFF",
-  textoGris: "#8E8E93",
-  textoOscuro: "#1C1C1E",
-  borde: "#38383A",
-  error: "#FF3B30",
-};
-
-// URL base para las imágenes (ajustada a tu IP local)
 const API_URL = "http://192.168.1.111:8000";
 
 interface Producto {
@@ -45,7 +33,18 @@ export default function PantallaProductos() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const esAdmin = () => user?.rol === "admin" || user?.rol === "administrador";
+  // 🔥 Conectamos al Tema Global
+  const { colores, isDark } = useTheme();
+  const estilos = useMemo(
+    () => crearEstilos(colores, isDark),
+    [colores, isDark],
+  );
+
+  // 🔥 Arreglamos la validación para incluir al superadmin y hacerlo case-insensitive
+  const esAdmin = () => {
+    const rol = user?.rol?.toLowerCase() || "";
+    return rol === "admin" || rol === "administrador" || rol === "superadmin";
+  };
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
@@ -59,17 +58,17 @@ export default function PantallaProductos() {
       cargarDatos();
     }, []),
   );
+
   const cargarDatos = async () => {
     try {
       setCargando(true);
-      // Hacemos las dos peticiones al mismo tiempo
       const [resProductos, resCategorias]: any = await Promise.all([
         api.get("/productos"),
         api.get("/categorias"),
       ]);
 
       setProductos(resProductos || []);
-      setCategorias(resCategorias || []); // <-- Ahora usamos las reales de MySQL
+      setCategorias(resCategorias || []);
     } catch (error) {
       console.error("Error cargando datos del catálogo:", error);
     } finally {
@@ -108,8 +107,6 @@ export default function PantallaProductos() {
         activeOpacity={bloqueado ? 1 : 0.7}
         onPress={() => {
           if (!bloqueado) {
-            // Aquí enrutaremos a la pantalla de edición más adelante
-            Alert.alert("Editar", `Abriendo edición para: ${item.nombre}`);
             router.push(`/productos/editar/${item.id}`);
           } else {
             Alert.alert(
@@ -124,12 +121,12 @@ export default function PantallaProductos() {
             <Image source={source} style={estilos.imagen} />
           ) : (
             <View style={estilos.imagenPlaceholder}>
-              <FontAwesome5 name="box" size={30} color={COLORES.textoGris} />
+              <FontAwesome5 name="box" size={30} color={colores.textoGris} />
             </View>
           )}
           {bloqueado && (
             <View style={estilos.badgeCandado}>
-              <FontAwesome5 name="lock" size={10} color={COLORES.textoBlanco} />
+              <FontAwesome5 name="lock" size={10} color="#FFFFFF" />
             </View>
           )}
         </View>
@@ -140,7 +137,7 @@ export default function PantallaProductos() {
           <Text
             style={[
               estilos.cardStock,
-              stockBajo && { color: COLORES.error, fontWeight: "bold" },
+              stockBajo && { color: colores.error, fontWeight: "bold" },
             ]}
           >
             Stock: {item.stock}
@@ -162,21 +159,21 @@ export default function PantallaProductos() {
           <FontAwesome5
             name="chevron-left"
             size={20}
-            color={COLORES.textoBlanco}
+            color={colores.textoBlanco}
           />
         </TouchableOpacity>
         <Text style={estilos.titulo}>Productos</Text>
+
         <View style={{ width: 40 }} />
-        {/* Espaciador invisible para centrar título */}
       </View>
 
       {/* Buscador */}
       <View style={estilos.barraBusqueda}>
-        <FontAwesome5 name="search" size={18} color={COLORES.textoGris} />
+        <FontAwesome5 name="search" size={18} color={colores.textoGris} />
         <TextInput
           style={estilos.inputBusqueda}
           placeholder="Buscar por nombre o SKU..."
-          placeholderTextColor={COLORES.textoGris}
+          placeholderTextColor={colores.textoGris}
           value={busqueda}
           onChangeText={setBusqueda}
         />
@@ -217,7 +214,7 @@ export default function PantallaProductos() {
       {cargando ? (
         <ActivityIndicator
           size="large"
-          color={COLORES.primario}
+          color={colores.primario}
           style={{ marginTop: 50 }}
         />
       ) : (
@@ -230,7 +227,7 @@ export default function PantallaProductos() {
           renderItem={renderProductCard}
           ListEmptyComponent={
             <View style={estilos.vacio}>
-              <FontAwesome5 name="box-open" size={50} color={COLORES.borde} />
+              <FontAwesome5 name="box-open" size={50} color={colores.borde} />
               <Text style={estilos.textoVacio}>
                 No se encontraron productos
               </Text>
@@ -242,112 +239,114 @@ export default function PantallaProductos() {
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: COLORES.fondoOscuro },
+// 🔥 ESTILOS DINÁMICOS
+const crearEstilos = (c: any, isDark: boolean) =>
+  StyleSheet.create({
+    contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
 
-  encabezado: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 15,
-  },
-  botonVolver: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  titulo: { fontSize: 22, fontWeight: "bold", color: COLORES.textoBlanco },
+    encabezado: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingTop: 60,
+      paddingBottom: 15,
+    },
+    botonVolver: {
+      width: 40,
+      height: 40,
+      justifyContent: "center",
+      alignItems: "flex-start",
+    },
+    titulo: { fontSize: 22, fontWeight: "bold", color: c.textoBlanco },
 
-  barraBusqueda: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORES.fondoTarjeta,
-    marginHorizontal: 20,
-    marginBottom: 15,
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-  },
-  inputBusqueda: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    fontSize: 16,
-    color: COLORES.textoBlanco,
-  },
+    barraBusqueda: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.fondoTarjeta,
+      marginHorizontal: 20,
+      marginBottom: 15,
+      paddingHorizontal: 15,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.borde,
+    },
+    inputBusqueda: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      fontSize: 16,
+      color: c.textoBlanco,
+    },
 
-  chipCategoria: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: COLORES.fondoTarjeta,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    justifyContent: "center",
-  },
-  chipCategoriaActiva: {
-    backgroundColor: COLORES.primario,
-    borderColor: COLORES.primario,
-  },
-  textoCategoria: {
-    color: COLORES.textoGris,
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  textoCategoriaActiva: { color: COLORES.textoOscuro },
+    chipCategoria: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: c.fondoTarjeta,
+      borderWidth: 1,
+      borderColor: c.borde,
+      justifyContent: "center",
+    },
+    chipCategoriaActiva: {
+      backgroundColor: c.primario,
+      borderColor: c.primario,
+    },
+    textoCategoria: {
+      color: c.textoGris,
+      fontSize: 14,
+      fontWeight: "bold",
+    },
+    textoCategoriaActiva: { color: c.textoOscuro },
 
-  gridProductos: { paddingHorizontal: 20, paddingBottom: 40 },
-  rowWrapper: { justifyContent: "space-between", marginBottom: 15 },
+    gridProductos: { paddingHorizontal: 20, paddingBottom: 40 },
+    rowWrapper: { justifyContent: "space-between", marginBottom: 15 },
 
-  card: {
-    width: "48%",
-    backgroundColor: COLORES.fondoTarjeta,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    overflow: "hidden",
-  },
-  cardImagen: {
-    width: "100%",
-    aspectRatio: 1,
-    backgroundColor: COLORES.fondoOscuro,
-    position: "relative",
-  },
-  imagen: { width: "100%", height: "100%", resizeMode: "cover" },
-  imagenPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  badgeCandado: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    padding: 6,
-    borderRadius: 12,
-  },
+    card: {
+      width: "48%",
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.borde,
+      overflow: "hidden",
+    },
+    cardImagen: {
+      width: "100%",
+      aspectRatio: 1,
+      backgroundColor: c.fondoOscuro,
+      position: "relative",
+    },
+    imagen: { width: "100%", height: "100%", resizeMode: "cover" },
+    imagenPlaceholder: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    badgeCandado: {
+      position: "absolute",
+      top: 8,
+      right: 8,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      padding: 6,
+      borderRadius: 12,
+    },
 
-  cardInfo: { padding: 12 },
-  cardNombre: {
-    color: COLORES.textoBlanco,
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 4,
-    minHeight: 38,
-  },
-  cardStock: { color: COLORES.textoGris, fontSize: 12, marginBottom: 8 },
-  cardPrecio: { color: COLORES.primario, fontSize: 18, fontWeight: "900" },
+    cardInfo: { padding: 12 },
+    cardNombre: {
+      color: c.textoBlanco,
+      fontSize: 14,
+      fontWeight: "bold",
+      marginBottom: 4,
+      minHeight: 38,
+    },
+    cardStock: { color: c.textoGris, fontSize: 12, marginBottom: 8 },
+    cardPrecio: { color: c.primario, fontSize: 18, fontWeight: "900" },
 
-  vacio: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 80,
-    gap: 15,
-  },
-  textoVacio: { color: COLORES.textoGris, fontSize: 16 },
-});
+    vacio: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingTop: 80,
+      gap: 15,
+    },
+    textoVacio: { color: c.textoGris, fontSize: 16 },
+  });
