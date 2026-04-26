@@ -25,6 +25,11 @@ interface Categoria {
   nombre: string;
 }
 
+interface Proveedor {
+  id: string;
+  nombre: string;
+}
+
 export default function PantallaAgregarProducto() {
   const router = useRouter();
 
@@ -44,7 +49,6 @@ export default function PantallaAgregarProducto() {
   const [stock, setStock] = useState("");
   const [stockMinimo, setStockMinimo] = useState("10");
   const [codigoBarras, setCodigoBarras] = useState("");
-  const [proveedor, setProveedor] = useState("");
   const [imagen, setImagen] = useState<string | null>(null);
 
   const [cargando, setCargando] = useState(false);
@@ -54,14 +58,22 @@ export default function PantallaAgregarProducto() {
   const [categoriaSeleccionada, setCategoriaSeleccionada] =
     useState<Categoria | null>(null);
   const [desplegableCategoria, setDesplegableCategoria] = useState(false);
-
-  // Modal chiquito para crear categoría
   const [modalNuevaCatVisible, setModalNuevaCatVisible] = useState(false);
   const [nuevoNombreCategoria, setNuevoNombreCategoria] = useState("");
   const [creandoCategoria, setCreandoCategoria] = useState(false);
 
+  // 🔥 Estados para Proveedores
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [proveedorSeleccionado, setProveedorSeleccionado] =
+    useState<Proveedor | null>(null);
+  const [desplegableProveedor, setDesplegableProveedor] = useState(false);
+  const [modalNuevoProvVisible, setModalNuevoProvVisible] = useState(false);
+  const [nuevoNombreProveedor, setNuevoNombreProveedor] = useState("");
+  const [creandoProveedor, setCreandoProveedor] = useState(false);
+
   useEffect(() => {
     cargarCategorias();
+    cargarProveedores();
 
     const suscripcion = DeviceEventEmitter.addListener(
       "onCodigoEscaneado",
@@ -79,6 +91,15 @@ export default function PantallaAgregarProducto() {
       setCategorias(res || []);
     } catch (error) {
       console.error("Error cargando categorías:", error);
+    }
+  };
+
+  const cargarProveedores = async () => {
+    try {
+      const res: any = await api.get("/proveedores");
+      setProveedores(res || []);
+    } catch (error) {
+      console.error("Error cargando proveedores:", error);
     }
   };
 
@@ -108,6 +129,35 @@ export default function PantallaAgregarProducto() {
       Alert.alert("Error", error.message || "No se pudo crear la categoría");
     } finally {
       setCreandoCategoria(false);
+    }
+  };
+
+  const guardarNuevoProveedor = async () => {
+    if (!nuevoNombreProveedor.trim()) {
+      Alert.alert("Error", "Ingresa un nombre para el proveedor");
+      return;
+    }
+    setCreandoProveedor(true);
+    try {
+      // El backend devuelve { mensaje: '...', success: true, id: '...' }
+      const res: any = await api.post("/proveedores", {
+        nombre: nuevoNombreProveedor.trim(),
+      });
+
+      await cargarProveedores();
+
+      setProveedorSeleccionado({
+        id: res.id,
+        nombre: nuevoNombreProveedor.trim(),
+      });
+
+      setModalNuevoProvVisible(false);
+      setDesplegableProveedor(false);
+      setNuevoNombreProveedor("");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo crear el proveedor");
+    } finally {
+      setCreandoProveedor(false);
     }
   };
 
@@ -168,7 +218,7 @@ export default function PantallaAgregarProducto() {
         stock: parseInt(stock) || 0,
         stock_minimo: parseInt(stockMinimo) || 10,
         codigo_barras: codigoBarras,
-        proveedor: proveedor,
+        proveedor_id: proveedorSeleccionado?.id || null, // 🔥 Ahora enviamos el ID del proveedor
         imagen: imagen,
         categoria_id: categoriaSeleccionada?.id || null,
       };
@@ -272,7 +322,10 @@ export default function PantallaAgregarProducto() {
               estilos.selectorCategoria,
               desplegableCategoria && estilos.selectorActivo,
             ]}
-            onPress={() => setDesplegableCategoria(!desplegableCategoria)}
+            onPress={() => {
+              setDesplegableCategoria(!desplegableCategoria);
+              setDesplegableProveedor(false); // Cierra el otro si está abierto
+            }}
             activeOpacity={1}
           >
             <Text
@@ -317,7 +370,6 @@ export default function PantallaAgregarProducto() {
                   )}
                 </TouchableOpacity>
 
-                {/* Botón Crear Categoría como en tu código viejo */}
                 <TouchableOpacity
                   style={estilos.botonRapidoCrear}
                   onPress={() => {
@@ -393,7 +445,6 @@ export default function PantallaAgregarProducto() {
           </View>
         </View>
 
-        {/* Cuadro de Margen */}
         <View style={estilos.margenContainer}>
           <Text style={estilos.margenLabel}>Margen de ganancia:</Text>
           <Text style={estilos.margenValor}>{calcularMargen()}</Text>
@@ -450,14 +501,110 @@ export default function PantallaAgregarProducto() {
           </TouchableOpacity>
         </View>
 
+        {/* 🔥 ACORDEÓN DE PROVEEDORES */}
         <Text style={estilos.label}>Proveedor</Text>
-        <TextInput
-          style={estilos.input}
-          value={proveedor}
-          onChangeText={setProveedor}
-          placeholder="Nombre del proveedor"
-          placeholderTextColor={colores.textoGris}
-        />
+        <View style={{ zIndex: 9 }}>
+          <TouchableOpacity
+            style={[
+              estilos.input,
+              estilos.selectorCategoria,
+              desplegableProveedor && estilos.selectorActivo,
+            ]}
+            onPress={() => {
+              setDesplegableProveedor(!desplegableProveedor);
+              setDesplegableCategoria(false); // Cierra el otro si está abierto
+            }}
+            activeOpacity={1}
+          >
+            <Text
+              style={{
+                color: proveedorSeleccionado
+                  ? colores.textoBlanco
+                  : colores.textoGris,
+                fontSize: 16,
+              }}
+            >
+              {proveedorSeleccionado
+                ? proveedorSeleccionado.nombre
+                : "Sin Proveedor"}
+            </Text>
+            <FontAwesome5
+              name={desplegableProveedor ? "chevron-up" : "chevron-down"}
+              size={14}
+              color={colores.textoGris}
+            />
+          </TouchableOpacity>
+
+          {desplegableProveedor && (
+            <View style={estilos.desplegableContenedor}>
+              <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                <TouchableOpacity
+                  style={[
+                    estilos.itemCategoria,
+                    !proveedorSeleccionado && estilos.itemCategoriaActiva,
+                  ]}
+                  onPress={() => {
+                    setProveedorSeleccionado(null);
+                    setDesplegableProveedor(false);
+                  }}
+                >
+                  <Text style={estilos.textoCategoria}>Sin Proveedor</Text>
+                  {!proveedorSeleccionado && (
+                    <FontAwesome5
+                      name="check"
+                      size={16}
+                      color={colores.primario}
+                    />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={estilos.botonRapidoCrear}
+                  onPress={() => {
+                    setDesplegableProveedor(false);
+                    setModalNuevoProvVisible(true);
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <FontAwesome5
+                      name="plus"
+                      size={14}
+                      color={colores.primario}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={estilos.textoBotonRapido}>
+                      Crear Proveedor
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {proveedores.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      estilos.itemCategoria,
+                      proveedorSeleccionado?.id === item.id &&
+                        estilos.itemCategoriaActiva,
+                    ]}
+                    onPress={() => {
+                      setProveedorSeleccionado(item);
+                      setDesplegableProveedor(false);
+                    }}
+                  >
+                    <Text style={estilos.textoCategoria}>{item.nombre}</Text>
+                    {proveedorSeleccionado?.id === item.id && (
+                      <FontAwesome5
+                        name="check"
+                        size={16}
+                        color={colores.primario}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -530,11 +677,65 @@ export default function PantallaAgregarProducto() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* 🔥 MODAL CREACIÓN RÁPIDA DE PROVEEDOR */}
+      <Modal
+        visible={modalNuevoProvVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setModalNuevoProvVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={estilos.modalOverlay}
+        >
+          <View style={estilos.modalContent}>
+            <View style={estilos.modalHeader}>
+              <Text style={estilos.modalTitulo}>Nuevo Proveedor</Text>
+              <TouchableOpacity onPress={() => setModalNuevoProvVisible(false)}>
+                <FontAwesome5
+                  name="times"
+                  size={20}
+                  color={colores.textoGris}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={estilos.label}>Nombre del Proveedor</Text>
+            <TextInput
+              style={estilos.inputModal}
+              placeholder="Ej: Distribuidora Polar, Coca Cola..."
+              placeholderTextColor={colores.textoGris}
+              value={nuevoNombreProveedor}
+              onChangeText={setNuevoNombreProveedor}
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={[
+                estilos.botonGuardar,
+                { marginTop: 15 },
+                creandoProveedor && { opacity: 0.7 },
+              ]}
+              onPress={guardarNuevoProveedor}
+              disabled={creandoProveedor}
+            >
+              {creandoProveedor ? (
+                <ActivityIndicator color={colores.textoOscuro} />
+              ) : (
+                <Text style={estilos.textoBotonGuardar}>
+                  Crear y Seleccionar
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
-// 🔥 ESTILOS DINÁMICOS
+// --- ESTILOS DINÁMICOS ---
 const crearEstilos = (c: any, isDark: boolean) =>
   StyleSheet.create({
     contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
@@ -556,7 +757,6 @@ const crearEstilos = (c: any, isDark: boolean) =>
     },
     titulo: { fontSize: 20, fontWeight: "bold", color: c.textoBlanco },
     contenido: { padding: 20 },
-
     imagenContainer: {
       width: "100%",
       aspectRatio: 1,
@@ -574,9 +774,8 @@ const crearEstilos = (c: any, isDark: boolean) =>
       alignItems: "center",
     },
     imagenTexto: { color: c.textoGris, fontSize: 16, marginTop: 10 },
-
     seccionTitulo: {
-      color: c.subtitulos, // Títulos en Verde
+      color: c.subtitulos,
       fontSize: 14,
       fontWeight: "bold",
       marginTop: 10,
@@ -596,8 +795,6 @@ const crearEstilos = (c: any, isDark: boolean) =>
     inputMultilinea: { minHeight: 80, textAlignVertical: "top" },
     row: { flexDirection: "row", gap: 15 },
     inputGroup: { flex: 1 },
-
-    // Selector Categorías
     selectorCategoria: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -637,13 +834,11 @@ const crearEstilos = (c: any, isDark: boolean) =>
       alignItems: "center",
     },
     textoBotonRapido: { color: c.primario, fontWeight: "bold", fontSize: 16 },
-
-    // Margen
     margenContainer: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      backgroundColor: isDark ? c.primario : "#D4FF4E", // Verde sólido en oscuro, claro en modo claro
+      backgroundColor: isDark ? c.primario : "#D4FF4E",
       padding: 16,
       borderRadius: 12,
       marginTop: 15,
@@ -659,7 +854,6 @@ const crearEstilos = (c: any, isDark: boolean) =>
       fontSize: 20,
       fontWeight: "bold",
     },
-
     botonEscanear: {
       backgroundColor: c.primario,
       width: 55,
@@ -667,7 +861,6 @@ const crearEstilos = (c: any, isDark: boolean) =>
       justifyContent: "center",
       alignItems: "center",
     },
-
     footer: {
       position: "absolute",
       bottom: 0,
@@ -690,8 +883,6 @@ const crearEstilos = (c: any, isDark: boolean) =>
       fontSize: 16,
       fontWeight: "bold",
     },
-
-    // Modal
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.7)",
