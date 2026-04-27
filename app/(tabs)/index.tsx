@@ -194,6 +194,36 @@ export default function PantallaDashboard() {
           </TouchableOpacity>
         </View>
 
+        {/* ACCIONES RÁPIDAS */}
+        <View style={estilos.seccion}>
+          <Text style={estilos.tituloSeccion}>Acciones Rápidas</Text>
+          <View style={estilos.gridAcciones}>
+            {accionesRapidas.map((accion, index) => (
+              <TouchableOpacity
+                key={index}
+                style={estilos.tarjetaAccion}
+                onPress={() => router.push(accion.ruta as any)}
+              >
+                <View style={estilos.marcaAguaAccion}>
+                  <FontAwesome5
+                    name={accion.icono}
+                    size={100}
+                    color="rgba(0,0,0,0.08)"
+                  />
+                </View>
+                <View style={estilos.contenidoAccion}>
+                  <FontAwesome5
+                    name={accion.icono}
+                    size={38}
+                    color={colores.textoOscuro}
+                  />
+                  <Text style={estilos.tituloAccion}>{accion.titulo}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* ACTIVIDAD RECIENTE DE LA TIENDA */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Actividad Reciente</Text>
@@ -211,39 +241,6 @@ export default function PantallaDashboard() {
                   {/* 🔥 Quitamos el ID porque el nuevo backend no lo manda */}
                   <Text style={estilos.textoActividad} numberOfLines={1}>
                     {item.tipo || "Venta registrada"}
-                  </Text>
-                  <Text style={estilos.subtextoActividad}>
-                    {new Date(item.fecha).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                </View>
-                <Text style={estilos.montoActividad}>
-                  {formatearMoneda(item.monto)}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={estilos.textoVacio}>No hay ventas recientes.</Text>
-          )}
-        </View>
-        {/* ACTIVIDAD RECIENTE DE LA TIENDA */}
-        <View style={estilos.seccion}>
-          <Text style={estilos.tituloSeccion}>Actividad Reciente</Text>
-          {datos?.recientes && datos.recientes.length > 0 ? (
-            datos.recientes.map((item: any, index: number) => (
-              <View key={index} style={estilos.itemActividad}>
-                <View style={estilos.iconoActividad}>
-                  <FontAwesome5
-                    name="dollar-sign"
-                    size={16}
-                    color={colores.textoResaltado}
-                  />
-                </View>
-                <View style={estilos.infoActividad}>
-                  <Text style={estilos.textoActividad} numberOfLines={1}>
-                    Venta #{item.id ? item.id.substring(0, 8) : item.id}
                   </Text>
                   <Text style={estilos.subtextoActividad}>
                     {new Date(item.fecha).toLocaleTimeString([], {

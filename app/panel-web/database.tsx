@@ -12,7 +12,12 @@ import {
 } from "react-native";
 import api from "../../services/api";
 
-type TablaDisponibles = "usuarios" | "productos" | "ventas" | "categorias" | "clientes";
+type TablaDisponibles =
+  | "usuarios"
+  | "productos"
+  | "ventas"
+  | "categorias"
+  | "clientes";
 
 export default function DatabaseExplorerWeb() {
   const [cargando, setCargando] = useState(false);
@@ -30,7 +35,7 @@ export default function DatabaseExplorerWeb() {
   useFocusEffect(
     useCallback(() => {
       cargarTabla(tablaActual);
-    }, [tablaActual])
+    }, [tablaActual]),
   );
 
   const cargarTabla = async (tabla: TablaDisponibles) => {
@@ -48,22 +53,35 @@ export default function DatabaseExplorerWeb() {
 
   const renderizarCelda = (key: string, valor: any) => {
     if (valor === null || valor === undefined) return "-";
-    
+
     // Si es la contraseña, la acortamos y le damos estilo de "código"
     if (key === "password_hash") {
       return (
         <View style={estilos.codigoBadge}>
-          <Text style={estilos.codigoTexto}>{String(valor).substring(0, 15)}...</Text>
+          <Text style={estilos.codigoTexto}>
+            {String(valor).substring(0, 15)}...
+          </Text>
         </View>
       );
     }
 
     // Si es un total o monto, lo ponemos en verde
-    if (key === "total" || key === "precio" || key === "costo" || key === "monto_pagado") {
-      return <Text style={{ color: "#c6ff00", fontWeight: "bold" }}>${valor}</Text>;
+    if (
+      key === "total" ||
+      key === "precio" ||
+      key === "costo" ||
+      key === "monto_pagado"
+    ) {
+      return (
+        <Text style={{ color: "#c6ff00", fontWeight: "bold" }}>${valor}</Text>
+      );
     }
 
-    return <Text style={estilos.tdText} numberOfLines={2}>{String(valor)}</Text>;
+    return (
+      <Text style={estilos.tdText} numberOfLines={2}>
+        {String(valor)}
+      </Text>
+    );
   };
 
   return (
@@ -71,20 +89,34 @@ export default function DatabaseExplorerWeb() {
       <View style={estilos.header}>
         <View>
           <Text style={estilos.titulo}>Explorador de Datos (Developer)</Text>
-          <Text style={estilos.subtitulo}>Auditoría completa de todas las tablas del sistema.</Text>
+          <Text style={estilos.subtitulo}>
+            Auditoría completa de todas las tablas del sistema.
+          </Text>
         </View>
       </View>
 
       {/* PESTAÑAS DE TABLAS */}
       <View style={estilos.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 15 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 15 }}
+        >
           {tablas.map((tab) => (
             <TouchableOpacity
               key={tab.id}
-              style={[estilos.tabBtn, tablaActual === tab.id && estilos.tabBtnActive]}
+              style={[
+                estilos.tabBtn,
+                tablaActual === tab.id && estilos.tabBtnActive,
+              ]}
               onPress={() => setTablaActual(tab.id)}
             >
-              <Text style={[estilos.tabText, tablaActual === tab.id && estilos.tabTextActive]}>
+              <Text
+                style={[
+                  estilos.tabText,
+                  tablaActual === tab.id && estilos.tabTextActive,
+                ]}
+              >
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -97,26 +129,39 @@ export default function DatabaseExplorerWeb() {
         {cargando ? (
           <View style={{ padding: 50, alignItems: "center" }}>
             <ActivityIndicator size="large" color="#c6ff00" />
-            <Text style={{ color: "#8a8a8a", marginTop: 10 }}>Consultando base de datos...</Text>
+            <Text style={{ color: "#8a8a8a", marginTop: 10 }}>
+              Consultando base de datos...
+            </Text>
           </View>
         ) : datosTabla.length === 0 ? (
           <View style={{ padding: 50, alignItems: "center" }}>
-            <Text style={{ color: "#8a8a8a", fontSize: 16 }}>No hay datos en la tabla "{tablaActual}".</Text>
+            <Text style={{ color: "#8a8a8a", fontSize: 16 }}>
+              No hay datos en la tabla "{tablaActual}".
+            </Text>
           </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ flex: 1 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            style={{ flex: 1 }}
+          >
             <View>
               {/* CABECERAS DINÁMICAS */}
               <View style={estilos.tableHead}>
                 {Object.keys(datosTabla[0]).map((key, index) => (
                   <View key={index} style={estilos.thCell}>
-                    <Text style={estilos.thText}>{key.replace(/_/g, " ").toUpperCase()}</Text>
+                    <Text style={estilos.thText}>
+                      {key.replace(/_/g, " ").toUpperCase()}
+                    </Text>
                   </View>
                 ))}
               </View>
 
               {/* FILAS DINÁMICAS */}
-              <ScrollView showsVerticalScrollIndicator={true} style={{ maxHeight: '70vh' }}>
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                style={{ maxHeight: "70vh" }}
+              >
                 {datosTabla.map((row, rowIndex) => (
                   <View key={rowIndex} style={estilos.tableRow}>
                     {Object.keys(datosTabla[0]).map((key, colIndex) => (
@@ -195,8 +240,7 @@ const estilos = StyleSheet.create({
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
   thCell: {
-    minWidth: 150,
-    maxWidth: 300,
+    width: 220, // 🔥 Ancho fijo estricto para obligar a la alineación
     paddingHorizontal: 20,
     paddingVertical: 16,
     justifyContent: "center",
@@ -213,8 +257,7 @@ const estilos = StyleSheet.create({
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
   tdCell: {
-    minWidth: 150,
-    maxWidth: 300,
+    width: 220, // 🔥 Exactamente el mismo ancho que el thCell
     paddingHorizontal: 20,
     paddingVertical: 15,
     justifyContent: "center",
@@ -236,5 +279,5 @@ const estilos = StyleSheet.create({
     color: "#c6ff00",
     fontSize: 11,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  }
+  },
 });

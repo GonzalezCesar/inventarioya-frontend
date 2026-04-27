@@ -48,7 +48,7 @@ export default function DashboardWeb() {
   const cargarDashboard = async () => {
     try {
       setCargando(true);
-      const res: any = await api.get("/dashboard");
+      const res: any = await api.get("/admin/dashboard");
       setData(res);
     } catch (error) {
       console.error("Error cargando dashboard SaaS:", error);
