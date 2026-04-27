@@ -328,18 +328,37 @@ export default function PantallaNuevaVenta() {
       Alert.alert("Error", "El nombre del cliente es obligatorio");
       return;
     }
+
+    const cedulaLimpia = cedulaCliente.trim();
+
+    // 1. Validar que no esté vacía
+    if (!cedulaLimpia) {
+      Alert.alert("Cédula Requerida", "Por favor ingresa la Cédula de Identidad (C.I.) para registrar al cliente.");
+      return;
+    }
+
+    // 🔥 2. NUEVA VALIDACIÓN: Mínimo 8 dígitos
+    if (cedulaLimpia.length < 8) {
+      Alert.alert("Cédula Inválida", "La Cédula de Identidad debe tener al menos 8 dígitos.");
+      return;
+    }
+
     setCargando(true);
     try {
       const payload = {
         nombre: nombreCliente.trim(),
-        cedula: cedulaCliente.trim() || undefined,
+        cedula: cedulaLimpia,
         telefono: telefonoCliente.trim() || undefined,
       };
+
       const response: any = await api.post("/clientes", payload);
+
       await cargarDatos();
+
       if (response && response.id) {
         setClienteSeleccionado(response.id);
       }
+
       setMostrarNuevoCliente(false);
       setNombreCliente("");
       setCedulaCliente("");
