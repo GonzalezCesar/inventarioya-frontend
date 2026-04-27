@@ -19,9 +19,7 @@ import {
 } from "react-native";
 import api from "../../../services/api";
 import { DeviceEventEmitter } from "react-native";
-
-const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
-
+import { API_URL_UPLOADS } from "../../../config/env";
 interface Categoria {
   id: string;
   nombre: string;

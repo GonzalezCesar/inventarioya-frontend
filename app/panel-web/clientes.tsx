@@ -15,8 +15,8 @@ import {
   View,
 } from "react-native";
 import api from "../../services/api";
+import { API_URL_UPLOADS } from "../../config/env";
 
-const API_URL_PAGOS = "http://192.168.1.111:8000/uploads/pagos/"; // Ajusta a tu IP si es necesario
 
 export default function ClientesSaaSWeb() {
   const [cargando, setCargando] = useState(true);
@@ -519,7 +519,7 @@ export default function ClientesSaaSWeb() {
                   >
                     <Image
                       source={{
-                        uri: `${API_URL_PAGOS}${pagoViendo.pago_adjunto}`,
+                        uri: `${API_URL_UPLOADS}pagos/`,
                       }}
                       style={{
                         width: "100%",

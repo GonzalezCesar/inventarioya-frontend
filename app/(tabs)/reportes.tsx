@@ -1,5 +1,6 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Image } from "expo-image";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -16,16 +17,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ToggleTema from "../../components/ToggleTema";
+import { API_URL_UPLOADS } from "../../config/env";
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
-import { Image } from "expo-image";
 
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 type FiltroType = "ninguno" | "fecha" | "pagos" | "vendedor" | "producto";
-
-const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
 
 export default function PantallaReportes() {
   const { user } = useAuth();
@@ -1785,11 +1783,9 @@ export default function PantallaReportes() {
           {comprobanteVisible && (
             <Image
               source={{
-                uri:
-                  comprobanteVisible.startsWith("http") ||
-                  comprobanteVisible.startsWith("data:")
-                    ? comprobanteVisible
-                    : `http://192.168.1.111:8000/uploads/pagos/${comprobanteVisible}`,
+                uri: comprobanteVisible.startsWith("data:")
+                  ? comprobanteVisible
+                  : `${API_URL_UPLOADS}pagos/${comprobanteVisible}`, // 🔥 Aquí estaba el detalle
               }}
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />

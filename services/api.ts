@@ -3,12 +3,12 @@ import { Platform } from "react-native"; // 🔥 Asegúrate de importar Platform
 import * as SecureStore from "expo-secure-store";
 
 // Asegúrate de que esta sea tu IP correcta
-const API_URL = "http://192.168.1.111:8000/api"; 
+import { API_URL } from '../config/env'; // 🔥 Importamos la URL maestra
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL, // 🔥 La usamos aquí
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
 });
 

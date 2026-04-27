@@ -24,8 +24,7 @@ import { useTheme } from "../../contexts/ContextTheme";
 import { useTasa } from "../../contexts/ContextTasa"; // 🔥 Importamos la Tasa
 import api from "../../services/api";
 import { generarYCompartirRecibo } from "../../utils/generadorRecibos";
-
-const API_URL_UPLOADS = "http://192.168.1.111:8000/uploads/";
+import { API_URL_UPLOADS } from "../../config/env";
 
 interface Producto {
   id: string;
