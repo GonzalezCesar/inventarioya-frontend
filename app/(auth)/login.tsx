@@ -1,7 +1,8 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,10 +15,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import ToggleTema from "../../components/ToggleTema";
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
-import ToggleTema from "../../components/ToggleTema";
 
 export default function LoginScreen() {
   const { signIn, isLoading: authIsLoading } = useAuth();
@@ -53,7 +53,11 @@ export default function LoginScreen() {
       if (Platform.OS === "web") {
         setErrorMsg("Por favor, completa ambos campos.");
       } else {
-        mostrarAviso("Error", "Por favor completa todos los campos", "error");
+        mostrarAviso(
+          "Datos Incompletos",
+          "Por favor completa todos los campos",
+          "error",
+        );
       }
       return;
     }
@@ -63,11 +67,22 @@ export default function LoginScreen() {
 
     try {
       await signIn(email, contrasena);
-    } catch (err: any) {
+
       if (Platform.OS === "web") {
-        setErrorMsg("Credenciales inválidas o error de red.");
+        router.replace("/panel-web");
+      }
+    } catch (err: any) {
+      // 🔥 AQUÍ ESTÁ LA MAGIA: Extraemos el mensaje de error EXACTO que manda tu backend PHP
+      const mensajeBackend =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Credenciales inválidas o error de red.";
+
+      if (Platform.OS === "web") {
+        setErrorMsg(mensajeBackend);
       } else {
-        mostrarAviso("Error", err?.message || "Credenciales inválidas", "error");
+        // Mostramos el mensaje del backend en tu Modal elegante
+        mostrarAviso("Acceso Denegado", mensajeBackend, "error");
       }
     } finally {
       setCargando(false);
@@ -81,12 +96,17 @@ export default function LoginScreen() {
   // =========================================================
   if (Platform.OS === "web") {
     return (
-      <KeyboardAvoidingView behavior="height" style={estilosWeb.contenedorFondo}>
+      <KeyboardAvoidingView
+        behavior="height"
+        style={estilosWeb.contenedorFondo}
+      >
         <View style={estilosWeb.tarjetaLogin}>
           <View style={estilosWeb.headerTarjeta}>
             <Text style={estilosWeb.logoTexto}>InventarioYa</Text>
             <Text style={estilosWeb.titulo}>Bienvenido</Text>
-            <Text style={estilosWeb.subtitulo}>Ingresa a tu panel administrativo</Text>
+            <Text style={estilosWeb.subtitulo}>
+              Ingresa a tu panel administrativo
+            </Text>
           </View>
 
           <View style={estilosWeb.formGroup}>
@@ -114,7 +134,9 @@ export default function LoginScreen() {
             />
           </View>
 
-          {errorMsg ? <Text style={estilosWeb.textoError}>{errorMsg}</Text> : null}
+          {errorMsg ? (
+            <Text style={estilosWeb.textoError}>{errorMsg}</Text>
+          ) : null}
 
           <TouchableOpacity
             style={[estilosWeb.botonEntrar, isLoading && { opacity: 0.7 }]}
@@ -176,7 +198,10 @@ export default function LoginScreen() {
               <View style={estilos.formGroup}>
                 <Text style={estilos.label}>Correo Electrónico</Text>
                 <TextInput
-                  style={[estilos.input, !isDark && { borderColor: colores.primario }]}
+                  style={[
+                    estilos.input,
+                    !isDark && { borderColor: colores.primario },
+                  ]}
                   placeholder="tu@correo.com"
                   placeholderTextColor={colores.textoGris}
                   keyboardType="email-address"
@@ -190,7 +215,10 @@ export default function LoginScreen() {
               <View style={estilos.formGroup}>
                 <Text style={estilos.label}>Contraseña</Text>
                 <TextInput
-                  style={[estilos.input, !isDark && { borderColor: colores.primario }]}
+                  style={[
+                    estilos.input,
+                    !isDark && { borderColor: colores.primario },
+                  ]}
                   placeholder="••••••••"
                   placeholderTextColor={colores.textoGris}
                   secureTextEntry
@@ -215,7 +243,9 @@ export default function LoginScreen() {
                   {isLoading ? (
                     <ActivityIndicator color={colores.textoOscuro} />
                   ) : (
-                    <Text style={estilos.primaryButtonText}>Iniciar Sesión</Text>
+                    <Text style={estilos.primaryButtonText}>
+                      Iniciar Sesión
+                    </Text>
                   )}
                 </TouchableOpacity>
 
@@ -243,9 +273,17 @@ export default function LoginScreen() {
             <View style={estilos.modalContent}>
               <View style={estilos.iconoModalContainer}>
                 <FontAwesome5
-                  name={modalConfig.tipo === "error" ? "exclamation-triangle" : "check-circle"}
+                  name={
+                    modalConfig.tipo === "error"
+                      ? "exclamation-triangle"
+                      : "check-circle"
+                  }
                   size={50}
-                  color={modalConfig.tipo === "error" ? colores.error : colores.primario}
+                  color={
+                    modalConfig.tipo === "error"
+                      ? colores.error
+                      : colores.primario
+                  }
                 />
               </View>
 
@@ -334,153 +372,154 @@ const estilosWeb = StyleSheet.create({
 });
 
 // 🔥 ESTILOS DINÁMICOS MÓVIL
-const crearEstilos = (c: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  headerActions: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    right: 24,
-    zIndex: 10,
-  },
-  formWrapper: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 80, 
-    paddingBottom: 40,
-  },
-  logoContainer: {
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  logoImage: {
-    width: 140,
-    height: 140,
-    borderRadius: 30,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "900",
-    textAlign: "center",
-    color: c.primario, 
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    textAlign: "center",
-    color: c.textoGris,
-    marginBottom: 35,
-    paddingHorizontal: 20,
-  },
-  formContainer: {
-    width: "100%",
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: c.textoBlanco, 
-    marginBottom: 10,
-  },
-  input: {
-    width: "100%",
-    backgroundColor: c.fondoInput,
-    borderWidth: 1,
-    borderColor: c.borde,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    fontSize: 16,
-    color: c.textoBlanco,
-  },
-  buttonContainer: {
-    marginTop: 10,
-    gap: 16,
-  },
-  button: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  primaryButton: {
-    backgroundColor: c.primarioLogin || c.primario,
-  },
-  primaryButtonText: {
-    color: c.textoOscuro, 
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  secondaryButton: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: c.primarioLogin || c.primario,
-  },
-  secondaryButtonText: {
-    color: c.primarioLogin || c.primario,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: c.overlay || "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: c.fondoTarjeta,
-    borderRadius: 24,
-    padding: 30,
-    width: "100%",
-    maxWidth: 340,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  iconoModalContainer: {
-    marginBottom: 20,
-  },
-  modalTitulo: {
-    color: c.textoBlanco,
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  modalMensaje: {
-    color: c.textoGris,
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 30,
-    lineHeight: 22,
-  },
-  botonModal: {
-    backgroundColor: c.primario,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    width: "100%",
-    alignItems: "center",
-  },
-  textoBotonModal: {
-    color: c.textoOscuro,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-});
+const crearEstilos = (c: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    headerActions: {
+      position: "absolute",
+      top: Platform.OS === "ios" ? 60 : 40,
+      right: 24,
+      zIndex: 10,
+    },
+    formWrapper: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+      paddingTop: 80,
+      paddingBottom: 40,
+    },
+    logoContainer: {
+      marginBottom: 20,
+      alignItems: "center",
+    },
+    logoImage: {
+      width: 140,
+      height: 140,
+      borderRadius: 30,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: "900",
+      textAlign: "center",
+      color: c.primario,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 15,
+      textAlign: "center",
+      color: c.textoGris,
+      marginBottom: 35,
+      paddingHorizontal: 20,
+    },
+    formContainer: {
+      width: "100%",
+    },
+    formGroup: {
+      marginBottom: 20,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: "bold",
+      color: c.textoBlanco,
+      marginBottom: 10,
+    },
+    input: {
+      width: "100%",
+      backgroundColor: c.fondoInput,
+      borderWidth: 1,
+      borderColor: c.borde,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 18,
+      fontSize: 16,
+      color: c.textoBlanco,
+    },
+    buttonContainer: {
+      marginTop: 10,
+      gap: 16,
+    },
+    button: {
+      width: "100%",
+      paddingVertical: 16,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    primaryButton: {
+      backgroundColor: c.primarioLogin || c.primario,
+    },
+    primaryButtonText: {
+      color: c.textoOscuro,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    secondaryButton: {
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderColor: c.primarioLogin || c.primario,
+    },
+    secondaryButtonText: {
+      color: c.primarioLogin || c.primario,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: c.overlay || "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: c.fondoTarjeta,
+      borderRadius: 24,
+      padding: 30,
+      width: "100%",
+      maxWidth: 340,
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+    iconoModalContainer: {
+      marginBottom: 20,
+    },
+    modalTitulo: {
+      color: c.textoBlanco,
+      fontSize: 24,
+      fontWeight: "bold",
+      marginBottom: 10,
+      textAlign: "center",
+    },
+    modalMensaje: {
+      color: c.textoGris,
+      fontSize: 16,
+      textAlign: "center",
+      marginBottom: 30,
+      lineHeight: 22,
+    },
+    botonModal: {
+      backgroundColor: c.primario,
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      width: "100%",
+      alignItems: "center",
+    },
+    textoBotonModal: {
+      color: c.textoOscuro,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+  });

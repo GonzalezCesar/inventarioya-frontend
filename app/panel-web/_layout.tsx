@@ -22,9 +22,12 @@ export default function LayoutPanelWeb() {
 
   // 🛡️ FILTRO DE SEGURIDAD (EL PORTERO)
   // Si no es el dueño (basado en tus emails de superadmin), lo sacamos
+  // 🛡️ FILTRO DE SEGURIDAD (EL PORTERO)
+  // Ahora permite el paso a cualquiera que tenga el rango adecuado, sin importar su correo
   const esSuperAdmin = 
-    user?.email === "litoramirez2005@gmail.com" || 
-    user?.email === "admin@inventarioya.com";
+    user?.rol?.toLowerCase() === "superadmin" || 
+    user?.rol?.toLowerCase() === "administrador" ||
+    user?.email === "admin@inventarioya.com"; // Dejamos este por seguridad en caso de emergencia
 
   if (!esSuperAdmin) {
     return (

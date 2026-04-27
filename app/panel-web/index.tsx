@@ -30,10 +30,10 @@ interface DashboardData {
 
 export default function DashboardWeb() {
   const { user } = useAuth();
-  
+
   const [cargando, setCargando] = useState(true);
   const [data, setData] = useState<DashboardData | null>(null);
-  
+
   // Estado para el switch de Fase Beta
   const [faseBeta, setFaseBeta] = useState(false);
   const [cambiandoBeta, setCambiandoBeta] = useState(false);
@@ -42,7 +42,7 @@ export default function DashboardWeb() {
     useCallback(() => {
       cargarDashboard();
       cargarConfiguracion();
-    }, [])
+    }, []),
   );
 
   const cargarDashboard = async () => {
@@ -104,7 +104,7 @@ export default function DashboardWeb() {
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={estilos.contenedor}
       contentContainerStyle={estilos.contenido}
       showsVerticalScrollIndicator={false}
@@ -114,12 +114,15 @@ export default function DashboardWeb() {
         <View>
           <Text style={estilos.tituloDashboard}>Panel de Control SaaS</Text>
           <Text style={estilos.subtitulo}>
-            Hola {user?.nombre || "Admin"}, aquí puedes ver el rendimiento de tu plataforma.
+            Hola {user?.nombre || "Admin"}, aquí puedes ver el rendimiento de tu
+            plataforma.
           </Text>
         </View>
         <View style={estilos.userInfo}>
           <View style={estilos.avatarCircle}>
-            <Text style={estilos.avatarTexto}>{user?.nombre?.charAt(0).toUpperCase() || "A"}</Text>
+            <Text style={estilos.avatarTexto}>
+              {user?.nombre?.charAt(0).toUpperCase() || "A"}
+            </Text>
           </View>
           <Text style={estilos.nombreAdmin}>{user?.nombre || "Developer"}</Text>
         </View>
@@ -127,21 +130,34 @@ export default function DashboardWeb() {
 
       {/* STATS GRID */}
       <View style={estilos.statsGrid}>
-        
         {/* TARJETA FASE BETA (GRADIENTE) */}
         <View style={[estilos.card, estilos.cardFeatured]}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", height: '100%' }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              height: "100%",
+            }}
+          >
             <View>
               <Text style={estilos.cardTitleFeatured}>Fase Beta Global</Text>
               <Text style={estilos.cardValueFeatured}>
-                {cambiandoBeta ? "Actualizando..." : (faseBeta ? "ACTIVA" : "INACTIVA")}
+                {cambiandoBeta
+                  ? "Actualizando..."
+                  : faseBeta
+                    ? "ACTIVA"
+                    : "INACTIVA"}
               </Text>
             </View>
             <Switch
               value={faseBeta}
               onValueChange={toggleFaseBeta}
               disabled={cambiandoBeta}
-              trackColor={{ false: "rgba(255,255,255,0.3)", true: "rgba(255,255,255,0.6)" }}
+              trackColor={{
+                false: "rgba(255,255,255,0.3)",
+                true: "rgba(255,255,255,0.6)",
+              }}
               thumbColor={"#FFFFFF"}
             />
           </View>
@@ -154,12 +170,16 @@ export default function DashboardWeb() {
 
         <View style={estilos.card}>
           <Text style={estilos.cardTitle}>Conexión Hoy</Text>
-          <Text style={[estilos.cardValue, { color: "#c6ff00" }]}>{data?.activos_hoy || 0}</Text>
+          <Text style={[estilos.cardValue, { color: "#c6ff00" }]}>
+            {data?.activos_hoy || 0}
+          </Text>
         </View>
 
         <View style={estilos.card}>
           <Text style={estilos.cardTitle}>Actividad Global (Mes)</Text>
-          <Text style={estilos.cardValue}>{formatearMoneda(data?.ventas_plataforma || "0")}</Text>
+          <Text style={estilos.cardValue}>
+            {formatearMoneda(data?.ventas_plataforma || "0")}
+          </Text>
         </View>
       </View>
 
@@ -172,37 +192,62 @@ export default function DashboardWeb() {
           </TouchableOpacity>
         </View>
 
-        <View style={{ width: '100%', overflow: 'hidden' }}>
+        <View style={{ width: "100%", overflow: "hidden" }}>
           <View style={estilos.tableHead}>
             <Text style={[estilos.th, { flex: 2 }]}>CLIENTE</Text>
             <Text style={[estilos.th, { flex: 2 }]}>EMAIL</Text>
-            <Text style={[estilos.th, { flex: 1, textAlign: 'center' }]}>ACCIÓN</Text>
-            <Text style={[estilos.th, { flex: 2, textAlign: 'right' }]}>FECHA Y HORA</Text>
+            <Text style={[estilos.th, { flex: 1, textAlign: "center" }]}>
+              ACCIÓN
+            </Text>
+            <Text style={[estilos.th, { flex: 2, textAlign: "right" }]}>
+              FECHA Y HORA
+            </Text>
           </View>
 
           {data?.recientes?.map((v, index) => {
-            const accion = v.accion || 'Conexión';
-            const esVenta = accion.toLowerCase() === 'venta';
-            
+            const accion = v.accion || "Conexión";
+            const esVenta = accion.toLowerCase() === "venta";
+
             return (
               <View key={index} style={estilos.tableRow}>
-                <Text style={[estilos.tdText, { flex: 2, fontWeight: 'bold', color: '#FFFFFF' }]} numberOfLines={1}>
-                  {v.nombre || v.email || 'Sin Nombre'}
+                <Text
+                  style={[
+                    estilos.tdText,
+                    { flex: 2, fontWeight: "bold", color: "#FFFFFF" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {v.nombre || v.email || "Sin Nombre"}
                 </Text>
-                
+
                 <Text style={[estilos.tdText, { flex: 2 }]} numberOfLines={1}>
-                  {v.email || '---'}
+                  {v.email || "---"}
                 </Text>
-                
-                <View style={{ flex: 1, alignItems: 'center' }}>
-                  <View style={[estilos.badge, esVenta ? estilos.badgeVenta : estilos.badgeConexion]}>
-                    <Text style={[estilos.badgeText, esVenta ? estilos.badgeTextVenta : estilos.badgeTextConexion]}>
+
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <View
+                    style={[
+                      estilos.badge,
+                      esVenta ? estilos.badgeVenta : estilos.badgeConexion,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        estilos.badgeText,
+                        esVenta
+                          ? estilos.badgeTextVenta
+                          : estilos.badgeTextConexion,
+                      ]}
+                    >
                       {accion}
                     </Text>
                   </View>
                 </View>
-                
-                <Text style={[estilos.tdText, { flex: 2, textAlign: 'right' }]} numberOfLines={1}>
+
+                <Text
+                  style={[estilos.tdText, { flex: 2, textAlign: "right" }]}
+                  numberOfLines={1}
+                >
                   {formatearFechaHora(v.fecha)}
                 </Text>
               </View>
@@ -210,7 +255,9 @@ export default function DashboardWeb() {
           })}
 
           {(!data?.recientes || data.recientes.length === 0) && (
-            <Text style={estilos.emptyText}>No hay actividad reciente registrada.</Text>
+            <Text style={estilos.emptyText}>
+              No hay actividad reciente registrada.
+            </Text>
           )}
         </View>
       </View>
@@ -392,5 +439,5 @@ const estilos = StyleSheet.create({
     textAlign: "center",
     padding: 30,
     fontSize: 15,
-  }
+  },
 });

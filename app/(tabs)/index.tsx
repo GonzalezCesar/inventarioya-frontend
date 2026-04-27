@@ -115,35 +115,38 @@ export default function PantallaDashboard() {
               style={estilos.marcaAguaPrincipal}
             />
             <View style={{ zIndex: 1 }}>
-              <Text style={estilos.tituloTarjetaPrincipal}>VENTAS DE HOY</Text>
+              {/* 🔥 Cambiamos a VENTAS DEL MES según el nuevo backend */}
+              <Text style={estilos.tituloTarjetaPrincipal}>VENTAS DEL MES</Text>
               <Text style={estilos.valorTarjetaPrincipal}>
-                {formatearMoneda(datos?.ventas_hoy)}
+                {formatearMoneda(datos?.ventas_plataforma)}
               </Text>
               <Text style={estilos.subtituloTarjetaPrincipal}>
-                {datos?.cantidad_ventas || 0} ventas realizadas
+                {datos?.ventas_por_dia?.length || 0} días con ventas este mes
               </Text>
             </View>
           </View>
 
           <View style={estilos.fila}>
+            {/* 🔥 Cambiamos "Por Cobrar" a "Clientes" */}
             <TouchableOpacity
               style={estilos.tarjetaPequena}
-              onPress={() => router.push("/(tabs)/reportes")}
+              onPress={() => router.push("/(tabs)/reportes")} // O a donde quieras llevarlos
             >
               <View style={estilos.encabezadoTarjetaPequena}>
-                <Text style={estilos.tituloTarjetaPequena}>POR COBRAR</Text>
+                <Text style={estilos.tituloTarjetaPequena}>CLIENTES</Text>
               </View>
               <Text style={estilos.valorTarjetaPequena}>
-                {formatearMoneda(datos?.por_cobrar)}
+                {datos?.total_clientes || 0}
               </Text>
             </TouchableOpacity>
 
+            {/* 🔥 Adaptamos Stock Bajo para leer el tamaño del nuevo array */}
             <View
               style={[
                 estilos.tarjetaPequena,
                 {
                   borderColor:
-                    datos?.stock_bajo > 0 ? colores.error : colores.primario,
+                    (datos?.productos_low_stock?.length || 0) > 0 ? colores.error : colores.primario,
                 },
               ]}
             >
@@ -151,7 +154,7 @@ export default function PantallaDashboard() {
                 <Text
                   style={[
                     estilos.tituloTarjetaPequena,
-                    datos?.stock_bajo > 0 && { color: colores.error },
+                    (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
                   ]}
                 >
                   STOCK BAJO
@@ -160,10 +163,10 @@ export default function PantallaDashboard() {
               <Text
                 style={[
                   estilos.valorTarjetaPequena,
-                  datos?.stock_bajo > 0 && { color: colores.error },
+                  (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
                 ]}
               >
-                {datos?.stock_bajo || 0}
+                {datos?.productos_low_stock?.length || 0}
               </Text>
             </View>
           </View>
@@ -191,36 +194,40 @@ export default function PantallaDashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* ACCIONES RÁPIDAS */}
+        {/* ACTIVIDAD RECIENTE DE LA TIENDA */}
         <View style={estilos.seccion}>
-          <Text style={estilos.tituloSeccion}>Acciones Rápidas</Text>
-          <View style={estilos.gridAcciones}>
-            {accionesRapidas.map((accion, index) => (
-              <TouchableOpacity
-                key={index}
-                style={estilos.tarjetaAccion}
-                onPress={() => router.push(accion.ruta as any)}
-              >
-                <View style={estilos.marcaAguaAccion}>
+          <Text style={estilos.tituloSeccion}>Actividad Reciente</Text>
+          {datos?.recientes && datos.recientes.length > 0 ? (
+            datos.recientes.map((item: any, index: number) => (
+              <View key={index} style={estilos.itemActividad}>
+                <View style={estilos.iconoActividad}>
                   <FontAwesome5
-                    name={accion.icono}
-                    size={100}
-                    color="rgba(0,0,0,0.08)"
+                    name="dollar-sign"
+                    size={16}
+                    color={colores.textoResaltado}
                   />
                 </View>
-                <View style={estilos.contenidoAccion}>
-                  <FontAwesome5
-                    name={accion.icono}
-                    size={38}
-                    color={colores.textoOscuro}
-                  />
-                  <Text style={estilos.tituloAccion}>{accion.titulo}</Text>
+                <View style={estilos.infoActividad}>
+                  {/* 🔥 Quitamos el ID porque el nuevo backend no lo manda */}
+                  <Text style={estilos.textoActividad} numberOfLines={1}>
+                    {item.tipo || "Venta registrada"}
+                  </Text>
+                  <Text style={estilos.subtextoActividad}>
+                    {new Date(item.fecha).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
                 </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                <Text style={estilos.montoActividad}>
+                  {formatearMoneda(item.monto)}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={estilos.textoVacio}>No hay ventas recientes.</Text>
+          )}
         </View>
-
         {/* ACTIVIDAD RECIENTE DE LA TIENDA */}
         <View style={estilos.seccion}>
           <Text style={estilos.tituloSeccion}>Actividad Reciente</Text>

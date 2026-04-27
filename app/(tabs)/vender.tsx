@@ -19,12 +19,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { API_URL_UPLOADS } from "../../config/env";
 import { useAuth } from "../../contexts/ContextAuth";
-import { useTheme } from "../../contexts/ContextTheme";
 import { useTasa } from "../../contexts/ContextTasa"; // 🔥 Importamos la Tasa
+import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
 import { generarYCompartirRecibo } from "../../utils/generadorRecibos";
-import { API_URL_UPLOADS } from "../../config/env";
 
 interface Producto {
   id: string;
@@ -333,13 +333,19 @@ export default function PantallaNuevaVenta() {
 
     // 1. Validar que no esté vacía
     if (!cedulaLimpia) {
-      Alert.alert("Cédula Requerida", "Por favor ingresa la Cédula de Identidad (C.I.) para registrar al cliente.");
+      Alert.alert(
+        "Cédula Requerida",
+        "Por favor ingresa la Cédula de Identidad (C.I.) para registrar al cliente.",
+      );
       return;
     }
 
     // 🔥 2. NUEVA VALIDACIÓN: Mínimo 8 dígitos
     if (cedulaLimpia.length < 8) {
-      Alert.alert("Cédula Inválida", "La Cédula de Identidad debe tener al menos 8 dígitos.");
+      Alert.alert(
+        "Cédula Inválida",
+        "La Cédula de Identidad debe tener al menos 8 dígitos.",
+      );
       return;
     }
 
@@ -811,7 +817,7 @@ export default function PantallaNuevaVenta() {
                       />
                       <TextInput
                         style={estilos.inputFormCliente}
-                        placeholder="Cédula (opcional)"
+                        placeholder="Cédula (Obligatoria) *" // 🔥 Le avisamos al usuario
                         placeholderTextColor={colores.textoGris}
                         value={cedulaCliente}
                         onChangeText={setCedulaCliente}
