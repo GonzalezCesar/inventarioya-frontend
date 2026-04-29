@@ -86,7 +86,7 @@ export default function PantallaReportes() {
           api.get("/caja").catch(() => null),
           api.get("/caja?action=historial").catch(() => []),
           esAdmin()
-            ? api.get("/usuarios").catch(() => [])
+            ? api.get(`/usuarios?admin_id=${user?.id}`).catch(() => [])
             : Promise.resolve([]),
         ]);
 

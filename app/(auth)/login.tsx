@@ -69,7 +69,9 @@ export default function LoginScreen() {
       await signIn(email, contrasena);
 
       if (Platform.OS === "web") {
-        router.replace("/panel-web");
+        window.location.href = "/panel-web";
+      } else {
+        router.replace("/(tabs)");
       }
     } catch (err: any) {
       // 🔥 AQUÍ ESTÁ LA MAGIA: Extraemos el mensaje de error EXACTO que manda tu backend PHP
