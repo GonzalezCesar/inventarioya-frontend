@@ -32,6 +32,9 @@ export default function PantallaDashboard() {
 
   const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
 
+  const rol = user?.rol?.toLowerCase() || "";
+  const esAdmin = ["administrador", "admin", "superadmin", "beta_tester"].includes(rol);
+
   const cargarDatos = async () => {
     try {
       const respuesta: any = await api.get("/dashboard");
@@ -95,12 +98,7 @@ export default function PantallaDashboard() {
         <View style={estilos.encabezado}>
           <Text style={estilos.saludo}>Hola, {user?.nombre || "Usuario"}</Text>
           <Text style={estilos.rol}>
-            {esSuperAdmin
-              ? "Superadmin"
-              : user?.rol?.toLowerCase() === "administrador" ||
-                  user?.rol?.toLowerCase() === "admin"
-                ? "Administrador"
-                : "Vendedor"}
+            {rol === "superadmin" ? "Superadmin" : esAdmin ? "Administrador" : "Vendedor"}
           </Text>
         </View>
 
@@ -115,8 +113,10 @@ export default function PantallaDashboard() {
               style={estilos.marcaAguaPrincipal}
             />
             <View style={{ zIndex: 1 }}>
-              {/* 🔥 Cambiamos a VENTAS DEL MES según el nuevo backend */}
-              <Text style={estilos.tituloTarjetaPrincipal}>VENTAS DEL MES</Text>
+              {/* 🔥 2. TÍTULO DINÁMICO */}
+              <Text style={estilos.tituloTarjetaPrincipal}>
+                {esAdmin ? "VENTAS DE LA EMPRESA (MES)" : "MIS VENTAS (MES)"}
+              </Text>
               <Text style={estilos.valorTarjetaPrincipal}>
                 {formatearMoneda(datos?.ventas_plataforma)}
               </Text>
@@ -126,50 +126,51 @@ export default function PantallaDashboard() {
             </View>
           </View>
 
-          <View style={estilos.fila}>
-            {/* 🔥 Cambiamos "Por Cobrar" a "Clientes" */}
-            <TouchableOpacity
-              style={estilos.tarjetaPequena}
-              onPress={() => router.push("/(tabs)/reportes")} // O a donde quieras llevarlos
-            >
-              <View style={estilos.encabezadoTarjetaPequena}>
-                <Text style={estilos.tituloTarjetaPequena}>CLIENTES</Text>
-              </View>
-              <Text style={estilos.valorTarjetaPequena}>
-                {datos?.total_clientes || 0}
-              </Text>
-            </TouchableOpacity>
+          {/* 🔥 3. OCULTAMOS ESTA FILA SI ES UN VENDEDOR */}
+          {esAdmin && (
+            <View style={estilos.fila}>
+              <TouchableOpacity
+                style={estilos.tarjetaPequena}
+                onPress={() => router.push("/(tabs)/reportes")} 
+              >
+                <View style={estilos.encabezadoTarjetaPequena}>
+                  <Text style={estilos.tituloTarjetaPequena}>CLIENTES</Text>
+                </View>
+                <Text style={estilos.valorTarjetaPequena}>
+                  {datos?.total_clientes || 0}
+                </Text>
+              </TouchableOpacity>
 
-            {/* 🔥 Adaptamos Stock Bajo para leer el tamaño del nuevo array */}
-            <View
-              style={[
-                estilos.tarjetaPequena,
-                {
-                  borderColor:
-                    (datos?.productos_low_stock?.length || 0) > 0 ? colores.error : colores.primario,
-                },
-              ]}
-            >
-              <View style={estilos.encabezadoTarjetaPequena}>
+              <View
+                style={[
+                  estilos.tarjetaPequena,
+                  {
+                    borderColor:
+                      (datos?.productos_low_stock?.length || 0) > 0 ? colores.error : colores.primario,
+                  },
+                ]}
+              >
+                <View style={estilos.encabezadoTarjetaPequena}>
+                  <Text
+                    style={[
+                      estilos.tituloTarjetaPequena,
+                      (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
+                    ]}
+                  >
+                    STOCK BAJO
+                  </Text>
+                </View>
                 <Text
                   style={[
-                    estilos.tituloTarjetaPequena,
+                    estilos.valorTarjetaPequena,
                     (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
                   ]}
                 >
-                  STOCK BAJO
+                  {datos?.productos_low_stock?.length || 0}
                 </Text>
               </View>
-              <Text
-                style={[
-                  estilos.valorTarjetaPequena,
-                  (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
-                ]}
-              >
-                {datos?.productos_low_stock?.length || 0}
-              </Text>
             </View>
-          </View>
+          )}
         </View>
 
         {/* 🔥 TARJETA DE TASA DE CAMBIO */}

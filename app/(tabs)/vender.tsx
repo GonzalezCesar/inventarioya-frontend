@@ -67,6 +67,9 @@ export default function PantallaNuevaVenta() {
     tasaIGTF: 3,
   });
 
+  // 🔥 NUEVO ESTADO PARA LA CAJA
+  const [cajaAbierta, setCajaAbierta] = useState(false);
+
   const [busqueda, setBusqueda] = useState("");
   const [mostrarProductos, setMostrarProductos] = useState(false);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
@@ -132,13 +135,17 @@ export default function PantallaNuevaVenta() {
 
   const cargarDatos = async () => {
     try {
-      const [resProds, resClis, resConf]: any = await Promise.all([
+      const [resProds, resClis, resConf, resCaja]: any = await Promise.all([
         api.get("/productos"),
         api.get("/clientes"),
         api.get("/configuracion").catch(() => ({})),
+        api.get("/caja").catch(() => null),
       ]);
+
       setProductosBD(resProds || []);
       setClientesBD(resClis || []);
+
+      setCajaAbierta(!!resCaja?.sesion);
 
       if (resConf) {
         setConfigImpuestos({
@@ -313,6 +320,15 @@ export default function PantallaNuevaVenta() {
 
   const abrirModalPago = () => {
     if (carrito.length === 0) return;
+
+    if (!cajaAbierta) {
+      Alert.alert(
+        "Caja Cerrada 🔒",
+        "Debes abrir la caja en la sección de Reportes antes de empezar a vender.",
+      );
+      return;
+    }
+
     setFaseModal("pago");
     setMontoRecibido("");
     setMontoCreditoInicial("");

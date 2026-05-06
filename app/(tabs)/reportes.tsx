@@ -21,6 +21,8 @@ import { API_URL_UPLOADS } from "../../config/env";
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
+import { TouchableWithoutFeedback } from "react-native";
+import { Keyboard } from "react-native";
 
 type VistaType = "resumen" | "ventas" | "creditos" | "caja";
 type FiltroType = "ninguno" | "fecha" | "pagos" | "vendedor" | "producto";
@@ -253,36 +255,43 @@ export default function PantallaReportes() {
   const calculosCaja = useMemo(() => {
     if (!cajaActual) return null;
     let ventasEf = 0,
-      ventasBanco = 0,
+      ventasTransferencia = 0,
+      ventasPunto = 0,
       ventasPm = 0,
       ventasCr = 0,
+      ventasOtros = 0,
       ing = 0,
       gas = 0;
+
     let countEf = 0,
       countBanco = 0,
       countPm = 0,
-      countCr = 0; // Contadores de transacciones
+      countCr = 0;
     const fApertura = new Date(cajaActual.fecha_apertura);
 
     ventas
       .filter((v) => new Date(v.fecha) >= fApertura)
       .forEach((v) => {
         const m = v.metodoPago || v.metodo_pago;
+        const totalVenta = Number(v.total || 0);
+
         if (m === "efectivo") {
-          ventasEf += Number(v.total);
+          ventasEf += totalVenta;
           countEf++;
-        }
-        if (m === "tarjeta" || m === "transferencia") {
-          ventasBanco += Number(v.total);
+        } else if (m === "transferencia") {
+          ventasTransferencia += totalVenta;
           countBanco++;
-        }
-        if (m === "pago_movil") {
-          ventasPm += Number(v.total);
+        } else if (m === "tarjeta") {
+          ventasPunto += totalVenta;
+          countBanco++;
+        } else if (m === "pago_movil") {
+          ventasPm += totalVenta;
           countPm++;
-        }
-        if (m === "credito" || v.estadoPago === "pendiente") {
+        } else if (m === "credito" || v.estadoPago === "pendiente") {
           ventasCr += Number(v.montoRestante || v.total);
           countCr++;
+        } else {
+          ventasOtros += totalVenta;
         }
       });
 
@@ -291,20 +300,28 @@ export default function PantallaReportes() {
       if (m.tipo === "egreso") gas += parseFloat(m.monto);
     });
 
-    const base = parseFloat(cajaActual.monto_inicial);
+    const base = parseFloat(cajaActual.monto_inicial || 0);
+    const total_ventas_sistema =
+      ventasEf + ventasTransferencia + ventasPunto + ventasPm + ventasOtros;
+    const esperado = base + ventasEf + ing - gas;
+
     return {
       base,
       ventasEf,
       countEf,
-      ventasBanco,
-      countBanco,
+      ventasTransferencia,
+      ventasPunto,
+      ventasBanco: ventasTransferencia + ventasPunto,
+      countBanco, // Para la vista anterior
       ventasPm,
       countPm,
       ventasCr,
       countCr,
+      ventasOtros,
       ingresosExtra: ing,
       gastos: gas,
-      esperado: base + ventasEf + ing - gas, // Solo el efectivo suma al esperado en caja física
+      esperado,
+      total_ventas_sistema,
     };
   }, [cajaActual, ventas, movimientosCaja]);
 
@@ -324,24 +341,38 @@ export default function PantallaReportes() {
 
   const handleCerrarCaja = async () => {
     const montoDeclarado = parseFloat(montoCierre);
-    if (isNaN(montoDeclarado)) return Alert.alert("Error", "Monto inválido");
+    if (isNaN(montoDeclarado))
+      return Alert.alert("Error", "Debes ingresar el dinero físico contado.");
+
     try {
       setCargando(true);
+      const diferencia = montoDeclarado - (calculosCaja?.esperado || 0);
+
       await api.post("/caja", {
         action: "cerrar",
         id: cajaActual.id,
         monto_final_declarado: montoDeclarado,
-        diferencia: montoDeclarado - (calculosCaja?.esperado || 0),
+        diferencia: diferencia,
         notas: notasCierre,
-        fondo_siguiente: parseFloat(fondoSiguiente) || 0,
+        total_ventas_sistema: calculosCaja?.total_ventas_sistema || 0,
+        total_efectivo: calculosCaja?.esperado || 0,
+        total_transferencia: calculosCaja?.ventasTransferencia || 0,
+        total_punto: calculosCaja?.ventasPunto || 0,
+        total_otros: calculosCaja?.ventasOtros || 0,
+        total_pago_movil: calculosCaja?.ventasPm || 0,
+        total_credito: calculosCaja?.ventasCr || 0,
       });
+
       setModalCierreVisible(false);
       setMontoCierre("");
       setNotasCierre("");
-      setFondoSiguiente("");
       cargarDatos();
+      Alert.alert(
+        "Caja Cerrada",
+        "El cierre de caja se ha registrado exitosamente.",
+      );
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Error", e.message || "No se pudo cerrar la caja");
       setCargando(false);
     }
   };
@@ -1575,41 +1606,42 @@ export default function PantallaReportes() {
       {vistaActual === "caja" && renderVistaCaja()}
 
       <Modal visible={modalCierreVisible} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={estilos.modalOverlay}
         >
           <View style={estilos.modalContenido}>
             <Text style={estilos.tituloModal}>Cierre de Caja</Text>
-            <View style={{ alignItems: "center", marginBottom: 20 }}>
-              <Text
-                style={{
-                  color: colores.textoGris,
-                  marginBottom: 8,
-                  fontSize: 12,
-                }}
-              >
-                Efectivo Esperado (Sist.)
-              </Text>
-              <Text
-                style={{
-                  color: colores.textoBlanco,
-                  fontSize: 32,
-                  fontWeight: "bold",
-                }}
-              >
-                {formatearMoneda(calculosCaja?.esperado || 0)}
-              </Text>
+            
+            {/* RESUMEN DE LA SESIÓN */}
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: 15, borderRadius: 12, marginBottom: 20 }}>
+              <Text style={{ color: colores.textoBlanco, fontWeight: 'bold', marginBottom: 10 }}>Resumen del Sistema</Text>
+              
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Base Inicial:</Text>
+                 <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{formatearMoneda(calculosCaja?.base)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Ventas en Efectivo:</Text>
+                 <Text style={{ color: colores.exito, fontSize: 13 }}>+ {formatearMoneda(calculosCaja?.ventasEf)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Ingresos Extra:</Text>
+                 <Text style={{ color: colores.exito, fontSize: 13 }}>+ {formatearMoneda(calculosCaja?.ingresosExtra)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Gastos / Egresos:</Text>
+                 <Text style={{ color: colores.error, fontSize: 13 }}>- {formatearMoneda(calculosCaja?.gastos)}</Text>
+              </View>
+              
+              <View style={{ borderTopWidth: 1, borderTopColor: colores.borde, marginTop: 8, paddingTop: 8, flexDirection: "row", justifyContent: "space-between" }}>
+                 <Text style={{ color: colores.primario, fontWeight: 'bold', fontSize: 14 }}>EFECTIVO ESPERADO:</Text>
+                 <Text style={{ color: colores.primario, fontWeight: 'bold', fontSize: 14 }}>{formatearMoneda(calculosCaja?.esperado)}</Text>
+              </View>
             </View>
-            <Text
-              style={{
-                color: colores.textoGris,
-                marginBottom: 8,
-                fontSize: 12,
-              }}
-            >
-              Efectivo Real (Contado)
-            </Text>
+
+            <Text style={{ color: colores.textoGris, marginBottom: 8, fontSize: 12 }}>Efectivo Real en Caja (Contado) *</Text>
             <TextInput
               style={estilos.inputModal}
               keyboardType="decimal-pad"
@@ -1618,76 +1650,55 @@ export default function PantallaReportes() {
               placeholder="0.00"
               placeholderTextColor={colores.textoGris}
             />
-            <Text
-              style={{
-                color: colores.textoGris,
-                marginBottom: 8,
-                fontSize: 12,
-              }}
-            >
-              Fondo Siguiente Turno
-            </Text>
-            <TextInput
-              style={estilos.inputModal}
-              keyboardType="decimal-pad"
-              value={fondoSiguiente}
-              onChangeText={setFondoSiguiente}
-              placeholder="0.00"
-              placeholderTextColor={colores.textoGris}
-            />
-            <Text
-              style={{
-                color: colores.textoGris,
-                marginBottom: 8,
-                fontSize: 12,
-              }}
-            >
-              Notas Adicionales
-            </Text>
+
+            {/* CÁLCULO DE DIFERENCIA EN VIVO */}
+            {montoCierre !== "" && !isNaN(parseFloat(montoCierre)) && (
+              <View style={{ alignItems: 'center', marginBottom: 15, padding: 10, backgroundColor: colores.fondoInput, borderRadius: 10 }}>
+                <Text style={{ color: colores.textoGris, fontSize: 12, marginBottom: 5 }}>Diferencia</Text>
+                {(() => {
+                  const dif = parseFloat(montoCierre) - (calculosCaja?.esperado || 0);
+                  const colorDif = dif === 0 ? colores.exito : (dif < 0 ? colores.error : colores.primario);
+                  return (
+                    <>
+                      <Text style={{ fontSize: 24, fontWeight: 'bold', color: colorDif }}>
+                        {dif > 0 ? "+" : ""}{formatearMoneda(dif)}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colores.textoGris, marginTop: 2 }}>
+                        {dif === 0 ? "Caja Cuadrada Perfectamente" : (dif < 0 ? "Faltante de dinero" : "Sobrante de dinero")}
+                      </Text>
+                    </>
+                  );
+                })()}
+              </View>
+            )}
+
+            <Text style={{ color: colores.textoGris, marginBottom: 8, fontSize: 12 }}>Notas / Observaciones</Text>
             <TextInput
               style={[estilos.inputModal, { height: 60 }]}
               multiline
               value={notasCierre}
               onChangeText={setNotasCierre}
-              placeholder="..."
+              placeholder="Ej: Faltan $2 por vuelto no dado..."
               placeholderTextColor={colores.textoGris}
             />
+
             <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <TouchableOpacity
-                style={{
-                  flex: 1,
-                  padding: 15,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  backgroundColor: colores.fondoInput,
-                }}
+                style={{ flex: 1, padding: 15, borderRadius: 10, alignItems: "center", backgroundColor: colores.fondoInput }}
                 onPress={() => setModalCierreVisible(false)}
               >
-                <Text
-                  style={{ color: colores.textoBlanco, fontWeight: "bold" }}
-                >
-                  Cancelar
-                </Text>
+                <Text style={{ color: colores.textoBlanco, fontWeight: "bold" }}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{
-                  flex: 1,
-                  padding: 15,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  backgroundColor: colores.primario,
-                }}
+                style={{ flex: 1, padding: 15, borderRadius: 10, alignItems: "center", backgroundColor: colores.primario }}
                 onPress={handleCerrarCaja}
               >
-                <Text
-                  style={{ color: colores.textoOscuro, fontWeight: "bold" }}
-                >
-                  Confirmar
-                </Text>
+                <Text style={{ color: colores.textoOscuro, fontWeight: "bold" }}>Cerrar Caja</Text>
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal visible={modalMovimientoVisible} transparent animationType="fade">
