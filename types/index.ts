@@ -16,6 +16,12 @@ export interface Usuario {
   rol: string;
   activo: boolean;
   fechaCreacion?: string;
+  estado_pago?: string; 
+  pago_adjunto?: string;
+  pago_referencia?: string;
+  pago_banco?: string;
+  pago_telefono?: string;
+  pago_fecha?: string;
 }
 
 export interface TokenData {

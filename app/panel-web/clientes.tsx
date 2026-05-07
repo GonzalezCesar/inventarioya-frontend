@@ -470,76 +470,106 @@ export default function ClientesSaaSWeb() {
       </Modal>
 
       {/* MODAL VER COMPROBANTE DE PAGO */}
+      {/* MODAL VER COMPROBANTE Y VALIDAR PAGO */}
       <Modal visible={modalPagoVisible} transparent animationType="fade">
         <View style={estilos.modalOverlay}>
-          <View style={[estilos.modalContent, { maxWidth: 600 }]}>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                marginBottom: 20,
-              }}
-            >
-              <Text style={estilos.modalTitulo}>Detalles de Pago</Text>
+          <View style={[estilos.modalContent, { maxWidth: 500, padding: 20 }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
+              <Text style={estilos.modalTitulo}>Detalles del Pago #{pagoViendo?.pago_referencia || "N/A"}</Text>
               <TouchableOpacity onPress={() => setModalPagoVisible(false)}>
                 <FontAwesome5 name="times" size={20} color="#FFF" />
               </TouchableOpacity>
             </View>
 
             {pagoViendo && (
-              <>
-                <View style={estilos.cajaInfoPago}>
-                  <Text
-                    style={{
-                      color: "#c6ff00",
-                      fontWeight: "bold",
-                      marginBottom: 5,
-                    }}
-                  >
-                    Info del Cliente
-                  </Text>
-                  <Text style={{ color: "#FFF" }}>
-                    Negocio: {pagoViendo.nombre_negocio}
-                  </Text>
-                  <Text style={{ color: "#FFF" }}>
-                    Telf: {pagoViendo.telefono}
-                  </Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Info Cliente */}
+                <View style={{ backgroundColor: "#1e3a8a", padding: 15, borderRadius: 10, marginBottom: 15 }}>
+                  <Text style={{ color: "#FFF", fontWeight: "bold", marginBottom: 10 }}>👤 Información del Cliente</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Nombre: <Text style={{ color: "#bfdbfe" }}>{pagoViendo.nombre}</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Usuario: <Text style={{ color: "#bfdbfe" }}>{pagoViendo.nombre_negocio}</Text></Text>
+                    </View>
+                    <View>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Email: <Text style={{ color: "#bfdbfe" }}>{pagoViendo.email}</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Teléfono: <Text style={{ color: "#bfdbfe" }}>{pagoViendo.telefono}</Text></Text>
+                    </View>
+                  </View>
                 </View>
 
-                {pagoViendo.pago_adjunto ? (
-                  <View
-                    style={{
-                      height: 300,
-                      backgroundColor: "#000",
-                      borderRadius: 10,
-                      overflow: "hidden",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Image
-                      source={{
-                        uri: `${API_URL_UPLOADS}pagos/`,
-                      }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        resizeMode: "contain",
-                      }}
-                    />
+                {/* Datos del Pago Realizado */}
+                <View style={{ backgroundColor: "#b45309", padding: 15, borderRadius: 10, marginBottom: 15 }}>
+                  <Text style={{ color: "#FFF", fontWeight: "bold", marginBottom: 10 }}>📄 Datos del Pago Realizado por el Cliente</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Teléfono usado: <Text style={{ color: "#fef3c7" }}>{pagoViendo.pago_telefono}</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Referencia: <Text style={{ color: "#fef3c7", fontWeight: "bold" }}>{pagoViendo.pago_referencia}</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Monto: <Text style={{ color: "#c6ff00", fontWeight: "bold" }}>$20.00</Text></Text>
+                    </View>
+                    <View>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Fecha: <Text style={{ color: "#fef3c7" }}>{pagoViendo.pago_fecha}</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Banco Emisor: <Text style={{ color: "#fef3c7" }}>{pagoViendo.pago_banco}</Text></Text>
+                    </View>
                   </View>
-                ) : (
-                  <Text
-                    style={{
-                      color: "#8a8a8a",
-                      textAlign: "center",
-                      padding: 20,
+                </View>
+
+                {/* Datos de Tu Cuenta */}
+                <View style={{ backgroundColor: "#065f46", padding: 15, borderRadius: 10, marginBottom: 15 }}>
+                  <Text style={{ color: "#FFF", fontWeight: "bold", marginBottom: 10 }}>🏦 Datos de Tu Cuenta (Donde Recibiste el Pago)</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Banco: <Text style={{ color: "#d1fae5" }}>BNC</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Teléfono: <Text style={{ color: "#d1fae5" }}>0414-1914478</Text></Text>
+                    </View>
+                    <View>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Cédula: <Text style={{ color: "#d1fae5" }}>31.385.211</Text></Text>
+                      <Text style={{ color: "#FFF", fontSize: 12 }}>Monto esperado: <Text style={{ color: "#d1fae5" }}>$20.00</Text></Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Comprobante */}
+                <View style={{ backgroundColor: "#0891b2", padding: 15, borderRadius: 10, marginBottom: 20 }}>
+                  <Text style={{ color: "#FFF", fontWeight: "bold", marginBottom: 10 }}>🖼️ Comprobante Subido por el Cliente</Text>
+                  {pagoViendo.pago_adjunto ? (
+                    <View style={{ height: 250, backgroundColor: "#000", borderRadius: 8, overflow: "hidden" }}>
+                      <Image source={{ uri: `${API_URL_UPLOADS}pagos/${pagoViendo.pago_adjunto}` }} style={{ width: "100%", height: "100%", resizeMode: "contain" }} />
+                    </View>
+                  ) : (
+                    <Text style={{ color: "#cffafe", textAlign: "center", padding: 20 }}>No se adjuntó imagen.</Text>
+                  )}
+                </View>
+
+                {/* Botones de Acción (Aprobar o Rechazar) */}
+                <View style={{ flexDirection: "row", gap: 15 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: "#ef4444", padding: 15, borderRadius: 10, alignItems: "center" }}
+                    onPress={async () => {
+                      if(confirm("¿Estás seguro de rechazar este pago? El cliente tendrá que volver a enviarlo.")) {
+                        await api.put(`/usuarios/${pagoViendo.id}`, { id: pagoViendo.id, estado_pago: "pendiente", pago_adjunto: "" });
+                        setModalPagoVisible(false);
+                        cargarUsuarios();
+                      }
                     }}
                   >
-                    No hay imagen adjunta
-                  </Text>
-                )}
-              </>
+                    <Text style={{ color: "#FFF", fontWeight: "bold" }}>Rechazar Pago</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: "#10b981", padding: 15, borderRadius: 10, alignItems: "center" }}
+                    onPress={async () => {
+                      if(confirm("¿Aprobar pago y activar cliente?")) {
+                        await api.put(`/usuarios/${pagoViendo.id}`, { id: pagoViendo.id, estado_pago: "validado", activo: 1 });
+                        setModalPagoVisible(false);
+                        cargarUsuarios();
+                      }
+                    }}
+                  >
+                    <Text style={{ color: "#FFF", fontWeight: "bold" }}>Aprobar y Activar</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             )}
           </View>
         </View>
