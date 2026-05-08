@@ -5,7 +5,6 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -34,14 +33,9 @@ export default function DashboardWeb() {
   const [cargando, setCargando] = useState(true);
   const [data, setData] = useState<DashboardData | null>(null);
 
-  // Estado para el switch de Fase Beta
-  const [faseBeta, setFaseBeta] = useState(false);
-  const [cambiandoBeta, setCambiandoBeta] = useState(false);
-
   useFocusEffect(
     useCallback(() => {
       cargarDashboard();
-      cargarConfiguracion();
     }, []),
   );
 
@@ -55,33 +49,6 @@ export default function DashboardWeb() {
       Alert.alert("Error", "No se pudo cargar la información del panel.");
     } finally {
       setCargando(false);
-    }
-  };
-
-  const cargarConfiguracion = async () => {
-    try {
-      const res: any = await api.get("/configuracion");
-      if (res && res.beta_activa !== undefined) {
-        setFaseBeta(res.beta_activa === "1" || res.beta_activa === true);
-      }
-    } catch (error) {
-      console.error("Error cargando configuración beta:", error);
-    }
-  };
-
-  const toggleFaseBeta = async (valor: boolean) => {
-    try {
-      setCambiandoBeta(true);
-      await api.post("/configuracion", {
-        clave: "beta_activa",
-        valor: valor ? "1" : "0",
-      });
-      setFaseBeta(valor);
-    } catch (error) {
-      Alert.alert("Error", "No se pudo cambiar el estado de la Fase Beta.");
-      setFaseBeta(!valor);
-    } finally {
-      setCambiandoBeta(false);
     }
   };
 
@@ -102,6 +69,12 @@ export default function DashboardWeb() {
       </View>
     );
   }
+
+  // 🔥 EL FILTRO FANTASMA: 
+  // Ignoramos cualquier registro que no tenga un email válido (los que borraste manual)
+  const actividadFiltrada = data?.recientes?.filter(
+    (v) => v.email && v.email.trim() !== "" && v.email !== "---"
+  ) || [];
 
   return (
     <ScrollView
@@ -128,55 +101,22 @@ export default function DashboardWeb() {
         </View>
       </View>
 
-      {/* STATS GRID */}
+      {/* STATS GRID - 3 Columnas Exactas al Original */}
       <View style={estilos.statsGrid}>
-        {/* TARJETA FASE BETA (GRADIENTE) */}
-        <View style={[estilos.card, estilos.cardFeatured]}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              height: "100%",
-            }}
-          >
-            <View>
-              <Text style={estilos.cardTitleFeatured}>Fase Beta Global</Text>
-              <Text style={estilos.cardValueFeatured}>
-                {cambiandoBeta
-                  ? "Actualizando..."
-                  : faseBeta
-                    ? "ACTIVA"
-                    : "INACTIVA"}
-              </Text>
-            </View>
-            <Switch
-              value={faseBeta}
-              onValueChange={toggleFaseBeta}
-              disabled={cambiandoBeta}
-              trackColor={{
-                false: "rgba(255,255,255,0.3)",
-                true: "rgba(255,255,255,0.6)",
-              }}
-              thumbColor={"#FFFFFF"}
-            />
-          </View>
-        </View>
-
         <View style={estilos.card}>
-          <Text style={estilos.cardTitle}>Clientes Totales Hoy</Text>
+          <Text style={estilos.cardTitle}>CLIENTES TOTALES HOY</Text>
           <Text style={estilos.cardValue}>{data?.total_clientes || 0}</Text>
         </View>
 
         <View style={estilos.card}>
-          <Text style={estilos.cardTitle}>Conexión Hoy</Text>
+          <Text style={estilos.cardTitle}>CONEXIÓN HOY</Text>
           <Text style={[estilos.cardValue, { color: "#c6ff00" }]}>
             {data?.activos_hoy || 0}
           </Text>
         </View>
 
         <View style={estilos.card}>
-          <Text style={estilos.cardTitle}>Actividad Global (Mes)</Text>
+          <Text style={estilos.cardTitle}>ACTIVIDAD GLOBAL (MES)</Text>
           <Text style={estilos.cardValue}>
             {formatearMoneda(data?.ventas_plataforma || "0")}
           </Text>
@@ -204,7 +144,8 @@ export default function DashboardWeb() {
             </Text>
           </View>
 
-          {data?.recientes?.map((v, index) => {
+          {/* Renderizamos solo la actividad que pasó el filtro */}
+          {actividadFiltrada.map((v, index) => {
             const accion = v.accion || "Conexión";
             const esVenta = accion.toLowerCase() === "venta";
 
@@ -217,11 +158,11 @@ export default function DashboardWeb() {
                   ]}
                   numberOfLines={1}
                 >
-                  {v.nombre || v.email || "Sin Nombre"}
+                  {v.nombre || "Usuario"}
                 </Text>
 
                 <Text style={[estilos.tdText, { flex: 2 }]} numberOfLines={1}>
-                  {v.email || "---"}
+                  {v.email}
                 </Text>
 
                 <View style={{ flex: 1, alignItems: "center" }}>
@@ -254,7 +195,7 @@ export default function DashboardWeb() {
             );
           })}
 
-          {(!data?.recientes || data.recientes.length === 0) && (
+          {actividadFiltrada.length === 0 && (
             <Text style={estilos.emptyText}>
               No hay actividad reciente registrada.
             </Text>
@@ -335,10 +276,6 @@ const estilos = StyleSheet.create({
     borderRadius: 20,
     justifyContent: "center",
   },
-  cardFeatured: {
-    backgroundColor: "#8B5CF6", // Morado tipo app original
-    borderColor: "#8B5CF6",
-  },
   cardTitle: {
     color: "#c6ff00",
     fontSize: 12,
@@ -350,19 +287,6 @@ const estilos = StyleSheet.create({
   cardValue: {
     color: "#FFFFFF",
     fontSize: 36,
-    fontWeight: "900",
-  },
-  cardTitleFeatured: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1.5,
-    marginBottom: 15,
-  },
-  cardValueFeatured: {
-    color: "#FFFFFF",
-    fontSize: 24, // Un poco más pequeño para acomodar texto
     fontWeight: "900",
   },
   tableContainer: {
