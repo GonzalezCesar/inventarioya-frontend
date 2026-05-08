@@ -1,9 +1,9 @@
 import { FontAwesome5 } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient"; // 🔥 Recuperamos el degradado elegante
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -15,9 +15,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ToggleTema from "../../components/ToggleTema"; // 🔥 Tu botón animado
-import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el tema global
+import ToggleTema from "../../components/ToggleTema"; // 🔥 Volvemos a traer tu componente real
+import { useAuth } from "../../contexts/ContextAuth";
+import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Volvemos a traer el tema dinámico
 import api from "../../services/api";
+
+const COLOR_VERDE = "#8CC63F"; // El color de tu marca
 
 export const LISTA_PAISES = [
   { nombre: "Venezuela", codigo: "+58", iso: "VE", bandera: "🇻🇪" },
@@ -28,659 +31,461 @@ export const LISTA_PAISES = [
   { nombre: "Argentina", codigo: "+54", iso: "AR", bandera: "🇦🇷" },
   { nombre: "Chile", codigo: "+56", iso: "CL", bandera: "🇨🇱" },
   { nombre: "Perú", codigo: "+51", iso: "PE", bandera: "🇵🇪" },
-  { nombre: "Ecuador", codigo: "+593", iso: "EC", bandera: "🇪🇨" },
-  { nombre: "Panamá", codigo: "+507", iso: "PA", bandera: "🇵🇦" },
-  { nombre: "Rep. Dominicana", codigo: "+1809", iso: "DO", bandera: "🇩🇴" },
-  { nombre: "Costa Rica", codigo: "+506", iso: "CR", bandera: "🇨🇷" },
-  { nombre: "Guatemala", codigo: "+502", iso: "GT", bandera: "🇬🇹" },
-  { nombre: "Honduras", codigo: "+504", iso: "HN", bandera: "🇭🇳" },
-  { nombre: "Nicaragua", codigo: "+505", iso: "NI", bandera: "🇳🇮" },
-  { nombre: "Uruguay", codigo: "+598", iso: "UY", bandera: "🇺🇾" },
-  { nombre: "Bolivia", codigo: "+591", iso: "BO", bandera: "🇧🇴" },
-  { nombre: "Paraguay", codigo: "+595", iso: "PY", bandera: "🇵🇾" },
-  { nombre: "El Salvador", codigo: "+503", iso: "SV", bandera: "🇸🇻" },
 ];
 
 export default function PantallaRegistro() {
   const router = useRouter();
+  const { signIn } = useAuth();
 
-  // 🔥 Conectamos al Tema Global
+  // 🔥 Activamos la inteligencia del modo oscuro
   const { colores, isDark } = useTheme();
-  const estilos = useMemo(() => crearEstilos(colores), [colores]);
+  const estilos = useMemo(
+    () => crearEstilos(colores, isDark),
+    [colores, isDark],
+  );
 
-  // Estados del Wizard
   const [paso, setPaso] = useState(1);
   const [cargando, setCargando] = useState(false);
 
-  // Estados del Formulario
   const [nombreNegocio, setNombreNegocio] = useState("");
-  const [nombreCompleto, setNombreCompleto] = useState("");
+  const [nombrePersona, setNombrePersona] = useState("");
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [contrasena, setContrasena] = useState("");
 
-  // Estados para Países
   const [paisSeleccionado, setPaisSeleccionado] = useState(LISTA_PAISES[0]);
   const [modalPaisesVisible, setModalPaisesVisible] = useState(false);
 
-  // Estados del Modal de Error/Éxito
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalConfig, setModalConfig] = useState({
-    titulo: "",
-    mensaje: "",
-    tipo: "error",
-  });
-
-  const mostrarAviso = (titulo: string, mensaje: string, tipo = "error") => {
-    setModalConfig({ titulo, mensaje, tipo });
-    setModalVisible(true);
-  };
-
   const avanzarPaso = () => {
-    if (paso === 1 && !nombreNegocio.trim()) {
-      mostrarAviso(
-        "Error",
-        "Por favor ingresa el nombre de tu negocio.",
-        "error",
-      );
-      return;
-    }
-    if (paso === 2 && (!nombreCompleto.trim() || !telefono.trim())) {
-      mostrarAviso(
-        "Error",
-        "Por favor completa tus datos de contacto.",
-        "error",
-      );
-      return;
-    }
+    if (paso === 1 && !nombreNegocio.trim())
+      return Alert.alert("Requerido", "Ingresa el nombre de tu negocio");
+    if (paso === 2 && (!nombrePersona.trim() || !telefono.trim()))
+      return Alert.alert("Requerido", "Completa tus datos de contacto");
     setPaso(paso + 1);
   };
 
-  const retrocederPaso = () => {
-    setPaso(paso - 1);
-  };
-
   const manejarRegistro = async () => {
-    if (!email.trim() || !password.trim()) {
-      mostrarAviso("Error", "Por favor completa tus credenciales.", "error");
-      return;
-    }
-    if (password.length < 6) {
-      mostrarAviso(
+    if (!email.trim() || !email.includes("@"))
+      return Alert.alert("Error", "Email inválido");
+    if (contrasena.length < 6)
+      return Alert.alert(
         "Error",
-        "La contraseña debe tener al menos 6 caracteres.",
-        "error",
+        "La contraseña debe tener al menos 6 caracteres",
       );
-      return;
-    }
 
     setCargando(true);
     const telefonoCompleto = `${paisSeleccionado.codigo} ${telefono.trim()}`;
+    const emailLimpio = email.trim().toLowerCase();
 
     try {
       await api.post("/auth/register", {
         nombre_negocio: nombreNegocio,
-        nombre: nombreCompleto,
+        nombre: nombrePersona,
         telefono: telefonoCompleto,
-        email: email,
-        contrasena: password,
+        email: emailLimpio,
+        contrasena: contrasena,
       });
 
-      mostrarAviso(
-        "¡Genial!",
-        "Cuenta creada exitosamente. Ya puedes iniciar sesión.",
-        "exito",
-      );
-
-      // 1. Esperamos 2 segundos para que el usuario lea el mensaje de éxito
-      setTimeout(() => {
-        setModalVisible(false); // 2. Ordenamos que el modal se empiece a cerrar
-        
-        // 3. Le damos 500ms al modal para que desaparezca completamente
-        setTimeout(() => {
-          router.replace("/login"); // 4. AHORA SÍ, navegamos seguros
-        }, 500);
-
-      }, 2000);
+      // Auto-Login
+      await signIn(emailLimpio, contrasena);
     } catch (error: any) {
-      mostrarAviso(
+      Alert.alert(
         "Error",
         error.response?.data?.error ||
-          "Hubo un problema al crear la cuenta. Verifica que el correo no esté en uso.",
-        "error",
+          "Error al crear la cuenta. Intenta de nuevo.",
       );
-    } finally {
       setCargando(false);
     }
   };
 
-  return (
-    // 🔥 Fondo con LinearGradient igual al Login
-    <LinearGradient
-      colors={[colores.fondoOscuro, colores.secundario]}
-      style={estilos.container}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={estilos.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header con botón Atrás y el ToggleTema */}
-          <View style={estilos.headerIconos}>
+  const renderPaso = () => {
+    switch (paso) {
+      case 1:
+        return (
+          <View style={estilos.tarjeta}>
+            <Text style={estilos.pregunta}>
+              Primero, ¿cómo se llama tu negocio?
+            </Text>
+            <Text style={estilos.label}>Nombre del Negocio</Text>
+            <TextInput
+              style={estilos.input}
+              placeholder="Ej: Inversiones El Éxito"
+              placeholderTextColor={isDark ? colores.textoGris : "#888"}
+              value={nombreNegocio}
+              onChangeText={setNombreNegocio}
+              autoFocus
+            />
             <TouchableOpacity
-              onPress={() => router.back()}
-              style={estilos.backButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={estilos.botonPrimario}
+              onPress={avanzarPaso}
             >
-              <FontAwesome5
-                name="arrow-left"
-                size={20}
-                color={colores.textoBlanco}
-              />
+              <Text style={estilos.textoBotonPrimario}>Continuar</Text>
             </TouchableOpacity>
-            <ToggleTema />
           </View>
+        );
+      case 2:
+        return (
+          <View style={estilos.tarjeta}>
+            <Text style={estilos.pregunta}>
+              Genial, ahora necesitamos tus datos de contacto
+            </Text>
 
-          <Text style={estilos.tituloPrincipal}>Registro</Text>
+            <Text style={estilos.label}>Tu nombre completo</Text>
+            <TextInput
+              style={estilos.input}
+              placeholder="Juan Pérez"
+              placeholderTextColor={isDark ? colores.textoGris : "#888"}
+              value={nombrePersona}
+              onChangeText={setNombrePersona}
+              autoFocus
+            />
 
-          <View style={estilos.indicadorContainer}>
-            {[1, 2, 3].map((index) => (
+            <Text style={estilos.label}>Número de teléfono</Text>
+            <View style={estilos.inputTelefonoWrapper}>
+              <TouchableOpacity
+                style={estilos.selectorPais}
+                onPress={() => setModalPaisesVisible(true)}
+              >
+                <Text style={{ fontSize: 16, marginRight: 5 }}>
+                  {paisSeleccionado.bandera}
+                </Text>
+                <Text style={estilos.textoCodigoPais}>
+                  {paisSeleccionado.codigo}
+                </Text>
+              </TouchableOpacity>
+              <TextInput
+                style={[estilos.input, { flex: 1, borderWidth: 0 }]}
+                placeholder="412 000 0000"
+                placeholderTextColor={isDark ? colores.textoGris : "#888"}
+                value={telefono}
+                onChangeText={setTelefono}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={estilos.filaBotones}>
+              <TouchableOpacity
+                style={estilos.botonAtras}
+                onPress={() => setPaso(1)}
+              >
+                <Text style={estilos.textoBotonAtras}>Atrás</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.botonPrimario, { flex: 2, marginTop: 0 }]}
+                onPress={avanzarPaso}
+              >
+                <Text style={estilos.textoBotonPrimario}>Continuar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      case 3:
+        return (
+          <View style={estilos.tarjeta}>
+            <Text style={estilos.pregunta}>
+              Finalmente, crea tus credenciales de acceso
+            </Text>
+
+            <Text style={estilos.label}>Correo electrónico</Text>
+            <TextInput
+              style={estilos.input}
+              placeholder="tu@email.com"
+              placeholderTextColor={isDark ? colores.textoGris : "#888"}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoFocus
+            />
+
+            <Text style={estilos.label}>Contraseña</Text>
+            <TextInput
+              style={estilos.input}
+              placeholder="Mínimo 6 caracteres"
+              placeholderTextColor={isDark ? colores.textoGris : "#888"}
+              value={contrasena}
+              onChangeText={setContrasena}
+              secureTextEntry
+            />
+
+            <View style={estilos.filaBotones}>
+              <TouchableOpacity
+                style={estilos.botonAtras}
+                onPress={() => setPaso(2)}
+                disabled={cargando}
+              >
+                <Text style={estilos.textoBotonAtras}>Atrás</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.botonPrimario, { flex: 2, marginTop: 0 }]}
+                onPress={manejarRegistro}
+                disabled={cargando}
+              >
+                {cargando ? (
+                  <ActivityIndicator color="#1A1A1A" />
+                ) : (
+                  <Text style={estilos.textoBotonPrimario}>Crear Cuenta</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={estilos.contenedor}
+    >
+      <ScrollView
+        contentContainerStyle={estilos.scrollContenido}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 🔥 Componente real del tema */}
+        <View style={estilos.headerActions}>
+          <ToggleTema />
+        </View>
+
+        <View style={estilos.encabezado}>
+          <Text style={estilos.titulo}>Registro</Text>
+          <View style={estilos.indicadorPasos}>
+            {[1, 2, 3].map((p) => (
               <View
-                key={index}
+                key={p}
                 style={[
                   estilos.puntoPaso,
-                  paso >= index && estilos.puntoPasoActivo,
-                  paso === index && estilos.puntoPasoActual,
+                  paso >= p ? estilos.puntoActivo : estilos.puntoInactivo,
+                  paso === p && estilos.puntoActual,
                 ]}
               />
             ))}
           </View>
+        </View>
 
-          <View style={estilos.tarjetaWizard}>
-            {paso === 1 && (
-              <View>
-                <Text style={estilos.tituloPaso}>
-                  Primero, ¿cómo se llama tu negocio?
-                </Text>
-                <Text style={estilos.label}>Nombre del Negocio</Text>
-                <TextInput
-                  style={[
-                    estilos.input,
-                    !isDark && { borderColor: colores.primario },
-                  ]}
-                  placeholder="Ej: Inversiones El Éxito"
-                  placeholderTextColor={colores.textoGris}
-                  value={nombreNegocio}
-                  onChangeText={setNombreNegocio}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={estilos.botonPrimario}
-                  onPress={avanzarPaso}
-                  activeOpacity={0.8}
-                >
-                  <Text style={estilos.textoBotonPrimario}>Continuar</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+        {renderPaso()}
 
-            {paso === 2 && (
-              <View>
-                <Text style={estilos.tituloPaso}>
-                  Genial, ahora necesitamos tus datos de contacto
-                </Text>
-                <Text style={estilos.label}>Tu nombre completo</Text>
-                <TextInput
-                  style={[
-                    estilos.input,
-                    !isDark && { borderColor: colores.primario },
-                  ]}
-                  placeholder="Juan Pérez"
-                  placeholderTextColor={colores.textoGris}
-                  value={nombreCompleto}
-                  onChangeText={setNombreCompleto}
-                  autoFocus
-                />
+        {paso === 1 && (
+          <TouchableOpacity
+            style={estilos.botonLogin}
+            onPress={() => router.back()}
+          >
+            <Text style={estilos.textoBotonLogin}>
+              Ya tengo cuenta, iniciar sesión
+            </Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
 
-                <Text style={estilos.label}>Número de teléfono</Text>
-                <View
-                  style={[
-                    estilos.inputTelefonoContainer,
-                    !isDark && { borderColor: colores.primario },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={estilos.prefijoContainer}
-                    onPress={() => setModalPaisesVisible(true)}
-                  >
-                    <Text style={estilos.banderaTexto}>
-                      {paisSeleccionado.bandera}
-                    </Text>
-                    <Text style={estilos.textoPrefijo}>
-                      {paisSeleccionado.codigo}
-                    </Text>
-                    <FontAwesome5
-                      name="chevron-down"
-                      size={10}
-                      color={colores.textoGris}
-                      style={{ marginLeft: 5 }}
-                    />
-                  </TouchableOpacity>
-                  <TextInput
-                    style={estilos.inputTelefono}
-                    placeholder="412 000 0000"
-                    placeholderTextColor={colores.textoGris}
-                    keyboardType="phone-pad"
-                    value={telefono}
-                    onChangeText={setTelefono}
-                  />
-                </View>
-
-                <View style={estilos.filaBotones}>
-                  <TouchableOpacity
-                    onPress={retrocederPaso}
-                    style={estilos.botonAtras}
-                  >
-                    <Text style={estilos.textoBotonAtras}>Atrás</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[estilos.botonPrimario, { flex: 1, marginTop: 0 }]}
-                    onPress={avanzarPaso}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={estilos.textoBotonPrimario}>Continuar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {paso === 3 && (
-              <View>
-                <Text style={estilos.tituloPaso}>
-                  Finalmente, crea tus credenciales de acceso
-                </Text>
-                <View style={estilos.avisoBeta}>
-                  <Text style={estilos.textoAvisoBeta}>
-                    La app está en{" "}
-                    <Text style={{ fontWeight: "bold" }}>Fase Beta</Text>. Usa
-                    un correo @betatester.com para continuar.
-                  </Text>
-                </View>
-
-                <Text style={estilos.label}>Correo electrónico</Text>
-                <TextInput
-                  style={[
-                    estilos.input,
-                    !isDark && { borderColor: colores.primario },
-                  ]}
-                  placeholder="tu@betatester.com"
-                  placeholderTextColor={colores.textoGris}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                />
-
-                <Text style={estilos.label}>Contraseña</Text>
-                <TextInput
-                  style={[
-                    estilos.input,
-                    !isDark && { borderColor: colores.primario },
-                  ]}
-                  placeholder="Mínimo 6 caracteres"
-                  placeholderTextColor={colores.textoGris}
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-
-                <View style={estilos.filaBotones}>
-                  <TouchableOpacity
-                    onPress={retrocederPaso}
-                    style={[
-                      estilos.botonAtras,
-                      { opacity: cargando ? 0.5 : 1 },
-                    ]}
-                    disabled={cargando}
-                  >
-                    <Text style={estilos.textoBotonAtras}>Atrás</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      estilos.botonPrimario,
-                      { flex: 1, marginTop: 0 },
-                      cargando && { opacity: 0.7 },
-                    ]}
-                    onPress={manejarRegistro}
-                    disabled={cargando}
-                    activeOpacity={0.8}
-                  >
-                    {cargando ? (
-                      <ActivityIndicator color={colores.textoOscuro} />
-                    ) : (
-                      <Text style={estilos.textoBotonPrimario}>
-                        Crear Cuenta
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {paso === 1 && (
-            <TouchableOpacity
-              style={estilos.linkLogin}
-              onPress={() => router.push("/(auth)/login")}
+      {/* MODAL DE PAÍSES */}
+      <Modal
+        visible={modalPaisesVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setModalPaisesVisible(false)}
+      >
+        <View style={estilos.modalOverlay}>
+          <View style={estilos.modalContent}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 15,
+                borderBottomWidth: 1,
+                borderBottomColor: isDark ? colores.borde : "#E0E0E0",
+                paddingBottom: 15,
+              }}
             >
-              <Text style={estilos.textoLinkLogin}>
-                Ya tengo cuenta, iniciar sesión
-              </Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
-
-        {/* --- MODAL DE PAÍSES --- */}
-        <Modal
-          visible={modalPaisesVisible}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setModalPaisesVisible(false)}
-        >
-          <View style={estilos.modalOverlayPaises}>
-            <View style={estilos.modalContentPaises}>
-              <View style={estilos.modalHeader}>
-                <Text style={estilos.modalTitle}>Selecciona tu país</Text>
+              <Text style={estilos.modalTitle}>Selecciona tu país</Text>
+              <TouchableOpacity onPress={() => setModalPaisesVisible(false)}>
+                <FontAwesome5
+                  name="times"
+                  size={20}
+                  color={isDark ? colores.textoGris : "#888"}
+                />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={LISTA_PAISES}
+              keyExtractor={(item) => item.iso}
+              renderItem={({ item }) => (
                 <TouchableOpacity
-                  onPress={() => setModalPaisesVisible(false)}
-                  style={estilos.modalCloseBtn}
+                  style={estilos.itemPais}
+                  onPress={() => {
+                    setPaisSeleccionado(item);
+                    setModalPaisesVisible(false);
+                  }}
                 >
-                  <FontAwesome5
-                    name="times"
-                    size={20}
-                    color={colores.textoGris}
-                  />
-                </TouchableOpacity>
-              </View>
-              <FlatList
-                data={LISTA_PAISES}
-                keyExtractor={(item) => item.iso}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={estilos.itemPais}
-                    onPress={() => {
-                      setPaisSeleccionado(item);
-                      setModalPaisesVisible(false);
+                  <Text style={estilos.banderaPais}>{item.bandera}</Text>
+                  <Text
+                    style={{
+                      color: isDark ? colores.textoBlanco : "#333",
+                      flex: 1,
+                      fontSize: 16,
                     }}
                   >
-                    <Text style={estilos.banderaPais}>{item.bandera}</Text>
-                    <Text style={estilos.nombrePais}>{item.nombre}</Text>
-                    <Text style={estilos.codigoPais}>{item.codigo}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          </View>
-        </Modal>
-
-        {/* --- MODAL DE ERROR/ÉXITO --- */}
-        <Modal
-          visible={modalVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => !cargando && setModalVisible(false)}
-        >
-          <View style={estilos.modalOverlay}>
-            <View style={estilos.modalContentError}>
-              <View style={estilos.iconoModalContainer}>
-                <FontAwesome5
-                  name={
-                    modalConfig.tipo === "error"
-                      ? "exclamation-triangle"
-                      : "check-circle"
-                  }
-                  size={50}
-                  color={
-                    modalConfig.tipo === "error"
-                      ? colores.error
-                      : colores.primario
-                  }
-                />
-              </View>
-              <Text style={estilos.modalTitulo}>{modalConfig.titulo}</Text>
-              <Text style={estilos.modalMensaje}>{modalConfig.mensaje}</Text>
-              {modalConfig.tipo === "error" && (
-                <TouchableOpacity
-                  style={estilos.botonModal}
-                  onPress={() => setModalVisible(false)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={estilos.textoBotonModal}>Entendido</Text>
+                    {item.nombre}
+                  </Text>
+                  <Text
+                    style={{
+                      color: isDark ? colores.textoGris : "#888",
+                      fontWeight: "bold",
+                      fontSize: 16,
+                    }}
+                  >
+                    {item.codigo}
+                  </Text>
                 </TouchableOpacity>
               )}
-            </View>
+            />
           </View>
-        </Modal>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 }
 
-// 🔥 ESTILOS DINÁMICOS
-const crearEstilos = (c: any) =>
+// 🔥 Estilos dinámicos inyectados con isDark y colores
+const crearEstilos = (c: any, isDark: boolean) =>
   StyleSheet.create({
-    container: { flex: 1 },
-    scrollContent: { flexGrow: 1, padding: 20, alignItems: "center" },
-    headerIconos: {
-      width: "100%",
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginTop: Platform.OS === "ios" ? 40 : 20,
-      marginBottom: 20,
+    contenedor: {
+      flex: 1,
+      backgroundColor: isDark ? c.fondoOscuro : "#F8F9FA",
+    },
+    scrollContenido: { flexGrow: 1, justifyContent: "center", padding: 25 },
+    headerActions: {
+      position: "absolute",
+      top: Platform.OS === "ios" ? 50 : 30,
+      right: 25,
       zIndex: 10,
     },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: "rgba(255,255,255,0.1)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    tituloPrincipal: {
+
+    encabezado: { alignItems: "center", marginBottom: 30 },
+    titulo: {
       fontSize: 32,
-      fontWeight: "bold",
-      color: c.primario,
+      fontWeight: "900",
+      color: COLOR_VERDE,
       marginBottom: 10,
     },
-    indicadorContainer: {
-      flexDirection: "row",
-      gap: 8,
-      marginBottom: 30,
-      alignItems: "center",
-    },
-    puntoPaso: {
-      width: 10,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: c.borde,
-    },
-    puntoPasoActivo: { backgroundColor: c.primario },
-    puntoPasoActual: { width: 25, borderRadius: 4 },
 
-    tarjetaWizard: {
-      width: "100%",
-      maxWidth: 400,
-      backgroundColor: c.fondoTarjeta,
-      borderRadius: 20,
+    indicadorPasos: { flexDirection: "row", gap: 8 },
+    puntoPaso: { height: 8, borderRadius: 4 },
+    puntoInactivo: { width: 8, backgroundColor: isDark ? c.borde : "#E0E0E0" },
+    puntoActivo: { width: 8, backgroundColor: COLOR_VERDE },
+    puntoActual: { width: 22, backgroundColor: COLOR_VERDE },
+
+    tarjeta: {
+      backgroundColor: isDark ? c.fondoTarjeta : "#FFFFFF",
       padding: 25,
+      borderRadius: 20,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
+      shadowOpacity: isDark ? 0.3 : 0.05,
       shadowRadius: 10,
-      elevation: 5,
+      elevation: 3,
+      borderWidth: isDark ? 1 : 0,
+      borderColor: c.borde,
     },
-    tituloPaso: {
-      color: c.textoBlanco,
+    pregunta: {
       fontSize: 18,
       fontWeight: "bold",
+      color: isDark ? c.textoBlanco : "#888",
+      marginBottom: 25,
       textAlign: "center",
-      marginBottom: 30,
-      lineHeight: 26,
     },
+
     label: {
-      color: c.textoBlanco,
-      fontSize: 14,
+      color: isDark ? c.textoGris : "#888",
+      fontSize: 13,
+      marginBottom: 8,
+      marginTop: 15,
       fontWeight: "bold",
-      marginBottom: 10,
     },
     input: {
-      backgroundColor: c.fondoInput,
+      backgroundColor: isDark ? c.fondoInput : "#FFFFFF",
+      color: isDark ? c.textoBlanco : "#333",
+      padding: 15,
       borderRadius: 12,
-      padding: 16,
-      fontSize: 16,
-      color: c.textoBlanco,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: c.borde,
+      borderWidth: 1.5,
+      borderColor: COLOR_VERDE,
+      fontSize: 15,
     },
-    inputTelefonoContainer: {
+
+    inputTelefonoWrapper: {
       flexDirection: "row",
-      backgroundColor: c.fondoInput,
+      backgroundColor: isDark ? c.fondoInput : "#FFFFFF",
       borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.borde,
-      marginBottom: 20,
+      borderWidth: 1.5,
+      borderColor: COLOR_VERDE,
       overflow: "hidden",
+      alignItems: "center",
     },
-    prefijoContainer: {
+    selectorPais: {
       flexDirection: "row",
       alignItems: "center",
       paddingHorizontal: 15,
-      borderRightWidth: 1,
-      borderRightColor: c.borde,
-      backgroundColor: "rgba(255,255,255,0.02)",
+      paddingVertical: 15,
+      borderRightWidth: 1.5,
+      borderRightColor: COLOR_VERDE,
     },
-    banderaTexto: { fontSize: 18, marginRight: 6 },
-    textoPrefijo: { color: c.textoBlanco, fontWeight: "bold", fontSize: 15 },
-    inputTelefono: { flex: 1, padding: 16, fontSize: 16, color: c.textoBlanco },
+    textoCodigoPais: {
+      color: isDark ? c.textoBlanco : "#333",
+      fontWeight: "bold",
+      fontSize: 15,
+    },
 
-    avisoBeta: {
-      backgroundColor: "rgba(34, 197, 94, 0.1)",
-      borderWidth: 1,
-      borderColor: "rgba(34, 197, 94, 0.3)",
-      borderRadius: 12,
-      padding: 15,
-      marginBottom: 20,
+    filaBotones: {
+      flexDirection: "row",
+      gap: 15,
+      marginTop: 30,
+      alignItems: "center",
     },
-    textoAvisoBeta: { color: c.exito, fontSize: 14, lineHeight: 20 },
+    botonAtras: { flex: 1, justifyContent: "center", alignItems: "center" },
+    textoBotonAtras: {
+      color: isDark ? c.textoGris : "#888",
+      fontWeight: "bold",
+      fontSize: 15,
+    },
 
-    filaBotones: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-    botonAtras: {
-      paddingVertical: 16,
-      paddingRight: 25,
-      paddingLeft: 10,
-      justifyContent: "center",
-    },
-    textoBotonAtras: { color: c.textoGris, fontSize: 16, fontWeight: "bold" },
     botonPrimario: {
-      backgroundColor: c.primarioLogin,
+      backgroundColor: COLOR_VERDE,
       padding: 16,
       borderRadius: 12,
       alignItems: "center",
-      marginTop: 10,
+      marginTop: 25,
     },
-    textoBotonPrimario: {
-      color: c.textoOscuro,
-      fontSize: 16,
-      fontWeight: "bold",
-    },
+    textoBotonPrimario: { color: "#1A1A1A", fontWeight: "bold", fontSize: 16 }, // Siempre negro para contraste con el verde
 
-    linkLogin: { marginTop: 30, padding: 10 },
-    textoLinkLogin: { color: c.primario, fontSize: 15, fontWeight: "bold" },
+    botonLogin: { marginTop: 30, alignItems: "center" },
+    textoBotonLogin: { color: COLOR_VERDE, fontWeight: "bold", fontSize: 15 },
 
-    // --- Modales ---
     modalOverlay: {
       flex: 1,
-      backgroundColor: c.overlay,
+      backgroundColor: "rgba(0,0,0,0.7)",
       justifyContent: "center",
-      alignItems: "center",
       padding: 20,
     },
-    modalContentError: {
-      backgroundColor: c.fondoTarjeta,
-      borderRadius: 24,
-      padding: 30,
-      width: "100%",
-      maxWidth: 340,
-      alignItems: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.3,
-      shadowRadius: 20,
-      elevation: 10,
+    modalContent: {
+      backgroundColor: isDark ? c.fondoTarjeta : "#FFFFFF",
+      borderRadius: 20,
+      height: "60%",
+      padding: 20,
     },
-    iconoModalContainer: { marginBottom: 20 },
-    modalTitulo: {
-      color: c.textoBlanco,
-      fontSize: 24,
+    modalTitle: {
+      color: isDark ? c.textoBlanco : "#333",
+      fontSize: 18,
       fontWeight: "bold",
-      marginBottom: 10,
-      textAlign: "center",
     },
-    modalMensaje: {
-      color: c.textoGris,
-      fontSize: 16,
-      textAlign: "center",
-      marginBottom: 30,
-      lineHeight: 22,
-    },
-    botonModal: {
-      backgroundColor: c.primario,
-      paddingVertical: 16,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      width: "100%",
-      alignItems: "center",
-    },
-    textoBotonModal: { color: c.textoOscuro, fontSize: 16, fontWeight: "bold" },
-
-    modalOverlayPaises: {
-      flex: 1,
-      backgroundColor: c.overlay,
-      justifyContent: "flex-end",
-    },
-    modalContentPaises: {
-      backgroundColor: c.fondoTarjeta,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      height: "70%",
-      padding: 20,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingBottom: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: c.borde,
-      marginBottom: 10,
-    },
-    modalTitle: { color: c.textoBlanco, fontSize: 18, fontWeight: "bold" },
-    modalCloseBtn: { padding: 5 },
     itemPais: {
       flexDirection: "row",
-      alignItems: "center",
       paddingVertical: 15,
       borderBottomWidth: 1,
-      borderBottomColor: c.borde,
+      borderBottomColor: isDark ? c.borde : "#E0E0E0",
+      alignItems: "center",
     },
     banderaPais: { fontSize: 24, marginRight: 15 },
-    nombrePais: { flex: 1, fontSize: 16, color: c.textoBlanco },
-    codigoPais: { color: c.textoGris, fontSize: 16, fontWeight: "bold" },
   });
