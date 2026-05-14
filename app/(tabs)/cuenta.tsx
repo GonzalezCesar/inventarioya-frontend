@@ -175,7 +175,21 @@ export default function PantallaCuenta() {
             titulo: "Gestionar Vendedores",
             icono: "users",
             onPress: () => router.push("/admin/usuarios"),
-            destacado: true, // 🔥 Esto hará que resalte como en tu diseño viejo
+            destacado: true,
+          },
+          // 🔥 NUEVA FILA: GESTIÓN DE CLIENTES
+          {
+            titulo: "Gestionar Clientes",
+            icono: "address-book",
+            onPress: () => router.push("/admin/clientes"),
+            destacado: true,
+          },
+          // 🔥 NUEVA FILA: GESTIÓN DE PROVEEDORES
+          {
+            titulo: "Gestionar Proveedores",
+            icono: "truck",
+            onPress: () => router.push("/admin/proveedores"),
+            destacado: true,
           },
         ]
       : []),
@@ -199,6 +213,7 @@ export default function PantallaCuenta() {
         ),
     },
   ];
+// ... (mismos estilos anteriores)
 
   return (
     <View style={estilos.contenedor}>
