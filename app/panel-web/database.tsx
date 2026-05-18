@@ -12,24 +12,42 @@ import {
 } from "react-native";
 import api from "../../services/api";
 
+// 🔥 Añadidas todas las tablas del sistema
 type TablaDisponibles =
   | "usuarios"
   | "productos"
   | "ventas"
   | "categorias"
-  | "clientes";
+  | "clientes"
+  | "proveedores"
+  | "venta_items"
+  | "movimientos_inventario"
+  | "caja"
+  | "movimientos_caja"
+  | "configuraciones"
+  | "configuraciones_empresas"
+  | "planes";
 
 export default function DatabaseExplorerWeb() {
   const [cargando, setCargando] = useState(false);
   const [tablaActual, setTablaActual] = useState<TablaDisponibles>("usuarios");
   const [datosTabla, setDatosTabla] = useState<any[]>([]);
 
+  // 🔥 Lista completa actualizada según el README de la API
   const tablas: { id: TablaDisponibles; label: string }[] = [
-    { id: "usuarios", label: "Usuarios/Claves" },
-    { id: "productos", label: "Productos Global" },
-    { id: "ventas", label: "Ventas Global" },
+    { id: "usuarios", label: "Usuarios / Claves" },
+    { id: "productos", label: "Productos" },
+    { id: "ventas", label: "Ventas" },
+    { id: "venta_items", label: "Ventas (Items)" },
     { id: "categorias", label: "Categorías" },
-    { id: "clientes", label: "Clientes de Usuarios" },
+    { id: "clientes", label: "Clientes" },
+    { id: "proveedores", label: "Proveedores" },
+    { id: "movimientos_inventario", label: "Kardex / Mov. Inv." },
+    { id: "caja", label: "Cierres de Caja" },
+    { id: "movimientos_caja", label: "Mov. Caja" },
+    { id: "planes", label: "Planes SaaS" },
+    { id: "configuraciones", label: "Config. Globales" },
+    { id: "configuraciones_empresas", label: "Config. de Negocios" },
   ];
 
   useFocusEffect(
@@ -70,7 +88,10 @@ export default function DatabaseExplorerWeb() {
       key === "total" ||
       key === "precio" ||
       key === "costo" ||
-      key === "monto_pagado"
+      key === "monto_pagado" ||
+      key === "monto_restante" ||
+      key === "monto_inicial" ||
+      key === "monto_final_declarado"
     ) {
       return (
         <Text style={{ color: "#c6ff00", fontWeight: "bold" }}>${valor}</Text>
@@ -95,12 +116,12 @@ export default function DatabaseExplorerWeb() {
         </View>
       </View>
 
-      {/* PESTAÑAS DE TABLAS */}
+      {/* PESTAÑAS DE TABLAS - Scroll Horizontal para las 13 tablas */}
       <View style={estilos.tabsContainer}>
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 15 }}
+          showsHorizontalScrollIndicator={true}
+          contentContainerStyle={{ gap: 15, paddingBottom: 15 }}
         >
           {tablas.map((tab) => (
             <TouchableOpacity
@@ -203,13 +224,13 @@ const estilos = StyleSheet.create({
     marginBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(198, 255, 0, 0.1)",
-    paddingBottom: 15,
+    paddingBottom: 5,
   },
   tabBtn: {
     backgroundColor: "#1a1a1a",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(198, 255, 0, 0.2)",
   },
@@ -220,7 +241,7 @@ const estilos = StyleSheet.create({
   tabText: {
     color: "#8a8a8a",
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 13,
   },
   tabTextActive: {
     color: "#000000",
@@ -240,7 +261,7 @@ const estilos = StyleSheet.create({
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
   thCell: {
-    width: 220, // 🔥 Ancho fijo estricto para obligar a la alineación
+    width: 220, 
     paddingHorizontal: 20,
     paddingVertical: 16,
     justifyContent: "center",
@@ -257,7 +278,7 @@ const estilos = StyleSheet.create({
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
   tdCell: {
-    width: 220, // 🔥 Exactamente el mismo ancho que el thCell
+    width: 220, 
     paddingHorizontal: 20,
     paddingVertical: 15,
     justifyContent: "center",
