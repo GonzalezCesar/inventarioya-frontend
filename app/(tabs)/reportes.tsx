@@ -1,6 +1,8 @@
 import { FontAwesome5 } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -64,7 +66,6 @@ export default function PantallaReportes() {
   const [montoInicialCaja, setMontoInicialCaja] = useState("");
   const [modalCierreVisible, setModalCierreVisible] = useState(false);
   const [montoCierre, setMontoCierre] = useState("");
-  const [fondoSiguiente, setFondoSiguiente] = useState("");
   const [notasCierre, setNotasCierre] = useState("");
   const [modalMovimientoVisible, setModalMovimientoVisible] = useState(false);
   const [tipoMovimiento, setTipoMovimiento] = useState<"ingreso" | "egreso">(
@@ -73,10 +74,16 @@ export default function PantallaReportes() {
   const [montoMovimiento, setMontoMovimiento] = useState("");
   const [descMovimiento, setDescMovimiento] = useState("");
 
-  // Estado para el modal de ver capture
   const [comprobanteVisible, setComprobanteVisible] = useState<string | null>(
     null,
   );
+
+  const [modalAbonoVisible, setModalAbonoVisible] = useState(false);
+  const [ventaAbonando, setVentaAbonando] = useState<any>(null);
+  const [montoAbono, setMontoAbono] = useState("");
+  const [metodoAbono, setMetodoAbono] = useState<string>("efectivo");
+  const [referenciaAbono, setReferenciaAbono] = useState("");
+  const [imagenAbono, setImagenAbono] = useState<string | null>(null);
 
   const cargarDatos = async () => {
     try {
@@ -127,19 +134,20 @@ export default function PantallaReportes() {
       .trim();
   };
 
+  // 🔥 LÓGICA CORREGIDA DE COMBINACIÓN DE FILTROS
   const ventasFiltradas = useMemo(() => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
+
     return ventas
       .filter((v) => {
+        // 1. Filtro Vendedor
         const vId = v.vendedorId || v.vendedor_id;
-        if (!esAdmin()) {
-          if (vId !== user?.id) return false;
-        } else {
-          if (filtroVendedor !== "todos" && vId !== filtroVendedor)
-            return false;
-        }
+        if (!esAdmin() && vId !== user?.id) return false;
+        if (esAdmin() && filtroVendedor !== "todos" && vId !== filtroVendedor)
+          return false;
 
+        // 2. Filtro Método de Pago
         const metodoVenta = normalizarMetodo(
           v.metodoPago || v.metodo_pago || "N/A",
         );
@@ -147,7 +155,24 @@ export default function PantallaReportes() {
         if (filtroPago !== "todos" && metodoVenta !== metodoFiltro)
           return false;
 
-        if (!busquedaProducto) {
+        // 3. Filtro Producto (Búsqueda)
+        if (busquedaProducto) {
+          const search = busquedaProducto.toLowerCase();
+          const tiene = v.items?.some((i: any) => {
+            const pId = i.productoId || i.producto_id;
+            const nombre =
+              i.producto?.nombre ||
+              i.producto_nombre ||
+              i.nombre ||
+              productos.find((p) => p.id === pId)?.nombre ||
+              "";
+            return nombre.toLowerCase().includes(search);
+          });
+          if (!tiene) return false;
+        }
+
+        // 4. Filtro Fechas (Siempre activo en conjunto con los demás)
+        if (rangoFecha !== "historico") {
           const f = new Date(v.fecha);
           if (rangoFecha === "hoy" && f < hoy) return false;
           if (
@@ -169,20 +194,6 @@ export default function PantallaReportes() {
           }
         }
 
-        if (busquedaProducto) {
-          const search = busquedaProducto.toLowerCase();
-          const tiene = v.items?.some((i: any) => {
-            const pId = i.productoId || i.producto_id;
-            const nombre =
-              i.producto?.nombre ||
-              i.producto_nombre ||
-              i.nombre ||
-              productos.find((p) => p.id === pId)?.nombre ||
-              "";
-            return nombre.toLowerCase().includes(search);
-          });
-          if (!tiene) return false;
-        }
         return true;
       })
       .sort(
@@ -217,11 +228,8 @@ export default function PantallaReportes() {
       brutas += totalVenta;
 
       const metodo = v.metodoPago || v.metodo_pago || "otros";
-      if (porMetodo[metodo] !== undefined) {
-        porMetodo[metodo] += totalVenta;
-      } else {
-        porMetodo[metodo] = totalVenta;
-      }
+      if (porMetodo[metodo] !== undefined) porMetodo[metodo] += totalVenta;
+      else porMetodo[metodo] = totalVenta;
 
       (v.items || []).forEach((i: any) => {
         const pId = i.productoId || i.producto_id;
@@ -251,7 +259,6 @@ export default function PantallaReportes() {
     return { brutas, utilidad, margen, porMetodo, top };
   }, [ventasFiltradas, productos]);
 
-  // 🔥 AQUÍ AGREGAMOS LA LÓGICA DE CONTEO PARA LA CAJA
   const calculosCaja = useMemo(() => {
     if (!cajaActual) return null;
     let ventasEf = 0,
@@ -262,7 +269,6 @@ export default function PantallaReportes() {
       ventasOtros = 0,
       ing = 0,
       gas = 0;
-
     let countEf = 0,
       countBanco = 0,
       countPm = 0,
@@ -274,7 +280,6 @@ export default function PantallaReportes() {
       .forEach((v) => {
         const m = v.metodoPago || v.metodo_pago;
         const totalVenta = Number(v.total || 0);
-
         if (m === "efectivo") {
           ventasEf += totalVenta;
           countEf++;
@@ -287,8 +292,12 @@ export default function PantallaReportes() {
         } else if (m === "pago_movil") {
           ventasPm += totalVenta;
           countPm++;
-        } else if (m === "credito" || v.estadoPago === "pendiente") {
-          ventasCr += Number(v.montoRestante || v.total);
+        } else if (
+          m === "credito" ||
+          v.estadoPago === "pendiente" ||
+          v.estado_pago === "pendiente"
+        ) {
+          ventasCr += Number(v.montoRestante || v.monto_restante || v.total);
           countCr++;
         } else {
           ventasOtros += totalVenta;
@@ -312,7 +321,7 @@ export default function PantallaReportes() {
       ventasTransferencia,
       ventasPunto,
       ventasBanco: ventasTransferencia + ventasPunto,
-      countBanco, // Para la vista anterior
+      countBanco,
       ventasPm,
       countPm,
       ventasCr,
@@ -343,11 +352,9 @@ export default function PantallaReportes() {
     const montoDeclarado = parseFloat(montoCierre);
     if (isNaN(montoDeclarado))
       return Alert.alert("Error", "Debes ingresar el dinero físico contado.");
-
     try {
       setCargando(true);
       const diferencia = montoDeclarado - (calculosCaja?.esperado || 0);
-
       await api.post("/caja", {
         action: "cerrar",
         id: cajaActual.id,
@@ -362,7 +369,6 @@ export default function PantallaReportes() {
         total_pago_movil: calculosCaja?.ventasPm || 0,
         total_credito: calculosCaja?.ventasCr || 0,
       });
-
       setModalCierreVisible(false);
       setMontoCierre("");
       setNotasCierre("");
@@ -396,6 +402,82 @@ export default function PantallaReportes() {
       cargarDatos();
     } catch (e: any) {
       Alert.alert("Error", e.message);
+      setCargando(false);
+    }
+  };
+
+  const abrirModalAbono = (venta: any) => {
+    setVentaAbonando(venta);
+    setMontoAbono("");
+    setMetodoAbono("efectivo");
+    setReferenciaAbono("");
+    setImagenAbono(null);
+    setModalAbonoVisible(true);
+  };
+
+  const seleccionarImagenAbono = async (origen: "camara" | "galeria") => {
+    const permisos = await (origen === "camara"
+      ? ImagePicker.requestCameraPermissionsAsync()
+      : ImagePicker.requestMediaLibraryPermissionsAsync());
+    if (permisos.status !== "granted")
+      return Alert.alert(
+        "Permiso denegado",
+        "Se requiere acceso a la cámara/galería",
+      );
+    const resultado = await (origen === "camara"
+      ? ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          quality: 1,
+        })
+      : ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          quality: 1,
+        }));
+    if (!resultado.canceled && resultado.assets[0].uri) {
+      const manipulado = await ImageManipulator.manipulateAsync(
+        resultado.assets[0].uri,
+        [{ resize: { width: 1000 } }],
+        {
+          compress: 0.6,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        },
+      );
+      setImagenAbono(`data:image/jpeg;base64,${manipulado.base64}`);
+    }
+  };
+
+  const confirmarAbono = async () => {
+    const abonoFloat = parseFloat(montoAbono);
+    const deudaTotal = parseFloat(
+      ventaAbonando.montoRestante || ventaAbonando.monto_restante || 0,
+    );
+    if (isNaN(abonoFloat) || abonoFloat <= 0)
+      return Alert.alert("Error", "Monto de abono inválido");
+    if (abonoFloat > deudaTotal)
+      return Alert.alert("Error", "El abono no puede superar la deuda actual.");
+    if (
+      (metodoAbono === "transferencia" || metodoAbono === "pago_movil") &&
+      !referenciaAbono
+    )
+      return Alert.alert("Error", "Debes ingresar el número de referencia.");
+    try {
+      setCargando(true);
+      await api.post("/ventas/registrar-pago", {
+        id: ventaAbonando.id,
+        monto: abonoFloat,
+        metodo: metodoAbono,
+        referencia: referenciaAbono,
+        fotoComprobante: imagenAbono,
+      });
+      setModalAbonoVisible(false);
+      cargarDatos();
+      Alert.alert("Éxito", "Abono registrado correctamente");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "No se pudo registrar el abono");
+    } finally {
       setCargando(false);
     }
   };
@@ -479,7 +561,6 @@ export default function PantallaReportes() {
           if (metodo === "pago_movil") colorBarra = colores.cyan || "#00D1FF";
           if (metodo === "tarjeta" || metodo === "transferencia")
             colorBarra = "#BF5AF2";
-
           return (
             <View key={metodo} style={{ marginBottom: 15 }}>
               <View
@@ -585,6 +666,7 @@ export default function PantallaReportes() {
             paddingBottom: 15,
           }}
         >
+          {/* 🔥 BOTÓN FILTRO FECHAS CON MARCADOR */}
           <TouchableOpacity
             style={[
               estilos.botonFiltroPrincipal,
@@ -594,24 +676,33 @@ export default function PantallaReportes() {
               setFiltroActivo(filtroActivo === "fecha" ? "ninguno" : "fecha")
             }
           >
-            <FontAwesome5
-              name="calendar-alt"
-              size={16}
-              color={
-                filtroActivo === "fecha"
-                  ? colores.textoOscuro
-                  : colores.textoGris
-              }
-            />
-            <Text
-              style={[
-                estilos.textoFiltroPrincipal,
-                filtroActivo === "fecha" && { color: colores.textoOscuro },
-              ]}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             >
-              Fechas
-            </Text>
+              <FontAwesome5
+                name="calendar-alt"
+                size={16}
+                color={
+                  filtroActivo === "fecha"
+                    ? colores.textoOscuro
+                    : colores.textoGris
+                }
+              />
+              <Text
+                style={[
+                  estilos.textoFiltroPrincipal,
+                  filtroActivo === "fecha" && { color: colores.textoOscuro },
+                ]}
+              >
+                Fechas
+              </Text>
+              {rangoFecha !== "hoy" && (
+                <View style={estilos.marcadorFiltroActivo} />
+              )}
+            </View>
           </TouchableOpacity>
+
+          {/* 🔥 BOTÓN FILTRO PAGOS CON MARCADOR */}
           <TouchableOpacity
             style={[
               estilos.botonFiltroPrincipal,
@@ -621,24 +712,33 @@ export default function PantallaReportes() {
               setFiltroActivo(filtroActivo === "pagos" ? "ninguno" : "pagos")
             }
           >
-            <FontAwesome5
-              name="credit-card"
-              size={16}
-              color={
-                filtroActivo === "pagos"
-                  ? colores.textoOscuro
-                  : colores.textoGris
-              }
-            />
-            <Text
-              style={[
-                estilos.textoFiltroPrincipal,
-                filtroActivo === "pagos" && { color: colores.textoOscuro },
-              ]}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
             >
-              Pagos
-            </Text>
+              <FontAwesome5
+                name="credit-card"
+                size={16}
+                color={
+                  filtroActivo === "pagos"
+                    ? colores.textoOscuro
+                    : colores.textoGris
+                }
+              />
+              <Text
+                style={[
+                  estilos.textoFiltroPrincipal,
+                  filtroActivo === "pagos" && { color: colores.textoOscuro },
+                ]}
+              >
+                Pagos
+              </Text>
+              {filtroPago !== "todos" && (
+                <View style={estilos.marcadorFiltroActivo} />
+              )}
+            </View>
           </TouchableOpacity>
+
+          {/* 🔥 BOTÓN FILTRO VENDEDOR CON MARCADOR */}
           {esAdmin() && (
             <TouchableOpacity
               style={[
@@ -652,25 +752,36 @@ export default function PantallaReportes() {
                 )
               }
             >
-              <FontAwesome5
-                name="user-alt"
-                size={16}
-                color={
-                  filtroActivo === "vendedor"
-                    ? colores.textoOscuro
-                    : colores.textoGris
-                }
-              />
-              <Text
-                style={[
-                  estilos.textoFiltroPrincipal,
-                  filtroActivo === "vendedor" && { color: colores.textoOscuro },
-                ]}
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                Vendedor
-              </Text>
+                <FontAwesome5
+                  name="user-alt"
+                  size={16}
+                  color={
+                    filtroActivo === "vendedor"
+                      ? colores.textoOscuro
+                      : colores.textoGris
+                  }
+                />
+                <Text
+                  style={[
+                    estilos.textoFiltroPrincipal,
+                    filtroActivo === "vendedor" && {
+                      color: colores.textoOscuro,
+                    },
+                  ]}
+                >
+                  Vendedor
+                </Text>
+                {filtroVendedor !== "todos" && (
+                  <View style={estilos.marcadorFiltroActivo} />
+                )}
+              </View>
             </TouchableOpacity>
           )}
+
+          {/* 🔥 BOTÓN FILTRO PRODUCTO CON MARCADOR */}
           <TouchableOpacity
             style={[
               estilos.botonFiltroPrincipal,
@@ -682,18 +793,26 @@ export default function PantallaReportes() {
               )
             }
           >
-            <FontAwesome5
-              name="box"
-              size={16}
-              color={
-                filtroActivo === "producto"
-                  ? colores.textoOscuro
-                  : colores.textoGris
-              }
-            />
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <FontAwesome5
+                name="box"
+                size={16}
+                color={
+                  filtroActivo === "producto"
+                    ? colores.textoOscuro
+                    : colores.textoGris
+                }
+              />
+              {busquedaProducto.length > 0 && (
+                <View style={estilos.marcadorFiltroActivo} />
+              )}
+            </View>
           </TouchableOpacity>
         </ScrollView>
 
+        {/* PANELES DESPLEGABLES DE LOS FILTROS */}
         {filtroActivo === "fecha" && (
           <View style={estilos.panelSubFiltro}>
             <ScrollView
@@ -721,7 +840,6 @@ export default function PantallaReportes() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-
             {(rangoFecha === "hoy" || rangoFecha === "personalizado") && (
               <>
                 <Text
@@ -785,6 +903,7 @@ export default function PantallaReportes() {
             )}
           </View>
         )}
+
         {filtroActivo === "pagos" && (
           <View style={estilos.panelSubFiltro}>
             <ScrollView
@@ -793,7 +912,7 @@ export default function PantallaReportes() {
               contentContainerStyle={{ gap: 10 }}
             >
               {[
-                { id: "todos", label: "todos" },
+                { id: "todos", label: "Todos" },
                 { id: "efectivo", label: "Efectivo" },
                 { id: "tarjeta", label: "Tarjeta" },
                 { id: "pago_movil", label: "Pago Móvil" },
@@ -820,6 +939,7 @@ export default function PantallaReportes() {
             </ScrollView>
           </View>
         )}
+
         {filtroActivo === "vendedor" && esAdmin() && (
           <View style={estilos.panelSubFiltro}>
             <ScrollView
@@ -865,6 +985,7 @@ export default function PantallaReportes() {
             </ScrollView>
           </View>
         )}
+
         {filtroActivo === "producto" && (
           <View style={estilos.panelSubFiltro}>
             <TextInput
@@ -989,11 +1110,14 @@ export default function PantallaReportes() {
   const renderVistaCreditos = () => {
     const creditos = ventas.filter(
       (v) =>
-        (v.estadoPago === "pendiente" || v.estadoPago === "parcial") &&
-        (esAdmin() || v.vendedorId === user?.id),
+        (v.estadoPago === "pendiente" ||
+          v.estado_pago === "pendiente" ||
+          v.estadoPago === "parcial" ||
+          v.estado_pago === "parcial") &&
+        (esAdmin() || v.vendedorId === user?.id || v.vendedor_id === user?.id),
     );
     const totalCobrar = creditos.reduce(
-      (acc, v) => acc + Number(v.montoRestante || 0),
+      (acc, v) => acc + Number(v.montoRestante || v.monto_restante || 0),
       0,
     );
 
@@ -1050,20 +1174,13 @@ export default function PantallaReportes() {
                 <Text
                   style={{
                     color: colores.error,
-                    fontSize: 10,
-                    fontWeight: "bold",
-                  }}
-                >
-                  DEBE
-                </Text>
-                <Text
-                  style={{
-                    color: colores.error,
                     fontSize: 24,
                     fontWeight: "bold",
                   }}
                 >
-                  {formatearMoneda(item.montoRestante)}
+                  {formatearMoneda(
+                    item.montoRestante || item.monto_restante || 0,
+                  )}
                 </Text>
                 <TouchableOpacity
                   style={{
@@ -1073,6 +1190,7 @@ export default function PantallaReportes() {
                     borderRadius: 6,
                     marginTop: 8,
                   }}
+                  onPress={() => abrirModalAbono(item)}
                 >
                   <Text
                     style={{
@@ -1229,7 +1347,6 @@ export default function PantallaReportes() {
           </View>
 
           <View style={{ gap: 10 }}>
-            {/* 🔥 TARJETAS DE CAJA CON CONTADORES DE TRANSACCIONES */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View
                 style={[
@@ -1569,7 +1686,6 @@ export default function PantallaReportes() {
             Reportes
           </Text>
         </View>
-
         <View style={estilos.selectorVista}>
           {(esAdmin()
             ? ["resumen", "ventas", "creditos", "caja"]
@@ -1605,99 +1721,498 @@ export default function PantallaReportes() {
       {vistaActual === "creditos" && renderVistaCreditos()}
       {vistaActual === "caja" && renderVistaCaja()}
 
+      <Modal visible={modalAbonoVisible} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={estilos.modalOverlay}
+          >
+            <View style={estilos.modalContenido}>
+              <Text style={estilos.tituloModal}>Registrar Abono</Text>
+              <View
+                style={{
+                  backgroundColor: "rgba(255, 59, 48, 0.1)",
+                  padding: 15,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  marginBottom: 20,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colores.error,
+                    fontSize: 12,
+                    fontWeight: "bold",
+                  }}
+                >
+                  DEUDA ACTUAL
+                </Text>
+                <Text
+                  style={{
+                    color: colores.error,
+                    fontSize: 24,
+                    fontWeight: "bold",
+                  }}
+                >
+                  {formatearMoneda(
+                    ventaAbonando?.montoRestante ||
+                      ventaAbonando?.monto_restante,
+                  )}
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: colores.textoGris,
+                  fontSize: 12,
+                  marginBottom: 8,
+                }}
+              >
+                Monto a Abonar
+              </Text>
+              <TextInput
+                style={[
+                  estilos.inputModal,
+                  { fontSize: 24, textAlign: "center", fontWeight: "bold" },
+                ]}
+                keyboardType="decimal-pad"
+                value={montoAbono}
+                onChangeText={setMontoAbono}
+                placeholder="0.00"
+                placeholderTextColor={colores.textoGris}
+              />
+              <Text
+                style={{
+                  color: colores.textoGris,
+                  fontSize: 12,
+                  marginBottom: 8,
+                }}
+              >
+                Método de Pago
+              </Text>
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: 15 }}>
+                {["efectivo", "transferencia", "pago_movil"].map((metodo) => (
+                  <TouchableOpacity
+                    key={metodo}
+                    style={{
+                      flex: 1,
+                      padding: 12,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor:
+                        metodoAbono === metodo
+                          ? colores.primario
+                          : colores.borde,
+                      backgroundColor:
+                        metodoAbono === metodo
+                          ? "rgba(198, 255, 0, 0.1)"
+                          : "transparent",
+                      alignItems: "center",
+                    }}
+                    onPress={() => {
+                      setMetodoAbono(metodo);
+                      setReferenciaAbono("");
+                      setImagenAbono(null);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          metodoAbono === metodo
+                            ? colores.primario
+                            : colores.textoGris,
+                        fontSize: 12,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {metodo === "pago_movil"
+                        ? "Pago Móvil"
+                        : metodo === "transferencia"
+                          ? "Transfer"
+                          : "Efectivo"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {(metodoAbono === "transferencia" ||
+                metodoAbono === "pago_movil") && (
+                <>
+                  <Text
+                    style={{
+                      color: colores.textoGris,
+                      fontSize: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Referencia
+                  </Text>
+                  <TextInput
+                    style={estilos.inputModal}
+                    keyboardType="numeric"
+                    value={referenciaAbono}
+                    onChangeText={setReferenciaAbono}
+                    placeholder="0000"
+                    placeholderTextColor={colores.textoGris}
+                  />
+                  <Text
+                    style={{
+                      color: colores.textoGris,
+                      fontSize: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Comprobante (Opcional)
+                  </Text>
+                  {imagenAbono ? (
+                    <View style={{ alignItems: "center", marginBottom: 15 }}>
+                      <Image
+                        source={{ uri: imagenAbono }}
+                        style={{ width: 100, height: 100, borderRadius: 8 }}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setImagenAbono(null)}
+                        style={{ marginTop: 5 }}
+                      >
+                        <Text style={{ color: colores.error, fontSize: 12 }}>
+                          Eliminar foto
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 10,
+                        marginBottom: 15,
+                      }}
+                    >
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          padding: 15,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: colores.borde,
+                          alignItems: "center",
+                        }}
+                        onPress={() => seleccionarImagenAbono("camara")}
+                      >
+                        <FontAwesome5
+                          name="camera"
+                          size={20}
+                          color={colores.textoGris}
+                          style={{ marginBottom: 5 }}
+                        />
+                        <Text
+                          style={{ color: colores.textoGris, fontSize: 12 }}
+                        >
+                          Cámara
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          padding: 15,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: colores.borde,
+                          alignItems: "center",
+                        }}
+                        onPress={() => seleccionarImagenAbono("galeria")}
+                      >
+                        <FontAwesome5
+                          name="images"
+                          size={20}
+                          color={colores.textoGris}
+                          style={{ marginBottom: 5 }}
+                        />
+                        <Text
+                          style={{ color: colores.textoGris, fontSize: 12 }}
+                        >
+                          Galería
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    padding: 15,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor: colores.fondoInput,
+                  }}
+                  onPress={() => setModalAbonoVisible(false)}
+                >
+                  <Text
+                    style={{ color: colores.textoBlanco, fontWeight: "bold" }}
+                  >
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    padding: 15,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor: colores.primario,
+                  }}
+                  onPress={confirmarAbono}
+                >
+                  <Text
+                    style={{ color: colores.textoOscuro, fontWeight: "bold" }}
+                  >
+                    Confirmar
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <Modal visible={modalCierreVisible} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={estilos.modalOverlay}
-        >
-          <View style={estilos.modalContenido}>
-            <Text style={estilos.tituloModal}>Cierre de Caja</Text>
-            
-            {/* RESUMEN DE LA SESIÓN */}
-            <View style={{ backgroundColor: 'rgba(0,0,0,0.2)', padding: 15, borderRadius: 12, marginBottom: 20 }}>
-              <Text style={{ color: colores.textoBlanco, fontWeight: 'bold', marginBottom: 10 }}>Resumen del Sistema</Text>
-              
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Base Inicial:</Text>
-                 <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{formatearMoneda(calculosCaja?.base)}</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={estilos.modalOverlay}
+          >
+            <View style={estilos.modalContenido}>
+              <Text style={estilos.tituloModal}>Cierre de Caja</Text>
+              <View
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  padding: 15,
+                  borderRadius: 12,
+                  marginBottom: 20,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colores.textoBlanco,
+                    fontWeight: "bold",
+                    marginBottom: 10,
+                  }}
+                >
+                  Resumen del Sistema
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={{ color: colores.textoGris, fontSize: 13 }}>
+                    Base Inicial:
+                  </Text>
+                  <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>
+                    {formatearMoneda(calculosCaja?.base)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={{ color: colores.textoGris, fontSize: 13 }}>
+                    Ventas en Efectivo:
+                  </Text>
+                  <Text style={{ color: colores.exito, fontSize: 13 }}>
+                    + {formatearMoneda(calculosCaja?.ventasEf)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={{ color: colores.textoGris, fontSize: 13 }}>
+                    Ingresos Extra:
+                  </Text>
+                  <Text style={{ color: colores.exito, fontSize: 13 }}>
+                    + {formatearMoneda(calculosCaja?.ingresosExtra)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={{ color: colores.textoGris, fontSize: 13 }}>
+                    Gastos / Egresos:
+                  </Text>
+                  <Text style={{ color: colores.error, fontSize: 13 }}>
+                    - {formatearMoneda(calculosCaja?.gastos)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    borderTopWidth: 1,
+                    borderTopColor: colores.borde,
+                    marginTop: 8,
+                    paddingTop: 8,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colores.primario,
+                      fontWeight: "bold",
+                      fontSize: 14,
+                    }}
+                  >
+                    EFECTIVO ESPERADO:
+                  </Text>
+                  <Text
+                    style={{
+                      color: colores.primario,
+                      fontWeight: "bold",
+                      fontSize: 14,
+                    }}
+                  >
+                    {formatearMoneda(calculosCaja?.esperado)}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Ventas en Efectivo:</Text>
-                 <Text style={{ color: colores.exito, fontSize: 13 }}>+ {formatearMoneda(calculosCaja?.ventasEf)}</Text>
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Ingresos Extra:</Text>
-                 <Text style={{ color: colores.exito, fontSize: 13 }}>+ {formatearMoneda(calculosCaja?.ingresosExtra)}</Text>
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                 <Text style={{ color: colores.textoGris, fontSize: 13 }}>Gastos / Egresos:</Text>
-                 <Text style={{ color: colores.error, fontSize: 13 }}>- {formatearMoneda(calculosCaja?.gastos)}</Text>
-              </View>
-              
-              <View style={{ borderTopWidth: 1, borderTopColor: colores.borde, marginTop: 8, paddingTop: 8, flexDirection: "row", justifyContent: "space-between" }}>
-                 <Text style={{ color: colores.primario, fontWeight: 'bold', fontSize: 14 }}>EFECTIVO ESPERADO:</Text>
-                 <Text style={{ color: colores.primario, fontWeight: 'bold', fontSize: 14 }}>{formatearMoneda(calculosCaja?.esperado)}</Text>
+              <Text
+                style={{
+                  color: colores.textoGris,
+                  marginBottom: 8,
+                  fontSize: 12,
+                }}
+              >
+                Efectivo Real en Caja (Contado) *
+              </Text>
+              <TextInput
+                style={estilos.inputModal}
+                keyboardType="decimal-pad"
+                value={montoCierre}
+                onChangeText={setMontoCierre}
+                placeholder="0.00"
+                placeholderTextColor={colores.textoGris}
+              />
+              {montoCierre !== "" && !isNaN(parseFloat(montoCierre)) && (
+                <View
+                  style={{
+                    alignItems: "center",
+                    marginBottom: 15,
+                    padding: 10,
+                    backgroundColor: colores.fondoInput,
+                    borderRadius: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colores.textoGris,
+                      fontSize: 12,
+                      marginBottom: 5,
+                    }}
+                  >
+                    Diferencia
+                  </Text>
+                  {(() => {
+                    const dif =
+                      parseFloat(montoCierre) - (calculosCaja?.esperado || 0);
+                    const colorDif =
+                      dif === 0
+                        ? colores.exito
+                        : dif < 0
+                          ? colores.error
+                          : colores.primario;
+                    return (
+                      <>
+                        <Text
+                          style={{
+                            fontSize: 24,
+                            fontWeight: "bold",
+                            color: colorDif,
+                          }}
+                        >
+                          {dif > 0 ? "+" : ""}
+                          {formatearMoneda(dif)}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: colores.textoGris,
+                            marginTop: 2,
+                          }}
+                        >
+                          {dif === 0
+                            ? "Caja Cuadrada Perfectamente"
+                            : dif < 0
+                              ? "Faltante de dinero"
+                              : "Sobrante de dinero"}
+                        </Text>
+                      </>
+                    );
+                  })()}
+                </View>
+              )}
+              <Text
+                style={{
+                  color: colores.textoGris,
+                  marginBottom: 8,
+                  fontSize: 12,
+                }}
+              >
+                Notas / Observaciones
+              </Text>
+              <TextInput
+                style={[estilos.inputModal, { height: 60 }]}
+                multiline
+                value={notasCierre}
+                onChangeText={setNotasCierre}
+                placeholder="Ej: Faltan $2 por vuelto no dado..."
+                placeholderTextColor={colores.textoGris}
+              />
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    padding: 15,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor: colores.fondoInput,
+                  }}
+                  onPress={() => setModalCierreVisible(false)}
+                >
+                  <Text
+                    style={{ color: colores.textoBlanco, fontWeight: "bold" }}
+                  >
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    padding: 15,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor: colores.primario,
+                  }}
+                  onPress={handleCerrarCaja}
+                >
+                  <Text
+                    style={{ color: colores.textoOscuro, fontWeight: "bold" }}
+                  >
+                    Cerrar Caja
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-
-            <Text style={{ color: colores.textoGris, marginBottom: 8, fontSize: 12 }}>Efectivo Real en Caja (Contado) *</Text>
-            <TextInput
-              style={estilos.inputModal}
-              keyboardType="decimal-pad"
-              value={montoCierre}
-              onChangeText={setMontoCierre}
-              placeholder="0.00"
-              placeholderTextColor={colores.textoGris}
-            />
-
-            {/* CÁLCULO DE DIFERENCIA EN VIVO */}
-            {montoCierre !== "" && !isNaN(parseFloat(montoCierre)) && (
-              <View style={{ alignItems: 'center', marginBottom: 15, padding: 10, backgroundColor: colores.fondoInput, borderRadius: 10 }}>
-                <Text style={{ color: colores.textoGris, fontSize: 12, marginBottom: 5 }}>Diferencia</Text>
-                {(() => {
-                  const dif = parseFloat(montoCierre) - (calculosCaja?.esperado || 0);
-                  const colorDif = dif === 0 ? colores.exito : (dif < 0 ? colores.error : colores.primario);
-                  return (
-                    <>
-                      <Text style={{ fontSize: 24, fontWeight: 'bold', color: colorDif }}>
-                        {dif > 0 ? "+" : ""}{formatearMoneda(dif)}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: colores.textoGris, marginTop: 2 }}>
-                        {dif === 0 ? "Caja Cuadrada Perfectamente" : (dif < 0 ? "Faltante de dinero" : "Sobrante de dinero")}
-                      </Text>
-                    </>
-                  );
-                })()}
-              </View>
-            )}
-
-            <Text style={{ color: colores.textoGris, marginBottom: 8, fontSize: 12 }}>Notas / Observaciones</Text>
-            <TextInput
-              style={[estilos.inputModal, { height: 60 }]}
-              multiline
-              value={notasCierre}
-              onChangeText={setNotasCierre}
-              placeholder="Ej: Faltan $2 por vuelto no dado..."
-              placeholderTextColor={colores.textoGris}
-            />
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-              <TouchableOpacity
-                style={{ flex: 1, padding: 15, borderRadius: 10, alignItems: "center", backgroundColor: colores.fondoInput }}
-                onPress={() => setModalCierreVisible(false)}
-              >
-                <Text style={{ color: colores.textoBlanco, fontWeight: "bold" }}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, padding: 15, borderRadius: 10, alignItems: "center", backgroundColor: colores.primario }}
-                onPress={handleCerrarCaja}
-              >
-                <Text style={{ color: colores.textoOscuro, fontWeight: "bold" }}>Cerrar Caja</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
 
@@ -1796,7 +2311,7 @@ export default function PantallaReportes() {
               source={{
                 uri: comprobanteVisible.startsWith("data:")
                   ? comprobanteVisible
-                  : `${API_URL_UPLOADS}pagos/${comprobanteVisible}`, // 🔥 Aquí estaba el detalle
+                  : `${API_URL_UPLOADS}pagos/${comprobanteVisible}`,
               }}
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />
@@ -1896,6 +2411,21 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
       fontSize: 14,
     },
+
+    // 🔥 ESTILO DEL MARCADOR VISUAL AÑADIDO
+    marcadorFiltroActivo: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: c.primario,
+      marginLeft: 4,
+      elevation: 2,
+      shadowColor: c.primario,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 3,
+    },
+
     panelSubFiltro: {
       paddingHorizontal: 20,
       paddingVertical: 10,

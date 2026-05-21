@@ -21,7 +21,7 @@ import {
 } from "react-native";
 import { API_URL_UPLOADS } from "../../config/env";
 import { useAuth } from "../../contexts/ContextAuth";
-import { useTasa } from "../../contexts/ContextTasa"; // 🔥 Importamos la Tasa
+import { useTasa } from "../../contexts/ContextTasa";
 import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
 import { generarYCompartirRecibo } from "../../utils/generadorRecibos";
@@ -33,6 +33,7 @@ interface Producto {
   precio: number;
   stock: number;
   imagen?: string;
+  codigo_barras?: string;
 }
 interface ItemCarrito {
   producto: Producto;
@@ -49,9 +50,7 @@ interface Cliente {
 export default function PantallaNuevaVenta() {
   const router = useRouter();
   const { user } = useAuth();
-  const { colores } = useTheme();
-
-  // 🔥 Sacamos la tasa del contexto
+  const { colores, isDark } = useTheme();
   const { tasaBCV } = useTasa();
 
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
@@ -67,9 +66,7 @@ export default function PantallaNuevaVenta() {
     tasaIGTF: 3,
   });
 
-  // 🔥 NUEVO ESTADO PARA LA CAJA
   const [cajaAbierta, setCajaAbierta] = useState(false);
-
   const [busqueda, setBusqueda] = useState("");
   const [mostrarProductos, setMostrarProductos] = useState(false);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
@@ -85,18 +82,9 @@ export default function PantallaNuevaVenta() {
   const [cedulaCliente, setCedulaCliente] = useState("");
   const [telefonoCliente, setTelefonoCliente] = useState("");
 
-  const clientesFiltrados = useMemo(() => {
-    if (!busquedaCliente.trim()) return [];
-    const query = busquedaCliente.toLowerCase();
-    return clientesBD.filter(
-      (c) =>
-        (c.nombre && c.nombre.toLowerCase().includes(query)) ||
-        (c.cedula && c.cedula.toLowerCase().includes(query)),
-    );
-  }, [clientesBD, busquedaCliente]);
-
   const [modalVisible, setModalVisible] = useState(false);
   const [metodoPago, setMetodoPago] = useState("efectivo");
+  const [metodoAbono, setMetodoAbono] = useState("efectivo"); // 🔥 Método del abono inicial
   const [montoRecibido, setMontoRecibido] = useState("");
   const [montoCreditoInicial, setMontoCreditoInicial] = useState("");
 
@@ -106,6 +94,16 @@ export default function PantallaNuevaVenta() {
   );
   const animacionEscala = React.useRef(new Animated.Value(0)).current;
   const [ventaRealizada, setVentaRealizada] = useState<any>(null);
+
+  const clientesFiltrados = useMemo(() => {
+    if (!busquedaCliente.trim()) return [];
+    const query = busquedaCliente.toLowerCase();
+    return clientesBD.filter(
+      (c) =>
+        (c.nombre && c.nombre.toLowerCase().includes(query)) ||
+        (c.cedula && c.cedula.toLowerCase().includes(query)),
+    );
+  }, [clientesBD, busquedaCliente]);
 
   useFocusEffect(
     useCallback(() => {
@@ -144,7 +142,6 @@ export default function PantallaNuevaVenta() {
 
       setProductosBD(resProds || []);
       setClientesBD(resClis || []);
-
       setCajaAbierta(!!resCaja?.sesion);
 
       if (resConf) {
@@ -167,8 +164,6 @@ export default function PantallaNuevaVenta() {
 
   const formatearMoneda = (monto: number) =>
     `$ ${Math.abs(monto || 0).toFixed(2)}`;
-
-  // 🔥 FUNCIÓN PARA FORMATEAR BOLÍVARES
   const formatearBs = (montoDolares: number) =>
     `Bs. ${(Math.abs(montoDolares || 0) * tasaBCV).toFixed(2)}`;
 
@@ -207,9 +202,11 @@ export default function PantallaNuevaVenta() {
       const itemExistente = prevCarrito.find(
         (item) => item.producto.id === producto.id,
       );
-
       if (itemExistente) {
-        if (itemExistente.cantidad >= producto.stock) {
+        if (
+          itemExistente.focusedCheck ||
+          itemExistente.cantidad >= producto.stock
+        ) {
           Alert.alert("Stock Máximo", `Solo hay ${producto.stock} en stock.`);
           return prevCarrito;
         }
@@ -229,7 +226,6 @@ export default function PantallaNuevaVenta() {
         ];
       }
     });
-
     setBusqueda("");
     setMostrarProductos(false);
   };
@@ -279,9 +275,9 @@ export default function PantallaNuevaVenta() {
                 "Necesitamos acceso a tu cámara.",
               );
             const resultado = await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: ["images"],
               allowsEditing: true,
-              quality: 0.7,
+              quality: 0.5,
               base64: true,
             });
             if (!resultado.canceled && resultado.assets[0].base64) {
@@ -302,9 +298,9 @@ export default function PantallaNuevaVenta() {
                 "Necesitamos acceso a tu galería.",
               );
             const resultado = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: ["images"],
               allowsEditing: true,
-              quality: 0.7,
+              quality: 0.5,
               base64: true,
             });
             if (!resultado.canceled && resultado.assets[0].base64) {
@@ -320,7 +316,6 @@ export default function PantallaNuevaVenta() {
 
   const abrirModalPago = () => {
     if (carrito.length === 0) return;
-
     if (!cajaAbierta) {
       Alert.alert(
         "Caja Cerrada 🔒",
@@ -328,42 +323,31 @@ export default function PantallaNuevaVenta() {
       );
       return;
     }
-
     setFaseModal("pago");
     setMontoRecibido("");
     setMontoCreditoInicial("");
     setFotoComprobante(null);
     setMetodoPago("efectivo");
+    setMetodoAbono("efectivo");
     setMostrarNuevoCliente(false);
     setBusquedaCliente("");
     setModalVisible(true);
   };
 
   const crearClienteRapido = async () => {
-    if (!nombreCliente.trim()) {
-      Alert.alert("Error", "El nombre del cliente es obligatorio");
-      return;
-    }
-
+    if (!nombreCliente.trim())
+      return Alert.alert("Error", "El nombre del cliente es obligatorio");
     const cedulaLimpia = cedulaCliente.trim();
-
-    // 1. Validar que no esté vacía
-    if (!cedulaLimpia) {
-      Alert.alert(
+    if (!cedulaLimpia)
+      return Alert.alert(
         "Cédula Requerida",
         "Por favor ingresa la Cédula de Identidad (C.I.) para registrar al cliente.",
       );
-      return;
-    }
-
-    // 🔥 2. NUEVA VALIDACIÓN: Mínimo 8 dígitos
-    if (cedulaLimpia.length < 8) {
-      Alert.alert(
+    if (cedulaLimpia.length < 8)
+      return Alert.alert(
         "Cédula Inválida",
         "La Cédula de Identidad debe tener al menos 8 dígitos.",
       );
-      return;
-    }
 
     setCargando(true);
     try {
@@ -372,15 +356,9 @@ export default function PantallaNuevaVenta() {
         cedula: cedulaLimpia,
         telefono: telefonoCliente.trim() || undefined,
       };
-
       const response: any = await api.post("/clientes", payload);
-
       await cargarDatos();
-
-      if (response && response.id) {
-        setClienteSeleccionado(response.id);
-      }
-
+      if (response && response.id) setClienteSeleccionado(response.id);
       setMostrarNuevoCliente(false);
       setNombreCliente("");
       setCedulaCliente("");
@@ -415,6 +393,7 @@ export default function PantallaNuevaVenta() {
         .toISOString()
         .slice(0, 19)
         .replace("T", " ");
+      const abonoInicial = parseFloat(montoCreditoInicial) || 0;
 
       const payload: any = {
         fecha: fechaLocalMySQL,
@@ -423,12 +402,19 @@ export default function PantallaNuevaVenta() {
         subtotal: subtotalBase,
         montoIVA: montoIVA,
         montoIGTF: montoIGTF,
-        metodoPago: metodoPago,
-        montoPagado:
+        metodoPago:
+          metodoPago === "credito" && abonoInicial > 0
+            ? metodoAbono
+            : metodoPago,
+        metodoPago2: metodoPago === "credito" ? "mixto" : null,
+        montoPagado: metodoPago === "credito" ? abonoInicial : recibidoFloat,
+        estadoPago:
           metodoPago === "credito"
-            ? parseFloat(montoCreditoInicial) || 0
-            : recibidoFloat,
-        estadoPago: metodoPago === "credito" ? "pendiente" : "completo",
+            ? granTotal - abonoInicial <= 0
+              ? "completo"
+              : "pendiente"
+            : "completo",
+        montoRestante: metodoPago === "credito" ? granTotal - abonoInicial : 0,
         items: carrito.map((item) => ({
           productoId: item.producto.id,
           nombre: item.producto.nombre,
@@ -438,7 +424,7 @@ export default function PantallaNuevaVenta() {
         })),
       };
 
-      if (metodoPago === "pago_movil" && fotoComprobante) {
+      if (fotoComprobante) {
         payload.fotoComprobante = fotoComprobante;
       }
 
@@ -459,7 +445,6 @@ export default function PantallaNuevaVenta() {
         tension: 30,
         useNativeDriver: true,
       }).start();
-
       setCarrito([]);
       setClienteSeleccionado(null);
       cargarDatos();
@@ -670,7 +655,6 @@ export default function PantallaNuevaVenta() {
           </View>
         )}
 
-        {/* 🔥 MOSTRAR BOLÍVARES EN EL TOTAL DEL CARRITO */}
         <View style={estilos.totalContenedor}>
           <View>
             <Text style={estilos.textoTotal}>TOTAL</Text>
@@ -735,16 +719,13 @@ export default function PantallaNuevaVenta() {
               </View>
             )}
 
-            {/* --- FASE 1: COMPLETAR VENTA --- */}
             {faseModal === "pago" && (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* 🔥 MOSTRAR BOLÍVARES EN EL MODAL DE PAGO */}
                 <View style={estilos.totalDisplay}>
                   <Text style={estilos.totalLabel}>Total a Pagar</Text>
                   <Text style={estilos.totalValue}>
                     {formatearMoneda(calcularMontos().granTotal)}
                   </Text>
-
                   {tasaBCV > 0 && (
                     <Text
                       style={{
@@ -757,44 +738,8 @@ export default function PantallaNuevaVenta() {
                       {formatearBs(calcularMontos().granTotal)}
                     </Text>
                   )}
-
-                  {(configImpuestos.cobrarIVA ||
-                    configImpuestos.cobrarIGTF) && (
-                    <View style={{ marginTop: 10, alignItems: "center" }}>
-                      {configImpuestos.cobrarIVA && (
-                        <>
-                          <Text
-                            style={{ color: colores.textoGris, fontSize: 12 }}
-                          >
-                            Subtotal:{" "}
-                            {formatearMoneda(calcularMontos().subtotalBase)}
-                          </Text>
-                          <Text
-                            style={{ color: colores.textoGris, fontSize: 12 }}
-                          >
-                            IVA ({configImpuestos.tasaIVA}%):{" "}
-                            {formatearMoneda(calcularMontos().montoIVA)}
-                          </Text>
-                        </>
-                      )}
-                      {configImpuestos.cobrarIGTF &&
-                        metodoPago === "efectivo" && (
-                          <Text
-                            style={{
-                              color: colores.primario,
-                              fontSize: 12,
-                              fontWeight: "bold",
-                            }}
-                          >
-                            + IGTF ({configImpuestos.tasaIGTF}%):{" "}
-                            {formatearMoneda(calcularMontos().montoIGTF)}
-                          </Text>
-                        )}
-                    </View>
-                  )}
                 </View>
 
-                {/* SECCIÓN CLIENTE */}
                 <View style={estilos.seccion}>
                   <View
                     style={{
@@ -833,7 +778,7 @@ export default function PantallaNuevaVenta() {
                       />
                       <TextInput
                         style={estilos.inputFormCliente}
-                        placeholder="Cédula (Obligatoria) *" // 🔥 Le avisamos al usuario
+                        placeholder="Cédula (Obligatoria) *"
                         placeholderTextColor={colores.textoGris}
                         value={cedulaCliente}
                         onChangeText={setCedulaCliente}
@@ -955,24 +900,12 @@ export default function PantallaNuevaVenta() {
                           value={busquedaCliente}
                           onChangeText={setBusquedaCliente}
                         />
-                        {busquedaCliente.length > 0 && (
-                          <TouchableOpacity
-                            onPress={() => setBusquedaCliente("")}
-                            style={{ padding: 5 }}
-                          >
-                            <FontAwesome5
-                              name="times-circle"
-                              size={14}
-                              color={colores.textoGris}
-                            />
-                          </TouchableOpacity>
-                        )}
                       </View>
                       {busquedaCliente.trim().length > 0 && (
                         <View style={estilos.contenedorListaClientes}>
                           <ScrollView
                             nestedScrollEnabled
-                            showsVerticalScrollIndicator={true}
+                            showsVerticalScrollIndicator
                           >
                             {clientesFiltrados.map((c) => (
                               <TouchableOpacity
@@ -1012,17 +945,6 @@ export default function PantallaNuevaVenta() {
                                 </View>
                               </TouchableOpacity>
                             ))}
-                            {clientesFiltrados.length === 0 && (
-                              <Text
-                                style={{
-                                  color: colores.textoGris,
-                                  textAlign: "center",
-                                  padding: 15,
-                                }}
-                              >
-                                No se encontraron clientes.
-                              </Text>
-                            )}
                           </ScrollView>
                         </View>
                       )}
@@ -1030,7 +952,6 @@ export default function PantallaNuevaVenta() {
                   )}
                 </View>
 
-                {/* MÉTODOS DE PAGO */}
                 <Text style={estilos.seccionTitulo}>Método de Pago</Text>
                 <View style={estilos.gridPagos}>
                   {[
@@ -1076,7 +997,6 @@ export default function PantallaNuevaVenta() {
                   ))}
                 </View>
 
-                {/* INPUTS CONDICIONALES */}
                 {metodoPago === "efectivo" && (
                   <View style={{ marginTop: 20 }}>
                     <Text style={estilos.labelInput}>Dinero Recibido</Text>
@@ -1086,18 +1006,21 @@ export default function PantallaNuevaVenta() {
                       placeholderTextColor={colores.textoGris}
                       keyboardType="decimal-pad"
                       value={montoRecibido}
-                      onChangeText={setMontoRecibido}
+                      onChangeText={(montoRecibido) =>
+                        setMontoRecibido(montoRecibido)
+                      }
                     />
                     {montoRecibido &&
-                    parseFloat(montoRecibido) > calcularMontos().granTotal ? (
-                      <Text style={estilos.textoCambio}>
-                        Cambio:{" "}
-                        {formatearMoneda(
-                          parseFloat(montoRecibido) -
-                            calcularMontos().granTotal,
-                        )}
-                      </Text>
-                    ) : null}
+                      parseFloat(montoRecibido) >
+                        calcularMontos().granTotal && (
+                        <Text style={estilos.textoCambio}>
+                          Cambio:{" "}
+                          {formatearMoneda(
+                            parseFloat(montoRecibido) -
+                              calcularMontos().granTotal,
+                          )}
+                        </Text>
+                      )}
                   </View>
                 )}
 
@@ -1114,6 +1037,63 @@ export default function PantallaNuevaVenta() {
                       value={montoCreditoInicial}
                       onChangeText={setMontoCreditoInicial}
                     />
+
+                    {parseFloat(montoCreditoInicial) > 0 && (
+                      <View style={{ marginTop: 15 }}>
+                        <Text
+                          style={{
+                            color: colores.textoGris,
+                            fontSize: 12,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Método del Abono Inicial:
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {[
+                            { id: "efectivo", label: "Efectivo" },
+                            { id: "tarjeta", label: "Tarjeta" },
+                            { id: "transferencia", label: "Transferencia" },
+                            { id: "pago_movil", label: "Pago Móvil" },
+                          ].map((m) => (
+                            <TouchableOpacity
+                              key={m.id}
+                              style={{
+                                flex: 1,
+                                paddingVertical: 10,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor:
+                                  metodoAbono === m.id
+                                    ? colores.primario
+                                    : colores.borde,
+                                backgroundColor:
+                                  metodoAbono === m.id
+                                    ? "rgba(212, 255, 0, 0.1)"
+                                    : "transparent",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                              onPress={() => setMetodoAbono(m.id)}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: "bold",
+                                  color:
+                                    metodoAbono === m.id
+                                      ? colores.primario
+                                      : colores.textoGris,
+                                }}
+                              >
+                                {m.label.toUpperCase()}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
                     <Text style={estilos.textoDeuda}>
                       Saldo Pendiente:{" "}
                       {formatearMoneda(
@@ -1124,7 +1104,10 @@ export default function PantallaNuevaVenta() {
                   </View>
                 )}
 
-                {metodoPago === "pago_movil" && (
+                {(metodoPago === "pago_movil" ||
+                  (metodoPago === "credito" &&
+                    parseFloat(montoCreditoInicial) > 0 &&
+                    metodoAbono === "pago_movil")) && (
                   <View style={{ marginTop: 20 }}>
                     <Text style={estilos.labelInput}>
                       Comprobante (Opcional)
@@ -1133,7 +1116,7 @@ export default function PantallaNuevaVenta() {
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        justifyContent: "center",
+                        justifyValue: "center",
                         backgroundColor: fotoComprobante
                           ? colores.exito
                           : colores.fondoInput,
@@ -1145,6 +1128,7 @@ export default function PantallaNuevaVenta() {
                         borderRadius: 12,
                         marginTop: 5,
                         gap: 10,
+                        justifyContent: "center",
                       }}
                       onPress={seleccionarImagen}
                     >
@@ -1170,13 +1154,11 @@ export default function PantallaNuevaVenta() {
                 <TouchableOpacity
                   style={[estilos.botonPrimario, { marginTop: 30 }]}
                   onPress={() => {
-                    if (!clienteSeleccionado) {
-                      Alert.alert(
+                    if (!clienteSeleccionado)
+                      return Alert.alert(
                         "Cliente Requerido",
-                        "Por favor, busque y seleccione un cliente para la venta.",
+                        "Por favor selecciona un cliente.",
                       );
-                      return;
-                    }
                     setFaseModal("confirmacion");
                   }}
                 >
@@ -1185,7 +1167,6 @@ export default function PantallaNuevaVenta() {
               </ScrollView>
             )}
 
-            {/* --- FASE 2: CONFIRMAR VENTA --- */}
             {faseModal === "confirmacion" && (
               <View style={{ alignItems: "center", paddingVertical: 10 }}>
                 <Text style={estilos.tituloConfirmacion}>
@@ -1202,59 +1183,12 @@ export default function PantallaNuevaVenta() {
                     </Text>
                   </View>
                   <View style={estilos.filaResumen}>
-                    <Text style={estilos.labelResumen}>Productos:</Text>
-                    <Text style={estilos.valorResumen} numberOfLines={1}>
-                      {carrito
-                        .map(
-                          (item) => `${item.cantidad}x ${item.producto.nombre}`,
-                        )
-                        .join(", ")}
-                    </Text>
-                  </View>
-                  <View style={estilos.filaResumen}>
                     <Text style={estilos.labelResumen}>Método:</Text>
                     <Text style={estilos.valorResumen}>
                       {metodoPago.replace("_", " ")}
                     </Text>
                   </View>
-
-                  {(configImpuestos.cobrarIVA ||
-                    configImpuestos.cobrarIGTF) && (
-                    <>
-                      <View style={estilos.divisorResumen} />
-                      <View style={estilos.filaResumen}>
-                        <Text style={estilos.labelResumen}>Subtotal:</Text>
-                        <Text style={estilos.valorResumen}>
-                          {formatearMoneda(calcularMontos().subtotalBase)}
-                        </Text>
-                      </View>
-                      {configImpuestos.cobrarIVA && (
-                        <View style={estilos.filaResumen}>
-                          <Text style={estilos.labelResumen}>
-                            IVA ({configImpuestos.tasaIVA}%):
-                          </Text>
-                          <Text style={estilos.valorResumen}>
-                            {formatearMoneda(calcularMontos().montoIVA)}
-                          </Text>
-                        </View>
-                      )}
-                      {configImpuestos.cobrarIGTF &&
-                        metodoPago === "efectivo" && (
-                          <View style={estilos.filaResumen}>
-                            <Text style={estilos.labelResumen}>
-                              IGTF ({configImpuestos.tasaIGTF}%):
-                            </Text>
-                            <Text style={estilos.valorResumen}>
-                              {formatearMoneda(calcularMontos().montoIGTF)}
-                            </Text>
-                          </View>
-                        )}
-                    </>
-                  )}
-
                   <View style={estilos.divisorResumen} />
-
-                  {/* 🔥 MOSTRAR BOLÍVARES EN LA CONFIRMACIÓN FINAL */}
                   <View style={estilos.filaResumenTotal}>
                     <Text style={estilos.textoTotalResumen}>
                       TOTAL A PAGAR:
@@ -1277,7 +1211,6 @@ export default function PantallaNuevaVenta() {
                     </View>
                   </View>
                 </View>
-
                 <View style={estilos.filaBotonesAccion}>
                   <TouchableOpacity
                     style={estilos.botonVolverAccion}
@@ -1302,7 +1235,6 @@ export default function PantallaNuevaVenta() {
               </View>
             )}
 
-            {/* --- FASE 3: ÉXITO --- */}
             {faseModal === "exito" && (
               <View style={{ alignItems: "center", paddingVertical: 40 }}>
                 <Animated.View
@@ -1318,38 +1250,21 @@ export default function PantallaNuevaVenta() {
                   />
                 </Animated.View>
                 <Text style={estilos.tituloExito}>¡Venta Exitosa!</Text>
-                <Text style={estilos.subtituloExito}>
-                  La transacción se ha registrado correctamente.
-                </Text>
-
                 <View style={estilos.filaBotonesExito}>
                   <TouchableOpacity
                     style={estilos.botonGenerarRecibo}
                     onPress={async () => {
-                      try {
-                        if (ventaRealizada)
-                          await generarYCompartirRecibo(
-                            ventaRealizada,
-                            user?.nombre || "INVENTARIO YA",
-                          );
-                        else
-                          Alert.alert(
-                            "Error",
-                            "No se encontraron los datos de la venta.",
-                          );
-                      } catch (error) {
-                        Alert.alert(
-                          "Error",
-                          "No se pudo generar el recibo en este momento.",
+                      if (ventaRealizada)
+                        await generarYCompartirRecibo(
+                          ventaRealizada,
+                          user?.nombre || "INVENTARIO YA",
                         );
-                      }
                     }}
                   >
                     <Text style={estilos.textoBotonGenerarRecibo}>
                       Generar Recibo
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={estilos.botonFinalizar}
                     onPress={() => {
@@ -1369,7 +1284,6 @@ export default function PantallaNuevaVenta() {
   );
 }
 
-// --- ESTILOS DINÁMICOS ---
 const crearEstilos = (c: any) =>
   StyleSheet.create({
     contenedor: { flex: 1, backgroundColor: c.fondoOscuro },
@@ -1617,7 +1531,6 @@ const crearEstilos = (c: any) =>
       borderBottomWidth: 1,
       borderBottomColor: "rgba(255,255,255,0.05)",
     },
-    itemClienteListActivo: { backgroundColor: c.primario },
     iconoClienteAvatar: {
       width: 32,
       height: 32,
@@ -1636,7 +1549,6 @@ const crearEstilos = (c: any) =>
       marginRight: 10,
     },
     chipClienteActivo: { backgroundColor: c.primario },
-    textoChipCliente: { color: c.textoGris, fontWeight: "bold" },
     formNuevoCliente: {
       backgroundColor: c.fondoTarjeta,
       padding: 20,
@@ -1698,12 +1610,12 @@ const crearEstilos = (c: any) =>
       borderColor: c.primario,
     },
     textoCambio: {
-      color: c.exito,
       marginTop: 10,
       fontSize: 18,
       fontWeight: "bold",
+      color: c.exito,
     },
-    textoDeuda: { color: c.error, marginTop: 10, fontSize: 16 },
+    textoDeuda: { marginTop: 10, fontSize: 16, color: c.error },
     tituloConfirmacion: {
       fontSize: 26,
       color: c.textoBlanco,
@@ -1786,12 +1698,6 @@ const crearEstilos = (c: any) =>
       color: c.textoBlanco,
       fontWeight: "bold",
       marginBottom: 10,
-    },
-    subtituloExito: {
-      fontSize: 16,
-      color: c.textoGris,
-      textAlign: "center",
-      marginBottom: 40,
     },
     filaBotonesExito: { flexDirection: "row", gap: 15, width: "100%" },
     botonGenerarRecibo: {

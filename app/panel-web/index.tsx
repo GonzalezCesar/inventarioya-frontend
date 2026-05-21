@@ -25,6 +25,7 @@ interface DashboardData {
   activos_hoy: number;
   ventas_plataforma: string;
   suspendidos: number;
+  ingresos_planes_mensual: string | number; // 🔥 Nuevo campo soportado
   recientes: ActividadReciente[];
 }
 
@@ -34,7 +35,6 @@ export default function DashboardWeb() {
   const [cargando, setCargando] = useState(true);
   const [data, setData] = useState<DashboardData | null>(null);
 
-  // 🔥 NUEVOS ESTADOS PARA INGRESOS POR EMPRESA
   const [vistaTabla, setVistaTabla] = useState<"actividad" | "ingresos">(
     "actividad",
   );
@@ -50,7 +50,6 @@ export default function DashboardWeb() {
   const cargarDashboard = async () => {
     try {
       setCargando(true);
-      // 🔥 Pedimos el dashboard general y la lista de usuarios (que trae total_ventas)
       const [resDash, resUsers]: any = await Promise.all([
         api.get("/admin/dashboard").catch(() => null),
         api.get("/usuarios?superadmin=true").catch(() => []),
@@ -59,7 +58,6 @@ export default function DashboardWeb() {
       if (resDash) setData(resDash);
 
       if (resUsers && Array.isArray(resUsers)) {
-        // Filtramos para mostrar solo a los dueños de negocios y los ordenamos por mayores ventas
         const dueños = resUsers.filter(
           (u) => u.rol !== "superadmin" && u.rol !== "vendedor",
         );
@@ -118,7 +116,6 @@ export default function DashboardWeb() {
       contentContainerStyle={estilos.contenido}
       showsVerticalScrollIndicator={false}
     >
-      {/* HEADER */}
       <View style={estilos.header}>
         <View>
           <Text style={estilos.tituloDashboard}>Panel de Control SaaS</Text>
@@ -137,10 +134,10 @@ export default function DashboardWeb() {
         </View>
       </View>
 
-      {/* STATS GRID */}
+      {/* 🔥 STATS GRID DE 4 COLUMNAS PARA INCLUIR LOS INGRESOS DEL PLAN */}
       <View style={estilos.statsGrid}>
         <View style={estilos.card}>
-          <Text style={estilos.cardTitle}>CLIENTES TOTALES HOY</Text>
+          <Text style={estilos.cardTitle}>CLIENTES TOTALES</Text>
           <Text style={estilos.cardValue}>{data?.total_clientes || 0}</Text>
         </View>
 
@@ -151,17 +148,24 @@ export default function DashboardWeb() {
           </Text>
         </View>
 
+        {/* Métrica de Ingresos de la Plataforma (SaaS) */}
         <View style={estilos.card}>
-          <Text style={estilos.cardTitle}>ACTIVIDAD GLOBAL (MES)</Text>
+          <Text style={estilos.cardTitle}>INGRESOS (PLANES)</Text>
+          <Text style={[estilos.cardValue, { color: "#c6ff00" }]}>
+            {formatearMoneda(data?.ingresos_planes_mensual || "0")}
+          </Text>
+        </View>
+
+        {/* Métrica de lo que venden los clientes (Volumen de la app) */}
+        <View style={estilos.card}>
+          <Text style={estilos.cardTitle}>VENTAS DE CLIENTES</Text>
           <Text style={estilos.cardValue}>
             {formatearMoneda(data?.ventas_plataforma || "0")}
           </Text>
         </View>
       </View>
 
-      {/* TABLA PRINCIPAL DE DATOS */}
       <View style={estilos.tableContainer}>
-        {/* CABECERA CON EL SWITCH (ACTIVIDAD vs INGRESOS) */}
         <View style={estilos.tableHeader}>
           <Text style={estilos.tableTitle}>
             {vistaTabla === "actividad"
@@ -217,9 +221,6 @@ export default function DashboardWeb() {
         </View>
 
         <View style={{ width: "100%", overflow: "hidden" }}>
-          {/* ============================== */}
-          {/* VISTA 1: ACTIVIDAD RECIENTE    */}
-          {/* ============================== */}
           {vistaTabla === "actividad" && (
             <>
               <View style={estilos.tableHead}>
@@ -289,9 +290,6 @@ export default function DashboardWeb() {
             </>
           )}
 
-          {/* ============================== */}
-          {/* VISTA 2: INGRESOS POR EMPRESA  */}
-          {/* ============================== */}
           {vistaTabla === "ingresos" && (
             <>
               <View style={estilos.tableHead}>
@@ -421,7 +419,7 @@ const estilos = StyleSheet.create({
   },
   card: {
     flex: 1,
-    minWidth: 220,
+    minWidth: 200, 
     backgroundColor: "#1a1a1a",
     borderWidth: 1,
     borderColor: "rgba(198, 255, 0, 0.2)",

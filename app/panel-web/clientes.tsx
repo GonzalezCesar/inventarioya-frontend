@@ -26,11 +26,9 @@ export default function ClientesSaaSWeb() {
     ingresos: 0,
   });
 
-  // Modales
   const [modalFormVisible, setModalFormVisible] = useState(false);
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
 
-  // Estado del Formulario
   const [idEditando, setIdEditando] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     nombre_negocio: "",
@@ -42,7 +40,6 @@ export default function ClientesSaaSWeb() {
     rol: "administrador",
   });
 
-  // Estado Ver Pago
   const [pagoViendo, setPagoViendo] = useState<any>(null);
 
   useFocusEffect(
@@ -54,9 +51,13 @@ export default function ClientesSaaSWeb() {
   const cargarUsuarios = async () => {
     try {
       setCargando(true);
-      const res: any = await api.get("/usuarios?superadmin=true");
+      // 🔥 Ahora pedimos los usuarios Y el dashboard al mismo tiempo
+      const [resUsers, resDash]: any = await Promise.all([
+        api.get("/usuarios?superadmin=true"),
+        api.get("/admin/dashboard").catch(() => null),
+      ]);
 
-      const filtrados = (res || []).filter((u: any) => {
+      const filtrados = (resUsers || []).filter((u: any) => {
         const emailSafe = u.email ? u.email.toLowerCase() : "";
         return (
           emailSafe !== "litoramirez2005@gmail.com" &&
@@ -66,7 +67,7 @@ export default function ClientesSaaSWeb() {
       });
 
       setUsuarios(filtrados);
-      calcularStats(filtrados);
+      calcularStats(filtrados, resDash);
     } catch (error) {
       console.error("Error al cargar clientes SaaS:", error);
       Alert.alert("Error", "No se pudo cargar la lista de clientes.");
@@ -75,24 +76,20 @@ export default function ClientesSaaSWeb() {
     }
   };
 
-  const calcularStats = (lista: any[]) => {
+  const calcularStats = (lista: any[], dashData: any) => {
     const total = lista.length;
-    const suspendidos = lista.filter(
-      (u) => u.activo == 0 || u.activo === false,
-    ).length;
     const hoyStr = new Date().toISOString().split("T")[0];
     const activosHoy = lista.filter(
       (u) => u.ultima_conexion && u.ultima_conexion.startsWith(hoyStr),
     ).length;
 
-    // Estimación de ingresos (clientes validados * $20)
-    const validados = lista.filter((u) => u.estado_pago === "validado").length;
-    const ingresos = validados * 20;
+    // 🔥 USAMOS LA DATA REAL DEL BACKEND PARA LOS INGRESOS
+    const ingresos = parseFloat(dashData?.ingresos_planes_mensual || 0);
+    const suspendidos = dashData?.suspendidos || 0;
 
     setStats({ total, suspendidos, activosHoy, ingresos });
   };
 
-  // --- ACCIONES RÁPIDAS ---
   const suspenderUsuario = async (u: any) => {
     const nuevoEstado = u.activo == 1 || u.activo === true ? 0 : 1;
     const msj =
@@ -113,7 +110,7 @@ export default function ClientesSaaSWeb() {
   const borrarUsuario = async (u: any) => {
     if (
       confirm(
-        `¡Atención!\n¿Estás seguro de borrar a "${u.nombre_negocio || u.nombre}" permanentemente? Esta acción NO se puede deshacer.`,
+        `¡Atención!\n¿Estás seguro de borrar a "${u.nombre_negocio || u.nombre}" permanentemente?`,
       )
     ) {
       try {
@@ -125,7 +122,6 @@ export default function ClientesSaaSWeb() {
     }
   };
 
-  // --- FORMULARIO ---
   const abrirFormulario = (u: any = null) => {
     if (u) {
       setIdEditando(u.id);
@@ -171,11 +167,10 @@ export default function ClientesSaaSWeb() {
       setModalFormVisible(false);
       cargarUsuarios();
     } catch (error: any) {
-      const mensajeServidor =
-        error.response?.data?.error ||
-        error.message ||
-        "Hubo un problema al guardar.";
-      Alert.alert("Error del Servidor", mensajeServidor);
+      Alert.alert(
+        "Error del Servidor",
+        error.response?.data?.error || "Hubo un problema al guardar.",
+      );
     }
   };
 
@@ -189,7 +184,6 @@ export default function ClientesSaaSWeb() {
       style={estilos.contenedor}
       contentContainerStyle={estilos.contenido}
     >
-      {/* HEADER */}
       <View style={estilos.header}>
         <View>
           <Text style={estilos.titulo}>Gestión de Clientes (SaaS)</Text>
@@ -206,7 +200,6 @@ export default function ClientesSaaSWeb() {
         </TouchableOpacity>
       </View>
 
-      {/* STATS */}
       <View style={estilos.statsGrid}>
         <View style={[estilos.card, estilos.cardFeatured]}>
           <Text style={[estilos.cardTitle, { color: "#000" }]}>
@@ -223,7 +216,7 @@ export default function ClientesSaaSWeb() {
           </Text>
         </View>
         <View style={estilos.card}>
-          <Text style={estilos.cardTitle}>INGRESOS MENSUALES</Text>
+          <Text style={estilos.cardTitle}>INGRESOS POR PLANES</Text>
           <Text style={estilos.cardValue}>${stats.ingresos.toFixed(2)}</Text>
         </View>
         <View style={estilos.card}>
@@ -234,7 +227,6 @@ export default function ClientesSaaSWeb() {
         </View>
       </View>
 
-      {/* TABLA PRINCIPAL */}
       <View style={estilos.tableContainer}>
         <View style={estilos.tableHead}>
           <Text style={[estilos.th, { flex: 2.5 }]}>CLIENTE / NEGOCIO</Text>
@@ -273,7 +265,6 @@ export default function ClientesSaaSWeb() {
 
             return (
               <View key={i} style={estilos.tableRow}>
-                {/* Cliente / Negocio */}
                 <View
                   style={{
                     flex: 2.5,
@@ -298,23 +289,17 @@ export default function ClientesSaaSWeb() {
                     </Text>
                   </View>
                 </View>
-
-                {/* Email / Teléfono */}
                 <View style={{ flex: 2 }}>
                   <Text style={{ color: "#FFF" }}>{u.email}</Text>
                   <Text style={{ color: "#8a8a8a", fontSize: 12 }}>
                     {u.telefono || "-"}
                   </Text>
                 </View>
-
-                {/* Rol */}
                 <View style={{ flex: 1.5 }}>
                   <Text style={{ color: "#d97706", fontSize: 12 }}>
                     {u.rol?.toUpperCase() || "ADMINISTRADOR"}
                   </Text>
                 </View>
-
-                {/* Estado APP */}
                 <View style={{ flex: 1, alignItems: "center" }}>
                   <Text
                     style={{
@@ -326,8 +311,6 @@ export default function ClientesSaaSWeb() {
                     {activo ? "Activa" : "Suspendida"}
                   </Text>
                 </View>
-
-                {/* Estado Pago */}
                 <View style={{ flex: 1, alignItems: "center" }}>
                   <Text
                     style={{
@@ -346,8 +329,6 @@ export default function ClientesSaaSWeb() {
                         : "Sin registrar"}
                   </Text>
                 </View>
-
-                {/* Comprobante */}
                 <View style={{ flex: 1.5, alignItems: "center" }}>
                   {u.pago_adjunto ? (
                     <TouchableOpacity
@@ -367,15 +348,11 @@ export default function ClientesSaaSWeb() {
                     </Text>
                   )}
                 </View>
-
-                {/* Vencimiento */}
                 <View style={{ flex: 1.5, alignItems: "center" }}>
                   <Text style={{ color: "#8a8a8a", fontSize: 12 }}>
                     {formatearFecha(u.fecha_vencimiento)}
                   </Text>
                 </View>
-
-                {/* Acciones */}
                 <View
                   style={{
                     flex: 1,
@@ -404,9 +381,6 @@ export default function ClientesSaaSWeb() {
         )}
       </View>
 
-      {/* ========================================================= */}
-      {/* MODAL: VER DETALLES DEL PAGO (Replicando diseño de imagen) */}
-      {/* ========================================================= */}
       <Modal visible={modalPagoVisible} transparent animationType="fade">
         <View style={estilos.modalOverlay}>
           <View
@@ -415,7 +389,6 @@ export default function ClientesSaaSWeb() {
               { maxWidth: 600, padding: 0, overflow: "hidden" },
             ]}
           >
-            {/* Header del Modal */}
             <View
               style={{
                 flexDirection: "row",
@@ -437,7 +410,6 @@ export default function ClientesSaaSWeb() {
                 style={{ padding: 20 }}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Info Cliente (Azul) */}
                 <View
                   style={[
                     estilos.cajaDetalle,
@@ -475,7 +447,6 @@ export default function ClientesSaaSWeb() {
                   </View>
                 </View>
 
-                {/* Datos del Pago (Naranja/Dorado) */}
                 <View
                   style={[
                     estilos.cajaDetalle,
@@ -500,12 +471,6 @@ export default function ClientesSaaSWeb() {
                           {pagoViendo.pago_referencia}
                         </Text>
                       </Text>
-                      <Text style={estilos.txtLabel}>
-                        Monto:{" "}
-                        <Text style={[estilos.txtData, { color: "#c6ff00" }]}>
-                          $20.00
-                        </Text>
-                      </Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={estilos.txtLabel}>
@@ -524,40 +489,6 @@ export default function ClientesSaaSWeb() {
                   </View>
                 </View>
 
-                {/* Datos Tu Cuenta (Verde) */}
-                <View
-                  style={[
-                    estilos.cajaDetalle,
-                    { backgroundColor: "#065f46", borderColor: "#10b981" },
-                  ]}
-                >
-                  <Text style={estilos.tituloDetalle}>
-                    <FontAwesome5 name="university" /> Datos de Tu Cuenta (Donde
-                    Recibiste el Pago)
-                  </Text>
-                  <View style={{ flexDirection: "row" }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={estilos.txtLabel}>
-                        Banco: <Text style={estilos.txtData}>BNC</Text>
-                      </Text>
-                      <Text style={estilos.txtLabel}>
-                        Teléfono:{" "}
-                        <Text style={estilos.txtData}>0414-1914478</Text>
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={estilos.txtLabel}>
-                        Cédula: <Text style={estilos.txtData}>31.385.211</Text>
-                      </Text>
-                      <Text style={estilos.txtLabel}>
-                        Monto esperado:{" "}
-                        <Text style={estilos.txtData}>$20.00</Text>
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Comprobante (Cian) */}
                 <View
                   style={[
                     estilos.cajaDetalle,
@@ -591,7 +522,6 @@ export default function ClientesSaaSWeb() {
                   </View>
                 </View>
 
-                {/* Botones Aprobar/Rechazar */}
                 <View
                   style={{ flexDirection: "row", gap: 15, paddingBottom: 20 }}
                 >
@@ -631,24 +561,25 @@ export default function ClientesSaaSWeb() {
                       alignItems: "center",
                     }}
                     onPress={async () => {
-                      if (confirm("¿Aprobar pago y activar cliente por 30 días?")) {
+                      if (
+                        confirm("¿Aprobar pago y activar cliente por 30 días?")
+                      ) {
                         try {
-                          // Llamamos a la lógica nativa de tu PagoController
-                          await api.post('/pagos/validar', {
+                          await api.post("/pagos/validar", {
                             id: pagoViendo.id,
-                            action: 'validar'
+                            action: "validar",
                           });
-                          
-                          // Activamos al usuario por seguridad
-                          await api.put(`/usuarios/${pagoViendo.id}`, { 
-                            id: pagoViendo.id, 
-                            activo: 1 
+                          await api.put(`/usuarios/${pagoViendo.id}`, {
+                            id: pagoViendo.id,
+                            activo: 1,
                           });
-
                           setModalPagoVisible(false);
                           cargarUsuarios();
                         } catch (e) {
-                          Alert.alert("Error", "Hubo un problema al validar el pago.");
+                          Alert.alert(
+                            "Error",
+                            "Hubo un problema al validar el pago.",
+                          );
                         }
                       }
                     }}
@@ -664,14 +595,12 @@ export default function ClientesSaaSWeb() {
         </View>
       </Modal>
 
-      {/* MODAL FORMULARIO (Crear/Editar) */}
       <Modal visible={modalFormVisible} transparent animationType="fade">
         <View style={estilos.modalOverlay}>
           <View style={estilos.modalContent}>
             <Text style={estilos.modalTitulo}>
               {idEditando ? "Editar Cliente" : "Registrar Nuevo Cliente"}
             </Text>
-
             <Text style={estilos.label}>Nombre del Negocio</Text>
             <TextInput
               style={estilos.input}
@@ -682,7 +611,6 @@ export default function ClientesSaaSWeb() {
               placeholderTextColor="#8a8a8a"
               placeholder="Ej. Ferretería El Sol"
             />
-
             <Text style={estilos.label}>Nombre del Dueño</Text>
             <TextInput
               style={estilos.input}
@@ -690,7 +618,6 @@ export default function ClientesSaaSWeb() {
               onChangeText={(t) => setFormData({ ...formData, nombre: t })}
               placeholderTextColor="#8a8a8a"
             />
-
             <Text style={estilos.label}>Correo (Login)</Text>
             <TextInput
               style={[estilos.input, idEditando ? { opacity: 0.5 } : {}]}
@@ -699,7 +626,6 @@ export default function ClientesSaaSWeb() {
               editable={!idEditando}
               placeholderTextColor="#8a8a8a"
             />
-
             <Text style={estilos.label}>
               Contraseña {idEditando && "(Opcional)"}
             </Text>
@@ -710,7 +636,6 @@ export default function ClientesSaaSWeb() {
               secureTextEntry
               placeholderTextColor="#8a8a8a"
             />
-
             <Text style={estilos.label}>Vencimiento</Text>
             <TextInput
               style={estilos.input}
@@ -769,7 +694,6 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
   },
   btnTexto: { color: "#000", fontWeight: "bold", fontSize: 14 },
-
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -794,7 +718,6 @@ const estilos = StyleSheet.create({
     marginBottom: 15,
   },
   cardValue: { color: "#FFFFFF", fontSize: 36, fontWeight: "900" },
-
   tableContainer: {
     backgroundColor: "#1a1a1a",
     borderRadius: 16,
@@ -819,7 +742,6 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.05)",
   },
-
   avatar: {
     width: 36,
     height: 36,
@@ -829,7 +751,6 @@ const estilos = StyleSheet.create({
     alignItems: "center",
   },
   avatarTxt: { color: "#c6ff00", fontWeight: "bold", fontSize: 16 },
-
   btnDetalle: {
     borderWidth: 1,
     borderColor: "#c6ff00",
@@ -837,7 +758,6 @@ const estilos = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -869,8 +789,6 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-
-  // Estilos del Modal de Detalles del Pago
   cajaDetalle: {
     padding: 15,
     borderRadius: 8,
