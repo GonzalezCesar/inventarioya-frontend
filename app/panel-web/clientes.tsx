@@ -13,12 +13,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import api from "../../services/api";
 import { API_URL_UPLOADS } from "../../config/env";
+import api from "../../services/api";
 
 export default function ClientesSaaSWeb() {
   const [cargando, setCargando] = useState(true);
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [planes, setPlanes] = useState<any[]>([]); // 🔥 ESTADO PARA LOS PLANES
   const [stats, setStats] = useState({
     total: 0,
     suspendidos: 0,
@@ -28,6 +29,7 @@ export default function ClientesSaaSWeb() {
 
   const [modalFormVisible, setModalFormVisible] = useState(false);
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
+  const [modalPlanVisible, setModalPlanVisible] = useState(false); // 🔥 MODAL DE PLANES
 
   const [idEditando, setIdEditando] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -42,19 +44,24 @@ export default function ClientesSaaSWeb() {
 
   const [pagoViendo, setPagoViendo] = useState<any>(null);
 
+  // 🔥 ESTADOS DE SELECCIÓN DE PLAN
+  const [clientePlan, setClientePlan] = useState<any>(null);
+  const [planSeleccionado, setPlanSeleccionado] = useState<string>("");
+
   useFocusEffect(
     useCallback(() => {
-      cargarUsuarios();
+      cargarDatos();
     }, []),
   );
 
-  const cargarUsuarios = async () => {
+  const cargarDatos = async () => {
     try {
       setCargando(true);
-      // 🔥 Ahora pedimos los usuarios Y el dashboard al mismo tiempo
-      const [resUsers, resDash]: any = await Promise.all([
+      // 🔥 Pedimos usuarios, dashboard Y planes al mismo tiempo
+      const [resUsers, resDash, resPlanes]: any = await Promise.all([
         api.get("/usuarios?superadmin=true"),
         api.get("/admin/dashboard").catch(() => null),
+        api.get("/planes").catch(() => []), // Obtenemos los planes
       ]);
 
       const filtrados = (resUsers || []).filter((u: any) => {
@@ -67,10 +74,11 @@ export default function ClientesSaaSWeb() {
       });
 
       setUsuarios(filtrados);
+      setPlanes(resPlanes || []);
       calcularStats(filtrados, resDash);
     } catch (error) {
-      console.error("Error al cargar clientes SaaS:", error);
-      Alert.alert("Error", "No se pudo cargar la lista de clientes.");
+      console.error("Error al cargar datos SaaS:", error);
+      Alert.alert("Error", "No se pudo cargar la información.");
     } finally {
       setCargando(false);
     }
@@ -83,7 +91,6 @@ export default function ClientesSaaSWeb() {
       (u) => u.ultima_conexion && u.ultima_conexion.startsWith(hoyStr),
     ).length;
 
-    // 🔥 USAMOS LA DATA REAL DEL BACKEND PARA LOS INGRESOS
     const ingresos = parseFloat(dashData?.ingresos_planes_mensual || 0);
     const suspendidos = dashData?.suspendidos || 0;
 
@@ -100,7 +107,7 @@ export default function ClientesSaaSWeb() {
     if (confirm(msj)) {
       try {
         await api.put(`/usuarios/${u.id}`, { id: u.id, activo: nuevoEstado });
-        cargarUsuarios();
+        cargarDatos();
       } catch (error) {
         Alert.alert("Error", "No se pudo cambiar el estado del usuario.");
       }
@@ -115,7 +122,7 @@ export default function ClientesSaaSWeb() {
     ) {
       try {
         await api.delete(`/usuarios/${u.id}`);
-        cargarUsuarios();
+        cargarDatos();
       } catch (error) {
         Alert.alert("Error", "No se pudo eliminar el usuario.");
       }
@@ -165,12 +172,51 @@ export default function ClientesSaaSWeb() {
         Alert.alert("Éxito", "Cliente registrado.");
       }
       setModalFormVisible(false);
-      cargarUsuarios();
+      cargarDatos();
     } catch (error: any) {
       Alert.alert(
         "Error del Servidor",
         error.response?.data?.error || "Hubo un problema al guardar.",
       );
+    }
+  };
+
+  // 🔥 LÓGICA DE ASIGNACIÓN DE PLAN INDEPENDIENTE
+  const abrirModalPlan = (u: any) => {
+    setClientePlan(u);
+    setPlanSeleccionado(u.plan_id || "");
+    setModalPlanVisible(true);
+  };
+
+  const guardarPlan = async () => {
+    if (!planSeleccionado)
+      return Alert.alert("Error", "Debes seleccionar un plan.");
+    try {
+      setCargando(true);
+
+      // 🔥 EL TRUCO: Usamos el endpoint de validación del Superadmin,
+      // que es el único autorizado para inyectar el plan_id en la base de datos.
+      await api.post("/pagos/validar", {
+        id: clientePlan.id,
+        action: "validar",
+        plan_id: planSeleccionado,
+      });
+
+      // Por seguridad, nos aseguramos de que el usuario quede activo en la plataforma
+      await api.put(`/usuarios/${clientePlan.id}`, {
+        id: clientePlan.id,
+        activo: 1,
+      });
+
+      setModalPlanVisible(false);
+      cargarDatos();
+      Alert.alert("Éxito", "Plan asignado y cuenta activada correctamente.");
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.response?.data?.error || "No se pudo actualizar el plan.",
+      );
+      setCargando(false);
     }
   };
 
@@ -229,9 +275,9 @@ export default function ClientesSaaSWeb() {
 
       <View style={estilos.tableContainer}>
         <View style={estilos.tableHead}>
-          <Text style={[estilos.th, { flex: 2.5 }]}>CLIENTE / NEGOCIO</Text>
+          <Text style={[estilos.th, { flex: 2 }]}>CLIENTE / NEGOCIO</Text>
           <Text style={[estilos.th, { flex: 2 }]}>EMAIL / TELÉFONO</Text>
-          <Text style={[estilos.th, { flex: 1.5 }]}>ROL</Text>
+          <Text style={[estilos.th, { flex: 1.5 }]}>PLAN ACTUAL</Text>
           <Text style={[estilos.th, { flex: 1, textAlign: "center" }]}>
             ESTADO APP
           </Text>
@@ -244,7 +290,7 @@ export default function ClientesSaaSWeb() {
           <Text style={[estilos.th, { flex: 1.5, textAlign: "center" }]}>
             VENCIMIENTO
           </Text>
-          <Text style={[estilos.th, { flex: 1, textAlign: "right" }]}>
+          <Text style={[estilos.th, { flex: 1.5, textAlign: "right" }]}>
             ACCIONES
           </Text>
         </View>
@@ -262,12 +308,13 @@ export default function ClientesSaaSWeb() {
             const pagoPendiente =
               u.estado_pago === "pendiente" ||
               u.estado_pago === "en_validacion";
+            const planDelUsuario = planes.find((p) => p.id === u.plan_id);
 
             return (
               <View key={i} style={estilos.tableRow}>
                 <View
                   style={{
-                    flex: 2.5,
+                    flex: 2,
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 10,
@@ -295,11 +342,23 @@ export default function ClientesSaaSWeb() {
                     {u.telefono || "-"}
                   </Text>
                 </View>
+
+                {/* 🔥 COLUMNA PLAN */}
                 <View style={{ flex: 1.5 }}>
-                  <Text style={{ color: "#d97706", fontSize: 12 }}>
-                    {u.rol?.toUpperCase() || "ADMINISTRADOR"}
+                  <Text
+                    style={{
+                      color: "#c6ff00",
+                      fontSize: 12,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {planDelUsuario ? planDelUsuario.nombre : "Sin Plan"}
+                  </Text>
+                  <Text style={{ color: "#8a8a8a", fontSize: 10 }}>
+                    {u.rol?.toUpperCase()}
                   </Text>
                 </View>
+
                 <View style={{ flex: 1, alignItems: "center" }}>
                   <Text
                     style={{
@@ -335,6 +394,7 @@ export default function ClientesSaaSWeb() {
                       style={estilos.btnDetalle}
                       onPress={() => {
                         setPagoViendo(u);
+                        setPlanSeleccionado(u.plan_id || ""); // Preseleccionamos plan actual
                         setModalPagoVisible(true);
                       }}
                     >
@@ -355,12 +415,16 @@ export default function ClientesSaaSWeb() {
                 </View>
                 <View
                   style={{
-                    flex: 1,
+                    flex: 1.5,
                     flexDirection: "row",
                     justifyContent: "flex-end",
                     gap: 15,
                   }}
                 >
+                  {/* 🔥 BOTÓN PARA ASIGNAR PLAN */}
+                  <TouchableOpacity onPress={() => abrirModalPlan(u)}>
+                    <FontAwesome5 name="crown" size={14} color="#d97706" />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => abrirFormulario(u)}>
                     <FontAwesome5 name="edit" size={14} color="#8a8a8a" />
                   </TouchableOpacity>
@@ -381,6 +445,81 @@ export default function ClientesSaaSWeb() {
         )}
       </View>
 
+      {/* ========================================================== */}
+      {/* MODAL: ASIGNAR PLAN MANUAMENTE */}
+      {/* ========================================================== */}
+      <Modal visible={modalPlanVisible} transparent animationType="fade">
+        <View style={estilos.modalOverlay}>
+          <View style={estilos.modalContent}>
+            <Text style={estilos.modalTitulo}>Asignar Plan a Cliente</Text>
+            <Text style={{ color: "#8a8a8a", marginBottom: 20 }}>
+              Selecciona el plan que se le aplicará a la cuenta de{" "}
+              <Text style={{ color: "#FFF", fontWeight: "bold" }}>
+                {clientePlan?.nombre_negocio}
+              </Text>
+              .
+            </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 10,
+                marginBottom: 20,
+              }}
+            >
+              {planes.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[
+                    estilos.chipPlan,
+                    planSeleccionado === p.id && estilos.chipPlanActivo,
+                  ]}
+                  onPress={() => setPlanSeleccionado(p.id)}
+                >
+                  <Text
+                    style={[
+                      estilos.txtPlan,
+                      planSeleccionado === p.id && estilos.txtPlanActivo,
+                    ]}
+                  >
+                    {p.nombre} (${p.precio_mensual})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              {planes.length === 0 && (
+                <Text style={{ color: "#888", fontSize: 12 }}>
+                  No hay planes creados en el sistema.
+                </Text>
+              )}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 15, marginTop: 10 }}>
+              <TouchableOpacity
+                style={[
+                  estilos.btnPrincipal,
+                  { flex: 1, backgroundColor: "#2a2a2a" },
+                ]}
+                onPress={() => setModalPlanVisible(false)}
+              >
+                <Text style={{ color: "#FFF", fontWeight: "bold" }}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[estilos.btnPrincipal, { flex: 1 }]}
+                onPress={guardarPlan}
+              >
+                <Text style={estilos.btnTexto}>Guardar Plan</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================== */}
+      {/* MODAL: VER DETALLE DEL PAGO Y APROBAR (CON PLAN OBLIGATORIO) */}
+      {/* ========================================================== */}
       <Modal visible={modalPagoVisible} transparent animationType="fade">
         <View style={estilos.modalOverlay}>
           <View
@@ -496,8 +635,7 @@ export default function ClientesSaaSWeb() {
                   ]}
                 >
                   <Text style={estilos.tituloDetalle}>
-                    <FontAwesome5 name="image" /> Comprobante Subido por el
-                    Cliente
+                    <FontAwesome5 name="image" /> Comprobante Subido
                   </Text>
                   <View
                     style={{
@@ -522,6 +660,63 @@ export default function ClientesSaaSWeb() {
                   </View>
                 </View>
 
+                {/* 🔥 SELECTOR DE PLAN OBLIGATORIO ANTES DE APROBAR */}
+                <View
+                  style={[
+                    estilos.cajaDetalle,
+                    {
+                      backgroundColor: "rgba(198, 255, 0, 0.05)",
+                      borderColor: "rgba(198, 255, 0, 0.2)",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      estilos.tituloDetalle,
+                      {
+                        backgroundColor: "transparent",
+                        color: "#c6ff00",
+                        padding: 0,
+                      },
+                    ]}
+                  >
+                    <FontAwesome5 name="crown" /> Selecciona el Plan a Activar
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: 10,
+                      marginTop: 10,
+                    }}
+                  >
+                    {planes.map((p) => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[
+                          estilos.chipPlan,
+                          planSeleccionado === p.id && estilos.chipPlanActivo,
+                        ]}
+                        onPress={() => setPlanSeleccionado(p.id)}
+                      >
+                        <Text
+                          style={[
+                            estilos.txtPlan,
+                            planSeleccionado === p.id && estilos.txtPlanActivo,
+                          ]}
+                        >
+                          {p.nombre}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    {planes.length === 0 && (
+                      <Text style={{ color: "#888", fontSize: 12 }}>
+                        No hay planes creados en el sistema.
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
                 <View
                   style={{ flexDirection: "row", gap: 15, paddingBottom: 20 }}
                 >
@@ -543,7 +738,7 @@ export default function ClientesSaaSWeb() {
                           pago_adjunto: "",
                         });
                         setModalPagoVisible(false);
-                        cargarUsuarios();
+                        cargarDatos();
                       }
                     }}
                   >
@@ -559,27 +754,38 @@ export default function ClientesSaaSWeb() {
                       padding: 15,
                       borderRadius: 10,
                       alignItems: "center",
+                      opacity: planSeleccionado ? 1 : 0.5,
                     }}
                     onPress={async () => {
+                      if (!planSeleccionado)
+                        return Alert.alert(
+                          "Falta el Plan",
+                          "Debes seleccionar un plan antes de aprobar el pago.",
+                        );
+
                       if (
                         confirm("¿Aprobar pago y activar cliente por 30 días?")
                       ) {
                         try {
+                          setCargando(true);
+                          // 🔥 AQUÍ ENVIAMOS EL PLAN_ID OBLIGATORIO AL BACKEND
                           await api.post("/pagos/validar", {
                             id: pagoViendo.id,
                             action: "validar",
+                            plan_id: planSeleccionado,
                           });
                           await api.put(`/usuarios/${pagoViendo.id}`, {
                             id: pagoViendo.id,
                             activo: 1,
                           });
                           setModalPagoVisible(false);
-                          cargarUsuarios();
+                          cargarDatos();
                         } catch (e) {
                           Alert.alert(
                             "Error",
                             "Hubo un problema al validar el pago.",
                           );
+                          setCargando(false);
                         }
                       }
                     }}
@@ -595,6 +801,7 @@ export default function ClientesSaaSWeb() {
         </View>
       </Modal>
 
+      {/* MODAL FORMULARIO */}
       <Modal visible={modalFormVisible} transparent animationType="fade">
         <View style={estilos.modalOverlay}>
           <View style={estilos.modalContent}>
@@ -806,4 +1013,17 @@ const estilos = StyleSheet.create({
   },
   txtLabel: { color: "#e2e8f0", fontSize: 12, marginBottom: 4 },
   txtData: { fontWeight: "bold", color: "#FFF" },
+
+  // 🔥 ESTILOS PARA LOS BOTONES DE PLANES
+  chipPlan: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  chipPlanActivo: { backgroundColor: "#c6ff00", borderColor: "#c6ff00" },
+  txtPlan: { color: "#8a8a8a", fontWeight: "bold", fontSize: 12 },
+  txtPlanActivo: { color: "#000000" },
 });

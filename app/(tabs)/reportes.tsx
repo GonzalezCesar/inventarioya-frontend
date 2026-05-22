@@ -134,7 +134,7 @@ export default function PantallaReportes() {
       .trim();
   };
 
-  // 🔥 LÓGICA CORREGIDA DE COMBINACIÓN DE FILTROS
+  // 🔥 LÓGICA DE FILTROS ACTUALIZADA (AHORA SOPORTA CRÉDITO/MIXTO)
   const ventasFiltradas = useMemo(() => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
@@ -147,13 +147,25 @@ export default function PantallaReportes() {
         if (esAdmin() && filtroVendedor !== "todos" && vId !== filtroVendedor)
           return false;
 
-        // 2. Filtro Método de Pago
+        // 2. Filtro Método de Pago (AQUÍ ESTÁ LA MAGIA PARA EL CRÉDITO)
         const metodoVenta = normalizarMetodo(
           v.metodoPago || v.metodo_pago || "N/A",
         );
         const metodoFiltro = normalizarMetodo(filtroPago);
-        if (filtroPago !== "todos" && metodoVenta !== metodoFiltro)
-          return false;
+        
+        if (filtroPago !== "todos") {
+          if (filtroPago === "credito") {
+            const esCredito = 
+              metodoVenta === "credito" || 
+              v.estadoPago === "pendiente" || 
+              v.estado_pago === "pendiente" || 
+              v.estadoPago === "parcial" || 
+              v.estado_pago === "parcial";
+            if (!esCredito) return false;
+          } else {
+            if (metodoVenta !== metodoFiltro) return false;
+          }
+        }
 
         // 3. Filtro Producto (Búsqueda)
         if (busquedaProducto) {
@@ -220,6 +232,7 @@ export default function PantallaReportes() {
       tarjeta: 0,
       pago_movil: 0,
       transferencia: 0,
+      credito: 0, // Añadimos credito al KPI por si acaso
     };
     const conteoProd: any = {};
 
@@ -666,7 +679,6 @@ export default function PantallaReportes() {
             paddingBottom: 15,
           }}
         >
-          {/* 🔥 BOTÓN FILTRO FECHAS CON MARCADOR */}
           <TouchableOpacity
             style={[
               estilos.botonFiltroPrincipal,
@@ -702,7 +714,6 @@ export default function PantallaReportes() {
             </View>
           </TouchableOpacity>
 
-          {/* 🔥 BOTÓN FILTRO PAGOS CON MARCADOR */}
           <TouchableOpacity
             style={[
               estilos.botonFiltroPrincipal,
@@ -738,7 +749,6 @@ export default function PantallaReportes() {
             </View>
           </TouchableOpacity>
 
-          {/* 🔥 BOTÓN FILTRO VENDEDOR CON MARCADOR */}
           {esAdmin() && (
             <TouchableOpacity
               style={[
@@ -781,7 +791,6 @@ export default function PantallaReportes() {
             </TouchableOpacity>
           )}
 
-          {/* 🔥 BOTÓN FILTRO PRODUCTO CON MARCADOR */}
           <TouchableOpacity
             style={[
               estilos.botonFiltroPrincipal,
@@ -904,6 +913,7 @@ export default function PantallaReportes() {
           </View>
         )}
 
+        {/* 🔥 AÑADIDO BOTÓN "CRÉDITO / MIXTO" EN EL MENÚ PAGOS */}
         {filtroActivo === "pagos" && (
           <View style={estilos.panelSubFiltro}>
             <ScrollView
@@ -917,6 +927,7 @@ export default function PantallaReportes() {
                 { id: "tarjeta", label: "Tarjeta" },
                 { id: "pago_movil", label: "Pago Móvil" },
                 { id: "transferencia", label: "Transferencia" },
+                { id: "credito", label: "Crédito / Mixto" },
               ].map((p) => (
                 <TouchableOpacity
                   key={p.id}
@@ -2411,8 +2422,6 @@ const crearEstilos = (c: any) =>
       fontWeight: "bold",
       fontSize: 14,
     },
-
-    // 🔥 ESTILO DEL MARCADOR VISUAL AÑADIDO
     marcadorFiltroActivo: {
       width: 8,
       height: 8,
@@ -2425,7 +2434,6 @@ const crearEstilos = (c: any) =>
       shadowOpacity: 0.8,
       shadowRadius: 3,
     },
-
     panelSubFiltro: {
       paddingHorizontal: 20,
       paddingVertical: 10,

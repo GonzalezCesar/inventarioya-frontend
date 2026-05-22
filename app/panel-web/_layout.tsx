@@ -73,6 +73,7 @@ export default function LayoutPanelWeb() {
           <MenuLink titulo="Dashboard" icono="chart-line" ruta="/panel-web" />
           <MenuLink titulo="Clientes" icono="users" ruta="/panel-web/clientes" />
           <MenuLink titulo="Base de Datos" icono="database" ruta="/panel-web/database" />
+          <MenuLink titulo="Planes" icono="plans" ruta="/panel-web/planes" />
         </ScrollView>
 
         <View style={estilos.footerSidebar}>
