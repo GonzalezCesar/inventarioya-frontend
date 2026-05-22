@@ -26,7 +26,8 @@ type TablaDisponibles =
   | "movimientos_caja"
   | "configuraciones"
   | "configuraciones_empresas"
-  | "planes";
+  | "planes"
+  | "pagos_ventas";
 
 export default function DatabaseExplorerWeb() {
   const [cargando, setCargando] = useState(false);
@@ -48,6 +49,7 @@ export default function DatabaseExplorerWeb() {
     { id: "planes", label: "Planes SaaS" },
     { id: "configuraciones", label: "Config. Globales" },
     { id: "configuraciones_empresas", label: "Config. de Negocios" },
+    { id: "pagos_ventas", label: "Pagos de ventas" },
   ];
 
   useFocusEffect(
