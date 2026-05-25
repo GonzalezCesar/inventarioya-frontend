@@ -78,6 +78,7 @@ export default function PantallaReportes() {
     null,
   );
   const [verComprobante, setVerComprobante] = useState<string | null>(null);
+  const [verComprobanteAbono, setVerComprobanteAbono] = useState<string | null>(null);
 
   const [modalDetalleVisible, setModalDetalleVisible] = useState(false);
   const [ventaDetalle, setVentaDetalle] = useState<any>(null);
@@ -2379,8 +2380,9 @@ export default function PantallaReportes() {
                       style={{ backgroundColor: colores.fondoOscuro, padding: 15, borderRadius: 10, marginBottom: 10 }}
                       activeOpacity={0.7}
                       onPress={() => {
-                        if (pago.fotoComprobante) {
-                          setComprobanteVisible(pago.fotoComprobante);
+                        const compAbono = pago.fotoComprobante || pago.foto_comprobante || null;
+                        if (compAbono) {
+                          setVerComprobanteAbono(compAbono);
                         } else {
                           Alert.alert(
                             "Detalle del Abono",
@@ -2433,6 +2435,28 @@ export default function PantallaReportes() {
                 </Text>
               </TouchableOpacity>
             </View>
+            {verComprobanteAbono && (
+              <TouchableOpacity
+                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center", zIndex: 999 }}
+                activeOpacity={1}
+                onPress={() => setVerComprobanteAbono(null)}
+              >
+                <TouchableOpacity
+                  style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 10, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20 }}
+                  onPress={() => setVerComprobanteAbono(null)}
+                >
+                  <FontAwesome5 name="times" size={24} color="#FFF" />
+                </TouchableOpacity>
+                <Image
+                  source={{
+                    uri: verComprobanteAbono.startsWith("data:")
+                      ? verComprobanteAbono
+                      : `${API_URL_UPLOADS}pagos/${verComprobanteAbono}`,
+                  }}
+                  style={{ width: "95%", height: "80%", resizeMode: "contain" }}
+                />
+              </TouchableOpacity>
+            )}
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
