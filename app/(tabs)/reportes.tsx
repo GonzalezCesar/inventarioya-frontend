@@ -19,7 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { API_URL_UPLOADS } from "../../config/env";
+import { API_URL } from "../../config/env";
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme";
 import api from "../../services/api";
@@ -2412,7 +2412,7 @@ export default function PantallaReportes() {
                       {pago.fotoComprobante && (
                         <View style={{ marginTop: 8 }}>
                           <Image
-                            source={{ uri: pago.fotoComprobante.startsWith("data:") ? pago.fotoComprobante : `${API_URL_UPLOADS}pagos/${pago.fotoComprobante}` }}
+                            source={{ uri: pago.fotoComprobante.startsWith("data:") ? pago.fotoComprobante : `${API_URL}/pagos/ver?archivo=${pago.fotoComprobante}` }}
                             style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: colores.primario }}
                             resizeMode="cover"
                           />
@@ -2435,30 +2435,30 @@ export default function PantallaReportes() {
                 </Text>
               </TouchableOpacity>
             </View>
-            {verComprobanteAbono && (
-              <TouchableOpacity
-                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center", zIndex: 999 }}
-                activeOpacity={1}
-                onPress={() => setVerComprobanteAbono(null)}
-              >
-                <TouchableOpacity
-                  style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 10, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20 }}
-                  onPress={() => setVerComprobanteAbono(null)}
-                >
-                  <FontAwesome5 name="times" size={24} color="#FFF" />
-                </TouchableOpacity>
-                <Image
-                  source={{
-                    uri: verComprobanteAbono.startsWith("data:")
-                      ? verComprobanteAbono
-                      : `${API_URL_UPLOADS}pagos/${verComprobanteAbono}`,
-                  }}
-                  style={{ width: "95%", height: "80%", resizeMode: "contain" }}
-                />
-              </TouchableOpacity>
-            )}
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
+        {verComprobanteAbono && (
+          <TouchableOpacity
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center", zIndex: 999 }}
+            activeOpacity={1}
+            onPress={() => setVerComprobanteAbono(null)}
+          >
+            <TouchableOpacity
+              style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 10, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20 }}
+              onPress={() => setVerComprobanteAbono(null)}
+            >
+              <FontAwesome5 name="times" size={24} color="#FFF" />
+            </TouchableOpacity>
+            <Image
+              source={{
+                uri: verComprobanteAbono.startsWith("data:")
+                  ? verComprobanteAbono
+                  : `${API_URL}/pagos/ver?archivo=${verComprobanteAbono}`,
+              }}
+              style={{ width: "95%", height: "80%", resizeMode: "contain" }}
+            />
+          </TouchableOpacity>
+        )}
       </Modal>
 
       <Modal visible={modalMovimientoVisible} transparent animationType="fade">
@@ -2630,7 +2630,7 @@ export default function PantallaReportes() {
               source={{
                 uri: verComprobante.startsWith("data:")
                   ? verComprobante
-                  : `${API_URL_UPLOADS}pagos/${verComprobante}`,
+                  : `${API_URL}/pagos/ver?archivo=${verComprobante}`,
               }}
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />
@@ -2666,7 +2666,7 @@ export default function PantallaReportes() {
               source={{
                 uri: comprobanteVisible.startsWith("data:")
                   ? comprobanteVisible
-                  : `${API_URL_UPLOADS}pagos/${comprobanteVisible}`,
+                  : `${API_URL}/pagos/ver?archivo=${comprobanteVisible}`,
               }}
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />
