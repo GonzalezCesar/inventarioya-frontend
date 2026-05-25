@@ -77,6 +77,7 @@ export default function PantallaReportes() {
   const [comprobanteVisible, setComprobanteVisible] = useState<string | null>(
     null,
   );
+  const [verComprobante, setVerComprobante] = useState<string | null>(null);
 
   const [modalDetalleVisible, setModalDetalleVisible] = useState(false);
   const [ventaDetalle, setVentaDetalle] = useState<any>(null);
@@ -1068,10 +1069,8 @@ export default function PantallaReportes() {
           <TouchableOpacity
             style={estilos.itemVentaLista}
             activeOpacity={0.7}
-            onPress={async () => {
-              const detallePagos: any = await api.get(`/ventas/${item.id}`).catch(() => null);
-              const pagos = detallePagos?.pagos || detallePagos?.historial_pagos || [];
-              setVentaDetalle({ ...item, _pagos: pagos });
+            onPress={() => {
+              setVentaDetalle(item);
               setModalDetalleVisible(true);
             }}
           >
@@ -2564,35 +2563,55 @@ export default function PantallaReportes() {
                     </Text>
                   </View>
 
-                  {(ventaDetalle.fotoComprobante || ventaDetalle.foto_comprobante) && (
-                    <View style={{ alignItems: "center", marginTop: 10 }}>
-                      <TouchableOpacity
-                        style={{ backgroundColor: "rgba(198,255,0,0.15)", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 }}
-                        onPress={() => setComprobanteVisible(ventaDetalle.fotoComprobante || ventaDetalle.foto_comprobante)}
-                      >
-                        <Text style={{ color: colores.primario, fontWeight: "bold", fontSize: 14 }}>
-                          <FontAwesome5 name="image" size={13} /> Ver Comprobante
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  {(ventaDetalle._pagos || []).filter((p: any) => p.fotoComprobante).map((p: any, idx: number) => (
-                    <View key={idx} style={{ alignItems: "center", marginTop: 10 }}>
-                      <TouchableOpacity
-                        style={{ backgroundColor: "rgba(198,255,0,0.15)", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 }}
-                        onPress={() => setComprobanteVisible(p.fotoComprobante)}
-                      >
-                        <Text style={{ color: colores.primario, fontWeight: "bold", fontSize: 14 }}>
-                          <FontAwesome5 name="image" size={13} /> Ver Comprobante {p.metodo ? `(${p.metodo.replace("_", " ")})` : ""}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
+                  {(() => {
+                    const comprobantes: { uri: string; label: string }[] = [];
+                    const pagos = ventaDetalle?.pagos || ventaDetalle?._pagos || [];
+                    pagos.forEach((p: any) => {
+                      const archivo = p?.foto_comprobante || p?.fotoComprobante || null;
+                      if (archivo) {
+                        comprobantes.push({ uri: archivo, label: `Ver Comprobante (${(p.metodo || p.metodo_pago || "").replace("_", " ")})` });
+                      }
+                    });
+                    return comprobantes.map((c, idx) => (
+                      <View key={idx} style={{ alignItems: "center", marginTop: 10 }}>
+                        <TouchableOpacity
+                          style={{ backgroundColor: "rgba(198,255,0,0.15)", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 }}
+                          onPress={() => setVerComprobante(c.uri)}
+                        >
+                          <Text style={{ color: colores.primario, fontWeight: "bold", fontSize: 14 }}>
+                            <FontAwesome5 name="image" size={13} /> {c.label}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ));
+                  })()}
                 </>
               )}
             </ScrollView>
           </View>
         </View>
+        {verComprobante && (
+          <TouchableOpacity
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center", zIndex: 999 }}
+            activeOpacity={1}
+            onPress={() => setVerComprobante(null)}
+          >
+            <TouchableOpacity
+              style={{ position: "absolute", top: 50, right: 20, zIndex: 10, padding: 10, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20 }}
+              onPress={() => setVerComprobante(null)}
+            >
+              <FontAwesome5 name="times" size={24} color="#FFF" />
+            </TouchableOpacity>
+            <Image
+              source={{
+                uri: verComprobante.startsWith("data:")
+                  ? verComprobante
+                  : `${API_URL_UPLOADS}pagos/${verComprobante}`,
+              }}
+              style={{ width: "95%", height: "80%", resizeMode: "contain" }}
+            />
+          </TouchableOpacity>
+        )}
       </Modal>
 
       <Modal visible={!!comprobanteVisible} transparent animationType="fade">
