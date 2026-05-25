@@ -1,6 +1,6 @@
 import axios from "axios";
 import { Platform } from "react-native"; // 🔥 Asegúrate de importar Platform
-import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Asegúrate de que esta sea tu IP correcta
 import { API_URL } from '../config/env'; // 🔥 Importamos la URL maestra
@@ -22,7 +22,7 @@ api.interceptors.request.use(
       if (Platform.OS === "web") {
         token = localStorage.getItem("admin_token");
       } else {
-        token = await SecureStore.getItemAsync("admin_token");
+        token = await AsyncStorage.getItem("admin_token");
       }
 
       if (token) {

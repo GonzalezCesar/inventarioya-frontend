@@ -1,0 +1,33 @@
+appId: host.exp.exponent
+tags:
+  - inventario
+  - categorias
+---
+# ===========================
+# TEST: Crear categoría
+# Valida: POST /categorias
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ir a Inventario → Gestionar → Categorías ──
+- tapOn: "Inventario"
+- tapOn:
+    text: "Gestionar Productos "
+- waitForAnimationToEnd
+- tapOn:
+    text: "Gestionar Categorías "
+- waitForAnimationToEnd
+
+# ── Tap botón + para crear nueva categoría ──
+- tapOn: ""
+- waitForAnimationToEnd
+
+# ── Ingresar nombre ──
+- tapOn:
+    text: "Ej: Electrónica"
+- inputText: $NOMBRE_CATEGORIA
+
+# ── Guardar ──
+- tapOn: "Crear Categoría"
+- waitForAnimationToEnd

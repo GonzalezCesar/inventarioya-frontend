@@ -126,7 +126,12 @@ export default function PantallaAgregarProducto() {
       setDesplegableCategoria(false);
       setNuevoNombreCategoria("");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo crear la categoría");
+      const mensajeBackend = error.response?.data?.error || error.message || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo crear la categoría");
+      }
     } finally {
       setCreandoCategoria(false);
     }
@@ -155,7 +160,12 @@ export default function PantallaAgregarProducto() {
       setDesplegableProveedor(false);
       setNuevoNombreProveedor("");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo crear el proveedor");
+      const mensajeBackend = error.response?.data?.error || error.message || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo crear el proveedor");
+      }
     } finally {
       setCreandoProveedor(false);
     }
@@ -228,7 +238,12 @@ export default function PantallaAgregarProducto() {
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo guardar el producto");
+      const mensajeBackend = error.response?.data?.error || error.message || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo guardar el producto");
+      }
     } finally {
       setCargando(false);
     }

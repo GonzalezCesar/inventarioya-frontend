@@ -29,16 +29,39 @@ export default function PantallaDashboard() {
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [datos, setDatos] = useState<any>(null);
+  const [planUsage, setPlanUsage] = useState<any>(null);
 
   const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
 
   const rol = user?.rol?.toLowerCase() || "";
   const esAdmin = ["administrador", "admin", "superadmin", "beta_tester"].includes(rol);
 
+  const cargarPlanUsage = async () => {
+    try {
+      const [resProds, resClis, resProvs, resUsers, resCats]: any = await Promise.all([
+        api.get("/productos").catch(() => []),
+        api.get("/clientes").catch(() => []),
+        api.get("/proveedores").catch(() => []),
+        api.get("/usuarios").catch(() => []),
+        api.get("/categorias").catch(() => []),
+      ]);
+      setPlanUsage({
+        productos: (resProds || []).length,
+        clientes: (resClis || []).length,
+        proveedores: (resProvs || []).length,
+        vendedores: (resUsers || []).filter((u: any) => u.rol === "vendedor" || u.rol === "vendedor_beta").length,
+        categorias: (resCats || []).length,
+      });
+    } catch (e) {
+      console.error("Error cargando uso del plan:", e);
+    }
+  };
+
   const cargarDatos = async () => {
     try {
       const respuesta: any = await api.get("/dashboard");
       setDatos(respuesta);
+      if (user?.plan) cargarPlanUsage();
     } catch (error) {
       console.error("Error cargando dashboard:", error);
     } finally {
@@ -194,6 +217,47 @@ export default function PantallaDashboard() {
             />
           </TouchableOpacity>
         </View>
+
+        {/* USO DEL PLAN */}
+        {user?.plan && planUsage && (
+          <View style={estilos.seccion}>
+            <Text style={estilos.tituloSeccion}>{user.plan.nombre} — Uso del Plan</Text>
+            <View style={{ backgroundColor: colores.fondoTarjeta, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: colores.borde }}>
+              {[
+                { label: "Productos", actual: planUsage.productos, limite: user.plan.limite_productos },
+                { label: "Clientes", actual: planUsage.clientes, limite: user.plan.limite_clientes },
+                { label: "Proveedores", actual: planUsage.proveedores, limite: user.plan.limite_proveedores },
+                { label: "Vendedores", actual: planUsage.vendedores, limite: user.plan.limite_vendedores },
+                { label: "Categorías", actual: planUsage.categorias, limite: user.plan.limite_categorias },
+              ].map((item) => {
+                if (!item.limite) return null;
+                const pct = Math.min((item.actual / item.limite) * 100, 100);
+                const colorBarra = pct >= 90 ? colores.error : pct >= 70 ? "#FF9500" : colores.primario;
+                return (
+                  <View key={item.label} style={{ marginBottom: 12 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                      <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "500" }}>{item.label}</Text>
+                      <Text style={{ color: colores.textoGris, fontSize: 13 }}>{item.actual} / {item.limite}</Text>
+                    </View>
+                    <View style={{ height: 6, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
+                      <View style={{ width: `${pct}%`, height: "100%", backgroundColor: colorBarra, borderRadius: 3 }} />
+                    </View>
+                  </View>
+                );
+              })}
+              {user.plan.usa_caja === 0 && (
+                <Text style={{ color: colores.textoGris, fontSize: 12, marginTop: 8, fontStyle: "italic" }}>
+                  * Sin módulo de caja registradora
+                </Text>
+              )}
+              {user.plan.permite_credito === 0 && (
+                <Text style={{ color: colores.textoGris, fontSize: 12, marginTop: 4, fontStyle: "italic" }}>
+                  * Sin ventas a crédito
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ACCIONES RÁPIDAS */}
         <View style={estilos.seccion}>

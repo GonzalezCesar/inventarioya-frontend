@@ -1,0 +1,29 @@
+appId: host.exp.exponent
+tags:
+  - admin
+  - usuarios
+  - vendedores
+---
+# ===========================
+# TEST: Crear vendedor/empleado
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+- tapOn: "Cuenta"
+- waitForAnimationToEnd
+- tapOn: "Gestionar Vendedores"
+- waitForAnimationToEnd
+
+# ── Crear vendedor ──
+- tapOn: "+"
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Nombre"
+- inputText: Vendedor Test
+
+- tapOn:
+    text: "Contraseña"
+- inputText: TestPass123
+
+- tapOn: "Guardar"

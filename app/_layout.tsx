@@ -30,15 +30,17 @@ function RootLayoutContent() {
       const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
       const estadoPago = user?.estado_pago;
       
-      const necesitaActivacion = !esSuperAdmin && (
-        estadoPago === "pendiente" || 
-        estadoPago === "en_validacion" || 
-        !estadoPago 
-      );
+      const necesitaPago = !esSuperAdmin && (estadoPago === "pendiente" || !estadoPago);
+      const necesitaValidacion = !esSuperAdmin && estadoPago === "en_validacion";
+      const isPendiente = currentScreen === "pendiente";
 
-      if (necesitaActivacion) {
+      if (necesitaPago) {
         if (!isActivacion) {
           router.replace("/(auth)/activacion");
+        }
+      } else if (necesitaValidacion) {
+        if (!isPendiente) {
+          router.replace("/(auth)/pendiente");
         }
       } else {
         if (inAuthGroup) {

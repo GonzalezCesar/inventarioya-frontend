@@ -78,6 +78,9 @@ export default function PantallaReportes() {
     null,
   );
 
+  const [modalDetalleVisible, setModalDetalleVisible] = useState(false);
+  const [ventaDetalle, setVentaDetalle] = useState<any>(null);
+
   const [modalAbonoVisible, setModalAbonoVisible] = useState(false);
   const [ventaAbonando, setVentaAbonando] = useState<any>(null);
   const [montoAbono, setMontoAbono] = useState("");
@@ -85,10 +88,17 @@ export default function PantallaReportes() {
   const [referenciaAbono, setReferenciaAbono] = useState("");
   const [imagenAbono, setImagenAbono] = useState<string | null>(null);
 
+  const [modalHistorialVisible, setModalHistorialVisible] = useState(false);
+  const [ventaHistorial, setVentaHistorial] = useState<any>(null);
+  const [historialPagos, setHistorialPagos] = useState<any[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+
+  const [clientesBD, setClientesBD] = useState<any[]>([]);
+
   const cargarDatos = async () => {
     try {
       setCargando(true);
-      const [resVentas, resProds, resCaja, resHist, resUsers]: any =
+      const [resVentas, resProds, resCaja, resHist, resUsers, resClientes]: any =
         await Promise.all([
           api.get("/ventas").catch(() => []),
           api.get("/productos").catch(() => []),
@@ -97,6 +107,7 @@ export default function PantallaReportes() {
           esAdmin()
             ? api.get(`/usuarios?admin_id=${user?.id}`).catch(() => [])
             : Promise.resolve([]),
+          api.get("/clientes").catch(() => []),
         ]);
 
       setVentas(resVentas || []);
@@ -105,6 +116,7 @@ export default function PantallaReportes() {
       setMovimientosCaja(resCaja?.movimientos || []);
       setHistorialCaja(resHist || []);
       setUsuarios(resUsers || []);
+      setClientesBD(resClientes || []);
     } catch (error) {
       console.error("Error cargando reportes:", error);
     } finally {
@@ -348,6 +360,9 @@ export default function PantallaReportes() {
   }, [cajaActual, ventas, movimientosCaja]);
 
   const handleAbrirCaja = async () => {
+    if (user?.plan?.usa_caja !== 1) {
+      return Alert.alert("Módulo no disponible", "Su plan no tiene la opción para usar la caja.");
+    }
     const monto = parseFloat(montoInicialCaja);
     if (isNaN(monto)) return Alert.alert("Error", "Monto inválido");
     try {
@@ -362,6 +377,9 @@ export default function PantallaReportes() {
   };
 
   const handleCerrarCaja = async () => {
+    if (user?.plan?.usa_caja !== 1) {
+      return Alert.alert("Módulo no disponible", "Su plan no tiene la opción para usar la caja.");
+    }
     const montoDeclarado = parseFloat(montoCierre);
     if (isNaN(montoDeclarado))
       return Alert.alert("Error", "Debes ingresar el dinero físico contado.");
@@ -397,6 +415,9 @@ export default function PantallaReportes() {
   };
 
   const handleMovimiento = async () => {
+    if (user?.plan?.usa_caja !== 1) {
+      return Alert.alert("Módulo no disponible", "Su plan no tiene la opción para usar la caja.");
+    }
     const monto = parseFloat(montoMovimiento);
     if (isNaN(monto) || !descMovimiento)
       return Alert.alert("Error", "Datos inválidos");
@@ -492,6 +513,30 @@ export default function PantallaReportes() {
       Alert.alert("Error", e.message || "No se pudo registrar el abono");
     } finally {
       setCargando(false);
+    }
+  };
+
+  const resolverCliente = (item: any) => {
+    return (
+      item.cliente?.nombre ||
+      (item.clienteId && clientesBD.find((c: any) => c.id === item.clienteId)?.nombre) ||
+      (item.cliente_id && clientesBD.find((c: any) => c.id === item.cliente_id)?.nombre) ||
+      "Cliente"
+    );
+  };
+
+  const abrirHistorialPagos = async (venta: any) => {
+    setVentaHistorial(venta);
+    setHistorialPagos([]);
+    setModalHistorialVisible(true);
+    setCargandoHistorial(true);
+    try {
+      const res: any = await api.get(`/ventas/${venta.id}`);
+      setHistorialPagos(res?.pagos || res?.historial_pagos || []);
+    } catch (e: any) {
+      console.error("Error cargando historial de pagos:", e);
+    } finally {
+      setCargandoHistorial(false);
     }
   };
 
@@ -1020,7 +1065,16 @@ export default function PantallaReportes() {
           </Text>
         }
         renderItem={({ item }) => (
-          <View style={estilos.itemVentaLista}>
+          <TouchableOpacity
+            style={estilos.itemVentaLista}
+            activeOpacity={0.7}
+            onPress={async () => {
+              const detallePagos: any = await api.get(`/ventas/${item.id}`).catch(() => null);
+              const pagos = detallePagos?.pagos || detallePagos?.historial_pagos || [];
+              setVentaDetalle({ ...item, _pagos: pagos });
+              setModalDetalleVisible(true);
+            }}
+          >
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Text
                 style={{
@@ -1029,34 +1083,69 @@ export default function PantallaReportes() {
                   fontSize: 16,
                 }}
               >
-                Venta #{item.id.toString().slice(-6)}
+                {(() => {
+                  const primerItem = item.items?.[0];
+                  if (!primerItem) return "Venta #" + item.id.toString().slice(-6);
+                  const pId = primerItem.productoId || primerItem.producto_id;
+                  const nombre = primerItem.producto?.nombre || primerItem.producto_nombre || primerItem.nombre || productos.find((p: any) => p.id === pId)?.nombre || "Producto";
+                  const resto = item.items.length - 1;
+                  return resto > 0 ? `${nombre} +${resto} más` : nombre;
+                })()}
               </Text>
+              {item.cliente_nombre && (
+                <Text
+                  style={{
+                    color: colores.textoGris,
+                    fontSize: 13,
+                    marginBottom: 4,
+                  }}
+                >
+                  <FontAwesome5 name="user" size={11} />{" "}
+                  {item.cliente_nombre}
+                </Text>
+              )}
               <Text
                 style={{
                   color: colores.textoGris,
                   fontSize: 12,
-                  marginVertical: 4,
+                  marginBottom: 6,
                 }}
               >
                 {formatearFechaHora(item.fecha)}
               </Text>
-              <Text
-                style={{ color: colores.textoBlanco, fontSize: 14 }}
-                numberOfLines={1}
-              >
-                {item.items
-                  ?.map((i: any) => {
-                    const pId = i.productoId || i.producto_id;
-                    const nombre =
-                      i.producto?.nombre ||
-                      i.producto_nombre ||
-                      i.nombre ||
-                      productos.find((p) => p.id === pId)?.nombre ||
-                      "Prod";
-                    return `${i.cantidad}x ${nombre}`;
-                  })
-                  .join(", ")}
-              </Text>
+              <View style={{ gap: 3 }}>
+                {item.items?.slice(0, 4).map((i: any, idx: number) => {
+                  const pId = i.productoId || i.producto_id;
+                  const nombre =
+                    i.producto?.nombre ||
+                    i.producto_nombre ||
+                    i.nombre ||
+                    productos.find((p) => p.id === pId)?.nombre ||
+                    "Producto";
+                  return (
+                    <Text
+                      key={idx}
+                      style={{
+                        color: colores.textoBlanco,
+                        fontSize: 13,
+                      }}
+                    >
+                      {"\u2022"} {i.cantidad}x {nombre}
+                    </Text>
+                  );
+                })}
+                {(item.items?.length || 0) > 4 && (
+                  <Text
+                    style={{
+                      color: colores.textoGris,
+                      fontSize: 12,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    +{item.items.length - 4} más
+                  </Text>
+                )}
+              </View>
             </View>
             <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
               <Text
@@ -1091,28 +1180,8 @@ export default function PantallaReportes() {
                   )}
                 </Text>
               </View>
-              {(item.fotoComprobante || item.foto_comprobante) && (
-                <TouchableOpacity
-                  style={{ marginTop: 5, padding: 5 }}
-                  onPress={() =>
-                    setComprobanteVisible(
-                      item.fotoComprobante || item.foto_comprobante,
-                    )
-                  }
-                >
-                  <Text
-                    style={{
-                      color: colores.exito,
-                      fontSize: 13,
-                      fontWeight: "bold",
-                    }}
-                  >
-                    <FontAwesome5 name="image" size={12} /> Ver Capture
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
@@ -1164,7 +1233,7 @@ export default function PantallaReportes() {
                     fontSize: 16,
                   }}
                 >
-                  {item.cliente?.nombre || "Cliente"}
+                  {resolverCliente(item)}
                 </Text>
                 <Text
                   style={{
@@ -1193,26 +1262,48 @@ export default function PantallaReportes() {
                     item.montoRestante || item.monto_restante || 0,
                   )}
                 </Text>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: colores.primario,
-                    paddingHorizontal: 15,
-                    paddingVertical: 6,
-                    borderRadius: 6,
-                    marginTop: 8,
-                  }}
-                  onPress={() => abrirModalAbono(item)}
-                >
-                  <Text
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity
                     style={{
-                      color: colores.textoOscuro,
-                      fontSize: 12,
-                      fontWeight: "bold",
+                      backgroundColor: colores.fondoInput,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: colores.borde,
                     }}
+                    onPress={() => abrirHistorialPagos(item)}
                   >
-                    Abonar
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={{
+                        color: colores.textoBlanco,
+                        fontSize: 11,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Ver Abonos
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: colores.primario,
+                      paddingHorizontal: 15,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                    }}
+                    onPress={() => abrirModalAbono(item)}
+                  >
+                    <Text
+                      style={{
+                        color: colores.textoOscuro,
+                        fontSize: 12,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Abonar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
@@ -1221,7 +1312,24 @@ export default function PantallaReportes() {
     );
   };
 
-  const renderVistaCaja = () => (
+  const renderVistaCaja = () => {
+    const planIncluyeCaja = user?.plan?.usa_caja === 1;
+
+    if (!planIncluyeCaja) {
+      return (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
+          <FontAwesome5 name="lock" size={60} color={colores.textoGris} style={{ marginBottom: 20 }} />
+          <Text style={{ fontSize: 22, fontWeight: "bold", color: colores.textoBlanco, textAlign: "center", marginBottom: 10 }}>
+            Módulo no Disponible
+          </Text>
+          <Text style={{ fontSize: 15, color: colores.textoGris, textAlign: "center", lineHeight: 22 }}>
+            Su plan no tiene la opción para usar la caja.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
     <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={estilos.contenidoScroll}
@@ -1655,6 +1763,7 @@ export default function PantallaReportes() {
       </View>
     </ScrollView>
   );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -1698,10 +1807,7 @@ export default function PantallaReportes() {
           </Text>
         </View>
         <View style={estilos.selectorVista}>
-          {(esAdmin()
-            ? ["resumen", "ventas", "creditos", "caja"]
-            : ["ventas", "caja"]
-          ).map((vista) => (
+          {["resumen", "ventas", "creditos", "caja"].map((vista) => (
             <TouchableOpacity
               key={vista}
               style={[
@@ -2227,6 +2333,111 @@ export default function PantallaReportes() {
         </TouchableWithoutFeedback>
       </Modal>
 
+      <Modal visible={modalHistorialVisible} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={estilos.modalOverlay}
+          >
+            <View style={estilos.modalContenido}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <Text style={estilos.tituloModal}>Historial de Abonos</Text>
+                <TouchableOpacity onPress={() => setModalHistorialVisible(false)}>
+                  <FontAwesome5 name="times" size={20} color={colores.textoGris} />
+                </TouchableOpacity>
+              </View>
+
+              {ventaHistorial && (
+                <View style={{ backgroundColor: "rgba(255,255,255,0.05)", padding: 15, borderRadius: 10, marginBottom: 20 }}>
+                  <Text style={{ color: colores.textoBlanco, fontWeight: "bold", fontSize: 16 }}>
+                    {resolverCliente(ventaHistorial)}
+                  </Text>
+                  <Text style={{ color: colores.textoGris, fontSize: 12, marginTop: 4 }}>
+                    Venta #{ventaHistorial.id?.toString().slice(-6)} — {formatearFechaHora(ventaHistorial.fecha)}
+                  </Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 13 }}>Total: {formatearMoneda(ventaHistorial.total)}</Text>
+                    <Text style={{ color: colores.error, fontWeight: "bold", fontSize: 13 }}>
+                      Deuda: {formatearMoneda(ventaHistorial.montoRestante || ventaHistorial.monto_restante || 0)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {cargandoHistorial ? (
+                <ActivityIndicator size="large" color={colores.primario} style={{ marginVertical: 30 }} />
+              ) : historialPagos.length === 0 ? (
+                <Text style={{ color: colores.textoGris, textAlign: "center", marginVertical: 30 }}>
+                  No hay abonos registrados para esta venta.
+                </Text>
+              ) : (
+                <FlatList
+                  data={historialPagos}
+                  keyExtractor={(_, idx) => idx.toString()}
+                  style={{ maxHeight: 300 }}
+                  renderItem={({ item: pago }: any) => (
+                    <TouchableOpacity
+                      style={{ backgroundColor: colores.fondoOscuro, padding: 15, borderRadius: 10, marginBottom: 10 }}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        if (pago.fotoComprobante) {
+                          setComprobanteVisible(pago.fotoComprobante);
+                        } else {
+                          Alert.alert(
+                            "Detalle del Abono",
+                            `Monto: ${formatearMoneda(pago.monto)}\nFecha: ${pago.fecha ? formatearFechaHora(pago.fecha) : "N/A"}\nMétodo: ${(pago.metodo || pago.metodo_pago || "N/A").replace("_", " ")}${pago.referencia ? `\nReferencia: ${pago.referencia}` : ""}`,
+                          );
+                        }
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Text style={{ color: colores.textoBlanco, fontWeight: "bold", fontSize: 15 }}>
+                          {formatearMoneda(pago.monto)}
+                        </Text>
+                        <Text style={{ color: colores.textoGris, fontSize: 12 }}>
+                          {pago.fecha ? formatearFechaHora(pago.fecha) : ""}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 10 }}>
+                        <Text style={{ color: colores.textoGris, fontSize: 12 }}>
+                          Método: {(pago.metodo || pago.metodo_pago || "N/A").replace("_", " ")}
+                        </Text>
+                        {pago.referencia && (
+                          <Text style={{ color: colores.textoGris, fontSize: 12 }}>
+                            Ref: {pago.referencia}
+                          </Text>
+                        )}
+                      </View>
+                      {pago.fotoComprobante && (
+                        <View style={{ marginTop: 8 }}>
+                          <Image
+                            source={{ uri: pago.fotoComprobante.startsWith("data:") ? pago.fotoComprobante : `${API_URL_UPLOADS}pagos/${pago.fotoComprobante}` }}
+                            style={{ width: 80, height: 80, borderRadius: 8, borderWidth: 1, borderColor: colores.primario }}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+
+              <TouchableOpacity
+                style={{ backgroundColor: colores.primario, padding: 15, borderRadius: 10, alignItems: "center", marginTop: 15 }}
+                onPress={() => {
+                  setModalHistorialVisible(false);
+                  if (ventaHistorial) abrirModalAbono(ventaHistorial);
+                }}
+              >
+                <Text style={{ color: colores.textoOscuro, fontWeight: "bold" }}>
+                  Nuevo Abono
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <Modal visible={modalMovimientoVisible} transparent animationType="fade">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -2292,6 +2503,84 @@ export default function PantallaReportes() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={modalDetalleVisible} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", padding: 20 }}>
+          <View style={{ backgroundColor: colores.fondoInput, borderRadius: 16, padding: 24, maxHeight: "85%" }}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <Text style={{ color: colores.primario, fontSize: 22, fontWeight: "bold" }}>
+                  Venta #{ventaDetalle?.id?.toString().slice(-6)}
+                </Text>
+                <TouchableOpacity onPress={() => setModalDetalleVisible(false)} style={{ padding: 5 }}>
+                  <FontAwesome5 name="times" size={22} color={colores.textoBlanco} />
+                </TouchableOpacity>
+              </View>
+
+              {ventaDetalle && (
+                <>
+                  <View style={{ marginBottom: 20, gap: 8 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 14 }}>
+                      <FontAwesome5 name="calendar" size={12} /> {formatearFechaHora(ventaDetalle.fecha)}
+                    </Text>
+                    {resolverCliente(ventaDetalle) && (
+                      <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "600" }}>
+                        <FontAwesome5 name="user" size={13} /> {resolverCliente(ventaDetalle)}
+                      </Text>
+                    )}
+                    <View style={{ backgroundColor: colores.primario, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6 }}>
+                      <Text style={{ color: colores.textoOscuro, fontSize: 13, fontWeight: "bold" }}>
+                        {(ventaDetalle.metodoPago || ventaDetalle.metodo_pago || "N/A").replace("_", " ")}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={{ color: colores.textoGris, fontSize: 13, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 }}>
+                    PRODUCTOS
+                  </Text>
+                  <View style={{ gap: 8, marginBottom: 20 }}>
+                    {(ventaDetalle.items || []).map((i: any, idx: number) => {
+                      const pId = i.productoId || i.producto_id;
+                      const nombre = i.producto?.nombre || i.producto_nombre || i.nombre || productos.find((p: any) => p.id === pId)?.nombre || "Producto";
+                      const subtotal = (i.precio || i.precioUnitario || i.precio_unitario || 0) * (i.cantidad || 0);
+                      return (
+                        <View key={idx} style={{ flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)", paddingBottom: 6 }}>
+                          <Text style={{ color: colores.textoBlanco, fontSize: 14, flex: 1 }}>
+                            {i.cantidad}x {nombre}
+                          </Text>
+                          <Text style={{ color: colores.textoBlanco, fontSize: 14, fontWeight: "bold" }}>
+                            {formatearMoneda(subtotal)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: colores.primario, paddingTop: 12, marginBottom: 16 }}>
+                    <Text style={{ color: colores.primario, fontSize: 18, fontWeight: "bold" }}>Total</Text>
+                    <Text style={{ color: colores.primario, fontSize: 22, fontWeight: "900" }}>
+                      {formatearMoneda(ventaDetalle.total)}
+                    </Text>
+                  </View>
+
+                  {(ventaDetalle._pagos || []).filter((p: any) => p.fotoComprobante).map((p: any, idx: number) => (
+                    <View key={idx} style={{ alignItems: "center", marginTop: 10 }}>
+                      <TouchableOpacity
+                        style={{ backgroundColor: "rgba(198,255,0,0.15)", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 }}
+                        onPress={() => setComprobanteVisible(p.fotoComprobante)}
+                      >
+                        <Text style={{ color: colores.primario, fontWeight: "bold", fontSize: 14 }}>
+                          <FontAwesome5 name="image" size={13} /> Ver Comprobante {p.metodo ? `(${p.metodo.replace("_", " ")})` : ""}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={!!comprobanteVisible} transparent animationType="fade">

@@ -1,0 +1,41 @@
+appId: host.exp.exponent
+tags:
+  - reportes
+  - creditos
+  - abonos
+  - caja
+---
+# ===========================
+# TEST: Abonar a crédito + Abrir Caja
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+- tapOn: "Reportes"
+- waitForAnimationToEnd
+
+# ── Ir a Creditos y abonar ──
+- tapOn: "Creditos"
+- waitForAnimationToEnd
+- tapOn: "Abonar"
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "0.00"
+- inputText: "1.00"
+- tapOn: "Confirmar"
+- waitForAnimationToEnd
+
+# ── Descartar modal de éxito ──
+- tapOn: "OK"
+- waitForAnimationToEnd
+
+# ── Ir a Caja y abrir turno ──
+- tapOn: "Caja"
+- waitForAnimationToEnd
+
+# Llenar monto inicial antes de ABRIR CAJA
+- tapOn:
+    text: "0.00"
+- inputText: "50"
+- tapOn: "ABRIR CAJA"
+- waitForAnimationToEnd

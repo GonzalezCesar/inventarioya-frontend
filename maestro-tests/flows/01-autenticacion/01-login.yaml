@@ -1,0 +1,28 @@
+appId: host.exp.exponent
+tags:
+  - auth
+  - login
+---
+# ===========================
+# TEST: Login exitoso
+# Valida: POST /auth/login → Dashboard
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+# - tapOn: "Continue"
+# - waitForAnimationToEnd
+
+# ── Ingresar credenciales ──
+- tapOn:
+    text: "tu@correo.com"
+- inputText: admin@inventarioya.com
+
+- tapOn:
+    text: "••••••••"
+- inputText: password
+
+# ── Iniciar sesión ──
+- tapOn: "Iniciar Sesión"
+- waitForAnimationToEnd
+
+# ── Verificar Dashboard ──
+- tapOn: "Resumen"

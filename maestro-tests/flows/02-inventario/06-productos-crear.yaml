@@ -1,0 +1,59 @@
+appId: host.exp.exponent
+tags:
+  - inventario
+  - productos
+  - crear
+---
+# ===========================
+# TEST: Crear producto
+# Valida: POST /productos
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ir a Inventario → Gestionar Productos → Agregar ──
+- tapOn: "Inventario"
+- tapOn:
+    text: "Gestionar Productos "
+- waitForAnimationToEnd
+
+# En pantalla de gestión de productos: "Agregar Producto"
+- tapOn:
+    text: "Agregar Producto "
+- waitForAnimationToEnd
+
+# ── Llenar formulario ──
+# Nombre
+- tapOn:
+    text: "Nombre del producto"
+- inputText: $NOMBRE_PRODUCTO
+
+# Scroll down for Costo/Precio fields
+- swipe:
+    direction: UP
+    duration: 500
+- waitForAnimationToEnd
+
+# Costo
+- tapOn:
+    text: "Costo"
+- inputText: $COSTO
+
+# Precio
+- tapOn:
+    text: "Precio"
+- inputText: $PRECIO
+
+# Stock Inicial
+- tapOn:
+    text: "Stock Inicial"
+- inputText: $STOCK_INICIAL
+
+# Stock Mínimo
+- tapOn:
+    text: "Stock Mínimo"
+- inputText: $STOCK_MINIMO
+
+# ── Guardar ──
+- tapOn: "Guardar Producto"
+- waitForAnimationToEnd

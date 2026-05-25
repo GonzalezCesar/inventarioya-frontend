@@ -123,22 +123,25 @@ export default function PantallaGestionUsuarios() {
         Alert.alert("Éxito", "Usuario actualizado correctamente.");
       } else {
         // CREAR (POST)
-        const payload = {
+        const payload: any = {
           nombre: nombre.trim(),
           email: email.trim(),
           contrasena: contrasena,
           rol: betaActiva ? "vendedor_beta" : "vendedor",
         };
+        if (user?.plan_id) payload.plan_id = user.plan_id;
         await api.post("/usuarios", payload);
         Alert.alert("Éxito", "Vendedor creado correctamente.");
       }
       setModalVisible(false);
       cargarUsuarios();
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.message || "No se pudo procesar la solicitud.",
-      );
+      const mensajeBackend = error.response?.data?.error || error.message || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo procesar la solicitud.");
+      }
     } finally {
       setGuardando(false);
     }

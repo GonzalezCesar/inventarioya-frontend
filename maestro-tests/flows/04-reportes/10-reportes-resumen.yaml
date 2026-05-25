@@ -1,0 +1,19 @@
+appId: host.exp.exponent
+tags:
+  - reportes
+  - navegacion
+---
+# ===========================
+# TEST: Navegación en Reportes
+# Valida: GET /ventas, GET /caja?action=historial
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+
+# ── Ir a Reportes ──
+- tapOn: "Reportes"
+- waitForAnimationToEnd
+
+# ── Navegar entre vistas ──
+- tapOn: "Resumen"
+- tapOn: "Ventas"
+- tapOn: "Caja"

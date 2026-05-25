@@ -1,0 +1,55 @@
+appId: host.exp.exponent
+tags:
+  - ventas
+  - credito
+---
+# ===========================
+# TEST: Venta a crédito
+# Valida: POST /ventas con método crédito
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+
+# ── Ir a Vender ──
+- tapOn: "Vender"
+- waitForAnimationToEnd
+
+# ── Buscar y agregar producto ──
+- tapOn:
+    text: "Buscar producto..."
+- inputText: $NOMBRE_PRODUCTO
+- waitForAnimationToEnd
+- tapOn:
+    text: $NOMBRE_PRODUCTO
+- waitForAnimationToEnd
+
+# ── Ir a cobro ──
+- tapOn: "Procesar Venta"
+- waitForAnimationToEnd
+
+# ── Seleccionar método: Crédito ──
+- tapOn: "Crédito"
+
+# ── Buscar cliente existente ──
+- tapOn:
+    text: "Buscar por nombre o cédula..."
+- inputText: $NOMBRE_CLIENTE
+- waitForAnimationToEnd
+
+# Seleccionar primer resultado
+- tapOn:
+    text: $NOMBRE_CLIENTE
+
+# ── Sub-método de crédito ──
+- tapOn: "EFECTIVO"
+
+# ── Continuar ──
+- tapOn: "Continuar"
+- waitForAnimationToEnd
+
+# ── Confirmar ──
+- tapOn: "Confirmar"
+- waitForAnimationToEnd
+
+# ── Finalizar ──
+- tapOn: "Finalizar"
+- waitForAnimationToEnd

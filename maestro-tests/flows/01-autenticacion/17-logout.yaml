@@ -1,0 +1,31 @@
+appId: host.exp.exponent
+tags:
+  - auth
+  - logout
+---
+# ===========================
+# TEST: Cerrar sesión
+# Valida: signOut() → pantalla de login
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ir a Cuenta ──
+- tapOn: "Cuenta"
+- waitForAnimationToEnd
+
+- swipe:
+    direction: UP
+    duration: 500
+- waitForAnimationToEnd
+
+# ── Cerrar sesión ──
+- tapOn: "Cerrar Sesión"
+
+# ── Confirmar en Alert nativo ──
+- tapOn: "Salir"
+- waitForAnimationToEnd
+
+# ── Verificar que estamos en login ──
+- tapOn:
+    text: "tu@correo.com"

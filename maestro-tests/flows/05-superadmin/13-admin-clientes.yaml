@@ -1,0 +1,45 @@
+appId: host.exp.exponent
+tags:
+  - admin
+  - clientes
+---
+# ===========================
+# TEST: Crear cliente
+# Valida: POST /clientes
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+
+# ── Ir a Cuenta → Gestionar Clientes ──
+- tapOn: "Cuenta"
+- waitForAnimationToEnd
+- tapOn: "Gestionar Clientes"
+- waitForAnimationToEnd
+
+# ── Tap botón + ──
+- tapOn: "+"
+- waitForAnimationToEnd
+
+# ── Llenar formulario ──
+- tapOn:
+    text: "Ej. Juan Pérez"
+- inputText: $NOMBRE_CLIENTE
+
+- tapOn:
+    text: "V-12345678"
+- inputText: $CEDULA_CLIENTE
+
+- tapOn:
+    text: "0414..."
+- inputText: $TELEFONO_CLIENTE
+
+- tapOn:
+    text: "Ej. cliente@correo.com"
+- inputText: $CORREO_CLIENTE
+
+- tapOn:
+    text: "Ej. Calle Principal..."
+- inputText: $DIRECCION_CLIENTE
+
+# ── Guardar ──
+- tapOn: "Guardar"
+- waitForAnimationToEnd

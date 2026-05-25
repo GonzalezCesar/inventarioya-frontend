@@ -1,0 +1,13 @@
+appId: host.exp.exponent
+tags:
+  - inventario
+  - navegacion
+---
+# ===========================
+# TEST: Navegar a sección Inventario
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- tapOn: "Inventario"
+- waitForAnimationToEnd
+- tapOn:
+    text: "Gestionar Productos "

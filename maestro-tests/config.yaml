@@ -1,0 +1,36 @@
+appId: host.exp.exponent
+env:
+  # ── Login ──
+  EMAIL: admin@inventarioya.com
+  PASSWORD: password
+  # ── Login fallido ──
+  EMAIL_INVALIDO: correo@invalido.com
+  PASSWORD_INVALIDA: wrongpass
+  # ── Registro ──
+  NOMBRE_USUARIO: Usuario Test Maestro
+  EMAIL_REGISTRO: test.maestro@inventarioya.com
+  CONTRASENA_REGISTRO: Test123456
+  # ── Productos ──
+  NOMBRE_PRODUCTO: Producto Test Maestro
+  SKU: SKU-TEST-001
+  COSTO: 10.00
+  PRECIO: 25.00
+  STOCK_INICIAL: 50
+  STOCK_MINIMO: 10
+  # ── Categorías ──
+  NOMBRE_CATEGORIA: Categoria Test
+  # ── Proveedores ──
+  NOMBRE_PROVEEDOR: Proveedor Test Maestro
+  TELEFONO_PROVEEDOR: 4140000000
+  CORREO_PROVEEDOR: proveedor@test.com
+  DIRECCION_PROVEEDOR: Zona Industrial Test
+  # ── Clientes ──
+  NOMBRE_CLIENTE: Cliente Test Maestro
+  CEDULA_CLIENTE: V-12345678
+  TELEFONO_CLIENTE: 4160000000
+  CORREO_CLIENTE: cliente.test@maestro.com
+  DIRECCION_CLIENTE: Calle Principal #123
+  # ── Ajuste Stock / Abonos ──
+  CANTIDAD_AJUSTE: "5"
+  MOTIVO_AJUSTE: Test Maestro E2E
+  MONTO_ABONO: "10.00"

@@ -1,0 +1,49 @@
+appId: host.exp.exponent
+tags:
+  - inventario
+  - stock
+  - kardex
+---
+# ===========================
+# TEST: Ajuste de stock (Entrada)
+# Valida: POST /productos/ajustar
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ir a Inventario → Gestionar → Ajuste de Stock ──
+- tapOn: "Inventario"
+- tapOn:
+    text: "Gestionar Productos "
+- waitForAnimationToEnd
+- tapOn:
+    text: "Ajuste de Stock "
+- waitForAnimationToEnd
+
+# ── Seleccionar producto del dropdown ──
+- tapOn: "Seleccionar Producto..."
+- waitForAnimationToEnd
+
+# ── Buscar producto y seleccionar primero ──
+- tapOn:
+    text: "Buscar producto..."
+- inputText: $NOMBRE_PRODUCTO
+- waitForAnimationToEnd
+- tapOn:
+    text: $NOMBRE_PRODUCTO
+
+# ── Tipo: Entrada (default) ──
+- tapOn: "Entrada"
+
+# ── Ingresar cantidad y motivo ──
+- tapOn:
+    text: "Cantidad"
+- inputText: $CANTIDAD_AJUSTE
+
+- tapOn:
+    text: "Motivo / Razón"
+- inputText: $MOTIVO_AJUSTE
+
+# ── Registrar ──
+- tapOn: "REGISTRAR MOVIMIENTO"
+- waitForAnimationToEnd

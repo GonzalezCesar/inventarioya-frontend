@@ -66,7 +66,25 @@ export default function LoginScreen() {
     setCargando(true);
 
     try {
-      await signIn(email, contrasena);
+      const userData = await signIn(email, contrasena);
+
+      const estadoPago = userData?.estado_pago;
+      if (estadoPago === "pendiente" || estadoPago === "en_validacion") {
+        const mensaje =
+          estadoPago === "en_validacion"
+            ? "Hemos recibido tu comprobante de pago. Nuestro equipo está verificándolo. Te notificaremos cuando tu acceso sea activado."
+            : "Tu cuenta está en proceso de aprobación. Debes completar el proceso de pago para acceder a la aplicación.";
+
+        if (Platform.OS === "web") {
+          setErrorMsg(mensaje);
+          setCargando(false);
+          return;
+        } else {
+          mostrarAviso("Cuenta en Revisión", mensaje, "error");
+          setCargando(false);
+          return;
+        }
+      }
 
       if (Platform.OS === "web") {
         window.location.href = "/panel-web";

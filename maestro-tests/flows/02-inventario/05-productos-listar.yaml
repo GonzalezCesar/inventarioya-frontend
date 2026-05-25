@@ -1,0 +1,20 @@
+appId: host.exp.exponent
+tags:
+  - inventario
+  - productos
+  - busqueda
+---
+# ===========================
+# TEST: Buscar producto en listado
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+- tapOn: "Inventario"
+- waitForAnimationToEnd
+- tapOn: "Ver catálogo de productos"
+- waitForAnimationToEnd
+
+# ── Buscar producto por nombre ──
+# Search bar ya tiene foco al navegar (focused=true). TapOn se cuelga,
+# usar inputText directo sobre el elemento enfocado
+- inputText: Producto Test Maestro

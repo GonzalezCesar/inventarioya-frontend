@@ -314,9 +314,12 @@ export default function PantallaNuevaVenta() {
     );
   };
 
+  const planUsaCaja = user?.plan?.usa_caja === 1;
+  const planPermiteCredito = user?.plan?.permite_credito === 1;
+
   const abrirModalPago = () => {
     if (carrito.length === 0) return;
-    if (!cajaAbierta) {
+    if (planUsaCaja && !cajaAbierta) {
       Alert.alert(
         "Caja Cerrada 🔒",
         "Debes abrir la caja en la sección de Reportes antes de empezar a vender.",
@@ -449,7 +452,12 @@ export default function PantallaNuevaVenta() {
       setClienteSeleccionado(null);
       cargarDatos();
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Error procesando venta.");
+      const mensajeBackend = error.response?.data?.error || error.message || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "Error procesando venta.");
+      }
     } finally {
       setCargando(false);
     }
@@ -961,7 +969,7 @@ export default function PantallaNuevaVenta() {
                       icono: "dollar-sign",
                     },
                     { id: "tarjeta", nombre: "Tarjeta", icono: "credit-card" },
-                    { id: "credito", nombre: "Crédito", icono: "chart-line" },
+                    ...(planPermiteCredito ? [{ id: "credito", nombre: "Crédito", icono: "chart-line" }] : []),
                     {
                       id: "pago_movil",
                       nombre: "Pago Móvil",

@@ -90,7 +90,12 @@ export default function PantallaCategorias() {
       setNombreCategoria("");
       cargarCategorias();
     } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudo guardar la categoría");
+      const mensajeBackend = error.response?.data?.error || error.message || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo guardar la categoría");
+      }
     } finally {
       setGuardando(false);
     }

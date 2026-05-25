@@ -1,0 +1,42 @@
+appId: host.exp.exponent
+tags:
+  - admin
+  - proveedores
+---
+# ===========================
+# TEST: Crear proveedor
+# Valida: POST /proveedores
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ir a Cuenta → Gestionar Proveedores ──
+- tapOn: "Cuenta"
+- waitForAnimationToEnd
+- tapOn: "Gestionar Proveedores"
+- waitForAnimationToEnd
+
+# ── Tap botón + ──
+- tapOn: "+"
+- waitForAnimationToEnd
+
+# ── Llenar formulario ──
+- tapOn:
+    text: "Ej: Distribuidora Sur"
+- inputText: $NOMBRE_PROVEEDOR
+
+- tapOn:
+    text: "0414..."
+- inputText: $TELEFONO_PROVEEDOR
+
+- tapOn:
+    text: "@correo.com"
+- inputText: $CORREO_PROVEEDOR
+
+- tapOn:
+    text: "Ej: Zona Industrial..."
+- inputText: $DIRECCION_PROVEEDOR
+
+# ── Guardar ──
+- tapOn: "Guardar"
+- waitForAnimationToEnd

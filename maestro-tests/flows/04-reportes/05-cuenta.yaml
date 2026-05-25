@@ -1,0 +1,15 @@
+appId: host.exp.exponent
+tags:
+  - cuenta
+  - perfil
+---
+# ===========================
+# TEST: Ver perfil / datos del negocio
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+- tapOn: "Cuenta"
+- waitForAnimationToEnd
+
+# ── Scroll para ver datos del negocio ──
+- tapOn: "Gestionar Vendedores"

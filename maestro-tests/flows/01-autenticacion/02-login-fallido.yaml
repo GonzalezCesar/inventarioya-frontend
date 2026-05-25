@@ -1,0 +1,27 @@
+appId: host.exp.exponent
+tags:
+  - auth
+  - login-fallido
+---
+# ===========================
+# TEST: Login con credenciales inválidas
+# Valida: POST /auth/login → modal error
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ingresar credenciales ERRÓNEAS ──
+- tapOn:
+    text: "tu@correo.com"
+- inputText: invalido@test.com
+
+- tapOn:
+    text: "••••••••"
+- inputText: wrongpass
+
+# ── Intentar iniciar sesión ──
+- tapOn: "Iniciar Sesión"
+- waitForAnimationToEnd
+
+# ── Cerrar modal de error ──
+- tapOn: "Entendido"

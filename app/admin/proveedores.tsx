@@ -113,10 +113,12 @@ export default function PantallaGestionProveedores() {
       setModalVisible(false);
       cargarProveedores();
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.error || "No se pudo procesar la solicitud.",
-      );
+      const mensajeBackend = error.response?.data?.error || "";
+      if (error.response?.status === 403) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo procesar la solicitud.");
+      }
     } finally {
       setGuardando(false);
     }

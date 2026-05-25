@@ -1,0 +1,33 @@
+appId: host.exp.exponent
+tags:
+  - auth
+  - registro
+---
+# ===========================
+# TEST: Registro de nuevo usuario
+# Valida: POST /auth/register
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+
+# ── Ir a registro ──
+- tapOn: "Crear Cuenta"
+- waitForAnimationToEnd
+
+# ── Paso 1: Nombre completo ──
+- tapOn:
+    text: "Juan Pérez"
+- inputText: Usuario Test
+
+# ── Paso 2: Email ──
+- tapOn:
+    text: "tu@email.com"
+- inputText: test.registro@inventarioya.com
+
+# ── Paso 3: Contraseña ──
+- tapOn:
+    text: "Mínimo 6 caracteres"
+- inputText: TestPass123
+
+# ── Crear cuenta ──
+- tapOn: "Crear Cuenta"

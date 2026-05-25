@@ -1,0 +1,10 @@
+appId: host.exp.exponent
+tags:
+  - setup
+  - limpieza
+---
+# ===========================
+# TEST: Limpiar estado de la app
+# Ejecutar antes de cualquier suite
+# ===========================
+- clearState

@@ -1,0 +1,14 @@
+appId: host.exp.exponent
+tags:
+  - ventas
+  - navegacion
+---
+# ===========================
+# TEST: Navegar a sección Vender
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- waitForAnimationToEnd
+- tapOn: "Vender"
+- waitForAnimationToEnd
+- tapOn:
+    text: "Buscar producto..."

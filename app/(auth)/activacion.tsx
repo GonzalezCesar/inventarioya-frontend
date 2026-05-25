@@ -23,7 +23,7 @@ import { router } from "expo-router";
 const COLOR_VERDE = "#8CC63F";
 
 export default function PantallaActivacion() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateUser } = useAuth();
 
   const { colores, isDark } = useTheme();
   const estilos = useMemo(
@@ -83,6 +83,7 @@ export default function PantallaActivacion() {
         fecha: fecha,
         imagen: imagen,
       });
+      updateUser({ estado_pago: "en_validacion" });
       setEnValidacion(true);
     } catch (error) {
       Alert.alert("Error", "No se pudo subir la información");
@@ -146,8 +147,7 @@ export default function PantallaActivacion() {
           <FontAwesome5 name="dollar-sign" size={60} color={COLOR_VERDE} />
           <Text style={estilos.tituloPrincipal}>Activación de Cuenta</Text>
           <Text style={estilos.subtitulo}>
-            Para comenzar a usar INVENTARIO YA, debes realizar el pago mensual
-            de $20 USD.
+            Para comenzar a usar INVENTARIO YA, realiza el pago a la cuenta que se indica.
           </Text>
         </View>
 
@@ -162,10 +162,6 @@ export default function PantallaActivacion() {
           >
             Instrucciones de Pago
           </Text>
-          <View style={estilos.filaInst}>
-            <Text style={estilos.lblInst}>Monto:</Text>
-            <Text style={estilos.valInst}>$20.00 USD / Mensual</Text>
-          </View>
           <View style={estilos.filaInst}>
             <Text style={estilos.lblInst}>Método:</Text>
             <Text style={estilos.valInst}>Pago Móvil / Transferencia</Text>

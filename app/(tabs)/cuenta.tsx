@@ -266,6 +266,51 @@ export default function PantallaCuenta() {
           </View>
         </View>
 
+        {/* MI PLAN */}
+        {user?.plan && (
+          <View style={estilos.seccionOpciones}>
+            <Text style={estilos.tituloSeccion}>Mi Plan: {user.plan.nombre}</Text>
+            <View style={{ backgroundColor: colores.fondoTarjeta, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colores.borde }}>
+              <View style={estilos.filaInfo}>
+                <Text style={estilos.etiquetaInfo}>Precio</Text>
+                <Text style={estilos.valorInfo}>${parseFloat(String(user.plan.precio_mensual || 0)).toFixed(2)}/mes</Text>
+              </View>
+              {user.plan.descripcion && (
+                <>
+                  <View style={estilos.divisor} />
+                  <View style={estilos.filaInfo}>
+                    <Text style={estilos.etiquetaInfo}>Descripción</Text>
+                    <Text style={[estilos.valorInfo, { flex: 1, textAlign: "right", fontSize: 13 }]} numberOfLines={3}>
+                      {user.plan.descripcion}
+                    </Text>
+                  </View>
+                </>
+              )}
+              <View style={estilos.divisor} />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                {[
+                  { label: "Caja", activo: user.plan.usa_caja === 1 },
+                  { label: "Ajustar Stock", activo: user.plan.usa_movimientos_inventario === 1 },
+                  { label: "Mov. Caja", activo: user.plan.usa_movimientos_caja === 1 },
+                  { label: "Crédito", activo: user.plan.permite_credito === 1 },
+                ].map((f) => (
+                  <View
+                    key={f.label}
+                    style={{
+                      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6,
+                      backgroundColor: f.activo ? "rgba(52, 199, 89, 0.15)" : "rgba(255, 59, 48, 0.1)",
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "bold", color: f.activo ? "#34C759" : "#FF3B30" }}>
+                      {f.activo ? "✓ " : "✗ "}{f.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* APARIENCIA */}
         <View style={estilos.seccionOpciones}>
           <Text style={estilos.tituloSeccion}>Apariencia</Text>

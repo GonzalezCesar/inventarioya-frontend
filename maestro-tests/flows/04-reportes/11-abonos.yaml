@@ -1,0 +1,33 @@
+appId: host.exp.exponent
+tags:
+  - reportes
+  - creditos
+  - abonos
+---
+# ===========================
+# TEST: Registrar abono a crédito
+# Valida: POST /ventas/registrar-pago
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+
+# ── Ir a Reportes → Créditos ──
+- tapOn: "Reportes"
+- waitForAnimationToEnd
+- tapOn: "Creditos"
+- waitForAnimationToEnd
+
+# ── Abonar a primera deuda ──
+- tapOn: "Abonar"
+- waitForAnimationToEnd
+
+# ── Ingresar monto ──
+- tapOn:
+    text: "0.00"
+- inputText: $MONTO_ABONO
+
+# ── Seleccionar método Efectivo (default) ──
+- tapOn: "Efectivo"
+
+# ── Confirmar abono ──
+- tapOn: "Confirmar"
+- waitForAnimationToEnd

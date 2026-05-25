@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native"; // 🔥 Faltaba importar Platform
 import api from "../services/api";
@@ -9,9 +9,10 @@ interface ContextoAutenticacionType {
   token: string | null;
   isLoading: boolean;
   isSignout: boolean;
-  signIn: (email: string, contrasena: string) => Promise<void>;
+  signIn: (email: string, contrasena: string) => Promise<any>;
   signOut: () => Promise<void>;
   restoreToken: () => Promise<void>;
+  updateUser: (data: Partial<Usuario>) => void;
 }
 
 export const ContextoAutenticacion = createContext<ContextoAutenticacionType>({
@@ -22,6 +23,7 @@ export const ContextoAutenticacion = createContext<ContextoAutenticacionType>({
   signIn: async () => {},
   signOut: async () => {},
   restoreToken: async () => {},
+  updateUser: () => {},
 });
 
 interface ContextoAutenticacionProviderProps {
@@ -49,8 +51,8 @@ export const ContextoAutenticacionProvider: React.FC<
         savedToken = localStorage.getItem("admin_token");
         savedUsuario = localStorage.getItem("admin_usuario");
       } else {
-        savedToken = await SecureStore.getItemAsync("admin_token");
-        savedUsuario = await SecureStore.getItemAsync("admin_usuario");
+        savedToken = await AsyncStorage.getItem("admin_token");
+        savedUsuario = await AsyncStorage.getItem("admin_usuario");
       }
 
       if (savedToken && savedUsuario) {
@@ -97,19 +99,36 @@ export const ContextoAutenticacionProvider: React.FC<
         localStorage.setItem("admin_token", userToken);
         localStorage.setItem("admin_usuario", JSON.stringify(userData));
       } else {
-        await SecureStore.setItemAsync("admin_token", userToken);
-        await SecureStore.setItemAsync("admin_usuario", JSON.stringify(userData));
+        await AsyncStorage.setItem("admin_token", userToken);
+        await AsyncStorage.setItem("admin_usuario", JSON.stringify(userData));
       }
 
       setToken(userToken);
       setUser(userData);
       setIsSignout(false);
+
+      return userData;
     } catch (error: any) {
       console.error("[Auth] Error en signIn:", error.message);
       throw error; 
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  // Actualizar datos del usuario (ej. estado_pago)
+  const updateUser = useCallback((data: Partial<Usuario>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...data };
+      const saved = JSON.stringify(updated);
+      if (Platform.OS === 'web') {
+        localStorage.setItem("admin_usuario", saved);
+      } else {
+        AsyncStorage.setItem("admin_usuario", saved);
+      }
+      return updated;
+    });
   }, []);
 
   // Función para cerrar sesión
@@ -122,8 +141,8 @@ export const ContextoAutenticacionProvider: React.FC<
         localStorage.removeItem("admin_token");
         localStorage.removeItem("admin_usuario");
       } else {
-        await SecureStore.deleteItemAsync("admin_token");
-        await SecureStore.deleteItemAsync("admin_usuario");
+        await AsyncStorage.removeItem("admin_token");
+        await AsyncStorage.removeItem("admin_usuario");
       }
       
       delete api.defaults.headers.common['Authorization'];
@@ -139,7 +158,7 @@ export const ContextoAutenticacionProvider: React.FC<
   }, []);
 
   return (
-    <ContextoAutenticacion.Provider value={{ user, token, isLoading, isSignout, signIn, signOut, restoreToken }}>
+    <ContextoAutenticacion.Provider value={{ user, token, isLoading, isSignout, signIn, signOut, restoreToken, updateUser }}>
       {children}
     </ContextoAutenticacion.Provider>
   );

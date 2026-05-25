@@ -1,0 +1,22 @@
+appId: host.exp.exponent
+tags:
+  - superadmin
+  - global
+---
+# ===========================
+# TEST: Panel Global Superadmin
+# Valida: GET /admin/dashboard
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+
+# ── Ir a Global (solo visible para superadmin) ──
+- tapOn: "Global"
+- waitForAnimationToEnd
+
+# ── Verificar métricas del panel ──
+- tapOn: "CLIENTES TOTALES"
+- tapOn: "ACTIVOS HOY"
+- tapOn: "VENTAS DEL MES"
+
+# ── Desplazar hacia abajo para ver actividad reciente ──
+- tapOn: "Actividad Reciente (Toda la app)"

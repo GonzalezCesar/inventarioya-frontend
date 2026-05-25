@@ -114,10 +114,13 @@ export default function PantallaGestionClientes() {
       setModalVisible(false);
       cargarClientes();
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.error || "No se pudo procesar la solicitud.",
-      );
+      const mensajeBackend = error.response?.data?.error || "";
+      const esLimite = error.response?.status === 403;
+      if (esLimite) {
+        Alert.alert("Límite de Plan Alcanzado", mensajeBackend);
+      } else {
+        Alert.alert("Error", mensajeBackend || "No se pudo procesar la solicitud.");
+      }
     } finally {
       setGuardando(false);
     }

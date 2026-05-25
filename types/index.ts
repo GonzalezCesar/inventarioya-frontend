@@ -9,6 +9,24 @@ export interface LoginResponse {
   usuario: Usuario;
 }
 
+export interface PlanInfo {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  precio_mensual?: number;
+  limite_productos?: number | null;
+  limite_vendedores?: number | null;
+  limite_ventas_mes?: number | null;
+  limite_proveedores?: number | null;
+  limite_clientes?: number | null;
+  limite_categorias?: number | null;
+  usa_caja?: number;
+  usa_movimientos_inventario?: number;
+  usa_movimientos_caja?: number;
+  permite_credito?: number;
+  activo?: number;
+}
+
 export interface Usuario {
   id: string;
   nombre: string;
@@ -22,6 +40,8 @@ export interface Usuario {
   pago_banco?: string;
   pago_telefono?: string;
   pago_fecha?: string;
+  plan_id?: string;
+  plan?: PlanInfo;
 }
 
 export interface TokenData {

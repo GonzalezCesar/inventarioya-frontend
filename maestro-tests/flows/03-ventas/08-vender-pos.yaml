@@ -1,0 +1,45 @@
+appId: host.exp.exponent
+tags:
+  - ventas
+  - pos
+  - efectivo
+---
+# ===========================
+# TEST: Venta en efectivo
+# Valida: POST /ventas + POST /caja
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+
+# ── Ir a Vender ──
+- tapOn: "Vender"
+- waitForAnimationToEnd
+
+# ── Buscar y agregar producto al carrito ──
+- tapOn:
+    text: "Buscar producto..."
+- inputText: $NOMBRE_PRODUCTO
+- waitForAnimationToEnd
+
+# Tocar el producto para agregarlo al carrito
+- tapOn:
+    text: $NOMBRE_PRODUCTO
+- waitForAnimationToEnd
+
+# ── Ir a cobro ──
+- tapOn: "Procesar Venta"
+- waitForAnimationToEnd
+
+# ── Seleccionar método de pago: Efectivo ──
+- tapOn: "Efectivo"
+
+# ── Continuar ──
+- tapOn: "Continuar"
+- waitForAnimationToEnd
+
+# ── Confirmar venta ──
+- tapOn: "Confirmar"
+- waitForAnimationToEnd
+
+# ── Finalizar ──
+- tapOn: "Finalizar"
+- waitForAnimationToEnd

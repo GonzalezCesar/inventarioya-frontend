@@ -1,0 +1,33 @@
+appId: host.exp.exponent
+tags:
+  - inventario
+  - productos
+  - editar
+---
+# ===========================
+# TEST: Editar producto existente
+# ===========================
+- openLink: "exp://192.168.1.111:8081"
+- tapOn: "Inventario"
+- waitForAnimationToEnd
+- tapOn:
+    text: "Gestionar Productos "
+- waitForAnimationToEnd
+
+# ── Tocar producto existente ──
+- tapOn: "Hola"
+- waitForAnimationToEnd
+
+# ── Editar precio ──
+- tapOn: "Editar Producto"
+- waitForAnimationToEnd
+
+- swipe:
+    direction: UP
+    duration: 500
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Precio"
+- inputText: "30.00"
+- tapOn: "Actualizar Producto"
