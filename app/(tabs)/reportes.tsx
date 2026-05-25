@@ -2564,6 +2564,18 @@ export default function PantallaReportes() {
                     </Text>
                   </View>
 
+                  {(ventaDetalle.fotoComprobante || ventaDetalle.foto_comprobante) && (
+                    <View style={{ alignItems: "center", marginTop: 10 }}>
+                      <TouchableOpacity
+                        style={{ backgroundColor: "rgba(198,255,0,0.15)", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 }}
+                        onPress={() => setComprobanteVisible(ventaDetalle.fotoComprobante || ventaDetalle.foto_comprobante)}
+                      >
+                        <Text style={{ color: colores.primario, fontWeight: "bold", fontSize: 14 }}>
+                          <FontAwesome5 name="image" size={13} /> Ver Comprobante
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   {(ventaDetalle._pagos || []).filter((p: any) => p.fotoComprobante).map((p: any, idx: number) => (
                     <View key={idx} style={{ alignItems: "center", marginTop: 10 }}>
                       <TouchableOpacity

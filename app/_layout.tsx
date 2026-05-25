@@ -29,9 +29,10 @@ function RootLayoutContent() {
       // 🛡️ Lógica de seguridad estricta
       const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
       const estadoPago = user?.estado_pago;
+      const yaSubioPago = !!(user?.pago_adjunto || user?.pago_referencia);
       
-      const necesitaPago = !esSuperAdmin && (estadoPago === "pendiente" || !estadoPago);
-      const necesitaValidacion = !esSuperAdmin && estadoPago === "en_validacion";
+      const necesitaPago = !esSuperAdmin && (estadoPago === "pendiente" || !estadoPago) && !yaSubioPago;
+      const necesitaValidacion = !esSuperAdmin && (estadoPago === "en_validacion" || (estadoPago === "pendiente" && yaSubioPago));
       const isPendiente = currentScreen === "pendiente";
 
       if (necesitaPago) {
