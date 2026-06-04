@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/contexts/ContextTheme";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { Platform } from "react-native";
 import {
   ContextoAutenticacionProvider,
   useAuth,
@@ -57,9 +58,11 @@ function RootLayoutContent() {
       }
     }
 
-    try {
-      SplashScreen.hideAsync();
-    } catch (error) {}
+    if (Platform.OS !== 'web') {
+      try {
+        SplashScreen.hideAsync();
+      } catch (error) {}
+    }
   }, [isLoading, token, user, segments, router]);
 
   return (

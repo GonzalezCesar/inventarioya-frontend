@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -30,6 +31,7 @@ export default function PantallaDashboard() {
   const [refrescando, setRefrescando] = useState(false);
   const [datos, setDatos] = useState<any>(null);
   const [planUsage, setPlanUsage] = useState<any>(null);
+  const [modalLowStock, setModalLowStock] = useState(false);
 
   const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
 
@@ -149,9 +151,9 @@ export default function PantallaDashboard() {
             </View>
           </View>
 
-          {/* 🔥 3. OCULTAMOS ESTA FILA SI ES UN VENDEDOR */}
-          {esAdmin && (
-            <View style={estilos.fila}>
+          {/* CLIENTES + STOCK BAJO — en fila */}
+          <View style={estilos.fila}>
+            {esAdmin && (
               <TouchableOpacity
                 style={estilos.tarjetaPequena}
                 onPress={() => router.push("/(tabs)/reportes")} 
@@ -163,37 +165,38 @@ export default function PantallaDashboard() {
                   {datos?.total_clientes || 0}
                 </Text>
               </TouchableOpacity>
+            )}
 
-              <View
-                style={[
-                  estilos.tarjetaPequena,
-                  {
-                    borderColor:
-                      (datos?.productos_low_stock?.length || 0) > 0 ? colores.error : colores.primario,
-                  },
-                ]}
-              >
-                <View style={estilos.encabezadoTarjetaPequena}>
-                  <Text
-                    style={[
-                      estilos.tituloTarjetaPequena,
-                      (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
-                    ]}
-                  >
-                    STOCK BAJO
-                  </Text>
-                </View>
+            <TouchableOpacity
+              style={[
+                estilos.tarjetaPequena,
+                {
+                  borderColor:
+                    (datos?.productos_low_stock?.length || 0) > 0 ? colores.error : colores.primario,
+                },
+              ]}
+              onPress={() => setModalLowStock(true)}
+            >
+              <View style={estilos.encabezadoTarjetaPequena}>
                 <Text
                   style={[
-                    estilos.valorTarjetaPequena,
+                    estilos.tituloTarjetaPequena,
                     (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
                   ]}
                 >
-                  {datos?.productos_low_stock?.length || 0}
+                  STOCK BAJO
                 </Text>
               </View>
-            </View>
-          )}
+              <Text
+                style={[
+                  estilos.valorTarjetaPequena,
+                  (datos?.productos_low_stock?.length || 0) > 0 && { color: colores.error },
+                ]}
+              >
+                {datos?.productos_low_stock?.length || 0}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 🔥 TARJETA DE TASA DE CAMBIO */}
@@ -324,6 +327,104 @@ export default function PantallaDashboard() {
           )}
         </View>
       </ScrollView>
+
+      {/* MODAL STOCK BAJO */}
+      <Modal
+        visible={modalLowStock}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalLowStock(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          justifyContent: "center",
+          padding: 20,
+        }}>
+          <View style={{
+            backgroundColor: colores.fondoTarjeta,
+            borderRadius: 20,
+            padding: 24,
+            maxHeight: "80%",
+          }}>
+            <Text style={{
+              fontSize: 20,
+              fontWeight: "bold",
+              color: colores.textoBlanco,
+              marginBottom: 16,
+            }}>
+              Productos con Stock Bajo
+            </Text>
+
+            {datos?.productos_low_stock?.length > 0 ? (
+              <ScrollView style={{ marginBottom: 16 }}>
+                {datos.productos_low_stock.map((p: any) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      paddingVertical: 12,
+                      paddingHorizontal: 8,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "rgba(255,255,255,0.05)",
+                    }}
+                    onPress={() => {
+                      setModalLowStock(false);
+                      router.push(`/productos/editar/${p.id}`);
+                    }}
+                  >
+                    <Text style={{ color: colores.textoBlanco, fontSize: 15, flex: 1 }} numberOfLines={1}>
+                      {p.nombre}
+                    </Text>
+                    <Text style={{ color: colores.error, fontSize: 15, fontWeight: "bold", marginLeft: 8 }}>
+                      Stock: {p.stock}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={{ color: colores.textoGris, textAlign: "center", padding: 20, marginBottom: 16 }}>
+                No hay productos con stock bajo.
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: colores.primario,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+              onPress={() => {
+                setModalLowStock(false);
+                router.push("/productos/ajuste-stock");
+              }}
+            >
+              <Text style={{ color: colores.textoOscuro, fontWeight: "bold", fontSize: 15 }}>
+                Ir a Ajuste de Stock
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: 12,
+                borderRadius: 12,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.1)",
+              }}
+              onPress={() => setModalLowStock(false)}
+            >
+              <Text style={{ color: colores.textoGris, fontSize: 15 }}>
+                Cerrar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
