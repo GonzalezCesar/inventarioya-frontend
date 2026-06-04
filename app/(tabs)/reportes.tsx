@@ -97,6 +97,25 @@ export default function PantallaReportes() {
 
   const [clientesBD, setClientesBD] = useState<any[]>([]);
 
+  const [modalReporteVisible, setModalReporteVisible] = useState(false);
+  const [reporteData, setReporteData] = useState<any>(null);
+  const [cargandoReporte, setCargandoReporte] = useState(false);
+
+  const cargarReporte = async (sessionId: string) => {
+    setCargandoReporte(true);
+    setModalReporteVisible(true);
+    try {
+      const res: any = await api.get(`/caja/reporte?id=${sessionId}`);
+      setReporteData(res);
+    } catch (e) {
+      console.error("Error cargando reporte:", e);
+      Alert.alert("Error", "No se pudo cargar el reporte de caja.");
+      setModalReporteVisible(false);
+    } finally {
+      setCargandoReporte(false);
+    }
+  };
+
   const cargarDatos = async () => {
     try {
       setCargando(true);
@@ -1757,6 +1776,21 @@ export default function PantallaReportes() {
                   </Text>
                 )}
               </View>
+              {c.estado === "cerrada" && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "rgba(198, 255, 0, 0.1)",
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    justifyContent: "center",
+                    marginLeft: 8,
+                  }}
+                  onPress={() => cargarReporte(c.id)}
+                >
+                  <FontAwesome5 name="receipt" size={14} color={colores.primario} />
+                </TouchableOpacity>
+              )}
             </View>
           ))
         )}
@@ -2671,6 +2705,148 @@ export default function PantallaReportes() {
               style={{ width: "95%", height: "80%", resizeMode: "contain" }}
             />
           )}
+        </View>
+      </Modal>
+      {/* MODAL REPORTE Z */}
+      <Modal visible={modalReporteVisible} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", padding: 20 }}>
+          <View style={{ backgroundColor: colores.fondoTarjeta, borderRadius: 20, padding: 24, maxHeight: "90%" }}>
+            {cargandoReporte ? (
+              <View style={{ padding: 40, alignItems: "center" }}>
+                <ActivityIndicator size="large" color={colores.primario} />
+                <Text style={{ color: colores.textoGris, marginTop: 12 }}>Cargando reporte...</Text>
+              </View>
+            ) : reporteData ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* HEADER */}
+                <View style={{ alignItems: "center", marginBottom: 20 }}>
+                  <FontAwesome5 name="receipt" size={28} color={colores.primario} />
+                  <Text style={{ color: colores.textoBlanco, fontSize: 20, fontWeight: "bold", marginTop: 8 }}>
+                    REPORTE Z
+                  </Text>
+                  <Text style={{ color: colores.textoGris, fontSize: 12, marginTop: 2 }}>
+                    {formatearFechaHora(reporteData.fecha_apertura)} — {reporteData.fecha_cierre ? formatearFechaHora(reporteData.fecha_cierre) : "Abierta"}
+                  </Text>
+                </View>
+
+                <View style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 12 }}>Vendedor</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "bold" }}>{reporteData.vendedor_nombre || "—"}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 12 }}>Base inicial</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{formatearMoneda(reporteData.monto_inicial || 0)}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 12 }}>Total ventas</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "bold" }}>{formatearMoneda(reporteData.total_ventas_sistema || 0)}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 12 }}>Total transacciones</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{reporteData.total_ventas || 0}</Text>
+                  </View>
+                </View>
+
+                {/* VENTAS POR MÉTODO */}
+                <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "bold", marginBottom: 10 }}>
+                  <FontAwesome5 name="money-bill-wave" size={14} /> Ventas por Método
+                </Text>
+                <View style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                  {[
+                    { label: "Efectivo", value: reporteData.total_efectivo },
+                    { label: "Transferencia", value: reporteData.total_transferencia },
+                    { label: "Punto", value: reporteData.total_punto },
+                    { label: "Pago Móvil", value: reporteData.total_pago_movil },
+                    { label: "Crédito", value: reporteData.total_credito },
+                    { label: "Otros", value: reporteData.total_otros },
+                  ].map((item) => (
+                    <View key={item.label} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+                      <Text style={{ color: colores.textoGris, fontSize: 13 }}>{item.label}</Text>
+                      <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "600" }}>{formatearMoneda(parseFloat(item.value || 0))}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* TRANSACCIONES */}
+                {reporteData.ventas?.length > 0 && (
+                  <>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "bold", marginBottom: 10 }}>
+                      <FontAwesome5 name="clipboard-list" size={14} /> Transacciones ({reporteData.ventas.length})
+                    </Text>
+                    <View style={{ marginBottom: 16 }}>
+                      {reporteData.ventas.slice(0, 50).map((v: any, i: number) => (
+                        <View key={v.id} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                            <Text style={{ color: colores.textoBlanco, fontSize: 12 }}>#{i + 1}</Text>
+                            <Text style={{ color: colores.textoGris, fontSize: 11 }}>{v.fecha ? new Date(v.fecha).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</Text>
+                          </View>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+                            <Text style={{ color: colores.textoBlanco, fontSize: 13, flex: 1 }} numberOfLines={1}>{v.cliente_nombre || "Sin cliente"}</Text>
+                            <Text style={{ color: colores.primario, fontSize: 14, fontWeight: "bold" }}>{formatearMoneda(v.total)}</Text>
+                          </View>
+                          <Text style={{ color: colores.textoGris, fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>
+                            {v.metodo_pago?.replace(/_/g, " ") || "—"}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* MOVIMIENTOS */}
+                {reporteData.movimientos?.length > 0 && (
+                  <>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "bold", marginBottom: 10 }}>
+                      <FontAwesome5 name="exchange-alt" size={14} /> Movimientos
+                    </Text>
+                    <View style={{ marginBottom: 16 }}>
+                      {reporteData.movimientos.map((m: any) => (
+                        <View key={m.id} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{m.descripcion}</Text>
+                            <Text style={{ color: colores.textoGris, fontSize: 11, marginTop: 2 }}>{m.vendedor_nombre || ""}</Text>
+                          </View>
+                          <Text style={{ color: m.tipo === "ingreso" ? colores.exito : colores.error, fontSize: 14, fontWeight: "bold" }}>
+                            {m.tipo === "ingreso" ? "+" : "-"}{formatearMoneda(m.monto)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* RESUMEN EFECTIVO */}
+                <View style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                  <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "bold", marginBottom: 12 }}>
+                    <FontAwesome5 name="cash-register" size={14} /> Resumen de Efectivo
+                  </Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 13 }}>Efectivo esperado</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{formatearMoneda(reporteData.total_efectivo || 0)}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 13 }}>Declarado</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 14, fontWeight: "bold" }}>{formatearMoneda(reporteData.monto_final_declarado || 0)}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.1)" }}>
+                    <Text style={{ color: colores.textoGris, fontSize: 14, fontWeight: "bold" }}>Diferencia</Text>
+                    <Text style={{ color: (reporteData.diferencia || 0) >= 0 ? colores.exito : colores.error, fontSize: 16, fontWeight: "bold" }}>
+                      {(reporteData.diferencia || 0) >= 0 ? "+" : ""}{formatearMoneda(parseFloat(reporteData.diferencia || 0))}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* CERRAR */}
+                <TouchableOpacity
+                  style={{ backgroundColor: colores.primario, paddingVertical: 14, borderRadius: 12, alignItems: "center" }}
+                  onPress={() => setModalReporteVisible(false)}
+                >
+                  <Text style={{ color: colores.textoOscuro, fontWeight: "bold", fontSize: 15 }}>Cerrar</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : null}
+          </View>
         </View>
       </Modal>
     </KeyboardAvoidingView>
