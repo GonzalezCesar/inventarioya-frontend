@@ -315,7 +315,7 @@ export default function PantallaNuevaVenta() {
   };
 
   const planUsaCaja = user?.rol === "superadmin" || user?.plan?.usa_caja === 1;
-  const planPermiteCredito = user?.plan?.permite_credito === 1;
+  const planPermiteCredito = user?.rol === "superadmin" || user?.plan?.permite_credito === 1;
 
   const abrirModalPago = () => {
     if (carrito.length === 0) return;
@@ -975,6 +975,11 @@ export default function PantallaNuevaVenta() {
                       nombre: "Pago Móvil",
                       icono: "mobile-alt",
                     },
+                    {
+                      id: "otros",
+                      nombre: "Otros",
+                      icono: "ellipsis-h",
+                    },
                   ].map((metodo) => (
                     <TouchableOpacity
                       key={metodo.id}
@@ -1005,7 +1010,7 @@ export default function PantallaNuevaVenta() {
                   ))}
                 </View>
 
-                {metodoPago === "efectivo" && (
+                {(metodoPago === "efectivo" || metodoPago === "otros") && (
                   <View style={{ marginTop: 20 }}>
                     <Text style={estilos.labelInput}>Dinero Recibido</Text>
                     <TextInput
