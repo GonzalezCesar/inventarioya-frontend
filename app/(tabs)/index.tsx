@@ -218,8 +218,8 @@ export default function PantallaDashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* USO DEL PLAN */}
-        {user?.plan && planUsage && (
+        {/* USO DEL PLAN (solo admin) */}
+        {esAdmin && user?.plan && planUsage && (
           <View style={estilos.seccion}>
             <Text style={estilos.tituloSeccion}>{user.plan.nombre} — Uso del Plan</Text>
             <View style={{ backgroundColor: colores.fondoTarjeta, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: colores.borde }}>

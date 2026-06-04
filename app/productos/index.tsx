@@ -15,7 +15,7 @@ import {
 import { useAuth } from "../../contexts/ContextAuth";
 import { useTheme } from "../../contexts/ContextTheme"; // 🔥 Importamos el tema
 import api from "../../services/api";
-import { API_URL } from "../../config/env";
+import { API_URL_UPLOADS } from "../../config/env";
 
 
 interface Producto {
@@ -92,7 +92,7 @@ export default function PantallaProductos() {
     if (!imagen) return null;
     if (imagen.startsWith("http") || imagen.startsWith("data:"))
       return { uri: imagen };
-    return { uri: `${API_URL}/uploads/${imagen}` };
+    return { uri: `${API_URL_UPLOADS}${imagen}` };
   };
 
   // Componente Tarjeta de Producto
