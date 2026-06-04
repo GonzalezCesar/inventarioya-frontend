@@ -1,5 +1,5 @@
 // 🔥 Cambia esta IP por la de tu Tailscale o tu WiFi local cuando te muevas
-const IP_SERVIDOR = "192.168.1.102"; 
+const IP_SERVIDOR = "192.168.1.108"; 
 const PUERTO = "8000";
 
 // Exportamos las rutas maestras para que toda la app las use

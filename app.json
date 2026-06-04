@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "inventarioya-frontend",
+    "name": "InventarioYa",
     "slug": "inventarioya-frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,12 +20,20 @@
         "monochromeImage": "./assets/images/iya.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.inventarioyafrontend"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/iya.png"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b0ab4a43-d48e-40f7-9c72-1c659dc71cc1",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 30000
     },
     "plugins": [
       "expo-router",
@@ -46,6 +54,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b0ab4a43-d48e-40f7-9c72-1c659dc71cc1"
+      }
+    },
+    "owner": "cesarcode"
   }
 }
