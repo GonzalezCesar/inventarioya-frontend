@@ -100,9 +100,16 @@ export default function PantallaReportes() {
   const [modalReporteVisible, setModalReporteVisible] = useState(false);
   const [reporteData, setReporteData] = useState<any>(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
+  const [reportePorFecha, setReportePorFecha] = useState(false);
+
+  const [fechaInicioReporte, setFechaInicioReporte] = useState(new Date());
+  const [fechaFinReporte, setFechaFinReporte] = useState(new Date());
+  const [showPickerInicioReporte, setShowPickerInicioReporte] = useState(false);
+  const [showPickerFinReporte, setShowPickerFinReporte] = useState(false);
 
   const cargarReporte = async (sessionId: string) => {
     setCargandoReporte(true);
+    setReportePorFecha(false);
     setModalReporteVisible(true);
     try {
       const res: any = await api.get(`/caja/reporte?id=${sessionId}`);
@@ -110,6 +117,60 @@ export default function PantallaReportes() {
     } catch (e) {
       console.error("Error cargando reporte:", e);
       Alert.alert("Error", "No se pudo cargar el reporte de caja.");
+      setModalReporteVisible(false);
+    } finally {
+      setCargandoReporte(false);
+    }
+  };
+
+  const cargarReportePorFecha = async () => {
+    setCargandoReporte(true);
+    setReportePorFecha(true);
+    setModalReporteVisible(true);
+    try {
+      const inicio = fechaInicioReporte.toISOString().split("T")[0];
+      const fin = fechaFinReporte.toISOString().split("T")[0];
+      const sesiones: any = await api.get(`/caja/reporte?fecha_inicio=${inicio}&fecha_fin=${fin}`);
+
+      const totalEfectivo = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_efectivo || 0), 0);
+      const totalTransferencia = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_transferencia || 0), 0);
+      const totalPunto = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_punto || 0), 0);
+      const totalPm = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_pago_movil || 0), 0);
+      const totalCredito = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_credito || 0), 0);
+      const totalOtros = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_otros || 0), 0);
+      const totalVentas = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_ventas_sistema || 0), 0);
+      const totalDeclarado = sesiones.reduce((s: number, c: any) => s + parseFloat(c.monto_final_declarado || 0), 0);
+      const totalDiferencia = sesiones.reduce((s: number, c: any) => s + parseFloat(c.diferencia || 0), 0);
+      const totalGastos = sesiones.reduce((s: number, c: any) => s + parseFloat(c.total_gastos || 0), 0);
+
+      const todasVentas: any[] = [];
+      sesiones.forEach((ses: any) => {
+        if (ses.ventas) ses.ventas.forEach((v: any) => todasVentas.push(v));
+      });
+
+      setReporteData({
+        sesiones,
+        cantidad_sesiones: sesiones.length,
+        total_efectivo: totalEfectivo,
+        total_transferencia: totalTransferencia,
+        total_punto: totalPunto,
+        total_pago_movil: totalPm,
+        total_credito: totalCredito,
+        total_otros: totalOtros,
+        total_ventas_sistema: totalVentas,
+        monto_final_declarado: totalDeclarado,
+        diferencia: totalDiferencia,
+        total_gastos: totalGastos,
+        ventas: todasVentas,
+        total_ventas: todasVentas.length,
+        fecha_apertura: fechaInicioReporte.toISOString(),
+        fecha_cierre: fechaFinReporte.toISOString(),
+        vendedor_nombre: `${sesiones.length} sesión(es)`,
+        monto_inicial: 0,
+      });
+    } catch (e) {
+      console.error("Error cargando reporte por fecha:", e);
+      Alert.alert("Error", "No se pudo cargar el reporte.");
       setModalReporteVisible(false);
     } finally {
       setCargandoReporte(false);
@@ -381,7 +442,7 @@ export default function PantallaReportes() {
   }, [cajaActual, ventas, movimientosCaja]);
 
   const handleAbrirCaja = async () => {
-    if (user?.plan?.usa_caja !== 1) {
+    if (user?.rol !== "superadmin" && user?.plan?.usa_caja !== 1) {
       return Alert.alert("Módulo no disponible", "Su plan no tiene la opción para usar la caja.");
     }
     const monto = parseFloat(montoInicialCaja);
@@ -398,7 +459,7 @@ export default function PantallaReportes() {
   };
 
   const handleCerrarCaja = async () => {
-    if (user?.plan?.usa_caja !== 1) {
+    if (user?.rol !== "superadmin" && user?.plan?.usa_caja !== 1) {
       return Alert.alert("Módulo no disponible", "Su plan no tiene la opción para usar la caja.");
     }
     const montoDeclarado = parseFloat(montoCierre);
@@ -436,7 +497,7 @@ export default function PantallaReportes() {
   };
 
   const handleMovimiento = async () => {
-    if (user?.plan?.usa_caja !== 1) {
+    if (user?.rol !== "superadmin" && user?.plan?.usa_caja !== 1) {
       return Alert.alert("Módulo no disponible", "Su plan no tiene la opción para usar la caja.");
     }
     const monto = parseFloat(montoMovimiento);
@@ -1332,7 +1393,7 @@ export default function PantallaReportes() {
   };
 
   const renderVistaCaja = () => {
-    const planIncluyeCaja = user?.plan?.usa_caja === 1;
+    const planIncluyeCaja = user?.rol === "superadmin" || user?.plan?.usa_caja === 1;
 
     if (!planIncluyeCaja) {
       return (
@@ -1705,6 +1766,79 @@ export default function PantallaReportes() {
             </Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {esAdmin() && (
+        <View style={{ marginBottom: 20, width: "100%" }}>
+          <Text style={{ color: colores.textoBlanco, fontSize: 14, fontWeight: "bold", marginBottom: 10 }}>
+            <FontAwesome5 name="chart-line" size={13} /> Reporte Z por Fechas
+          </Text>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <TouchableOpacity
+              style={{
+                flex: 1, minWidth: 100,
+                backgroundColor: colores.fondoInput, paddingHorizontal: 12, paddingVertical: 10,
+                borderRadius: 10, borderWidth: 1, borderColor: colores.borde,
+              }}
+              onPress={() => setShowPickerInicioReporte(true)}
+            >
+              <Text style={{ color: colores.textoGris, fontSize: 10, marginBottom: 2 }}>Desde</Text>
+              <Text style={{ color: colores.textoBlanco, fontWeight: "bold", fontSize: 13 }}>
+                {fechaInicioReporte.toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1, minWidth: 100,
+                backgroundColor: colores.fondoInput, paddingHorizontal: 12, paddingVertical: 10,
+                borderRadius: 10, borderWidth: 1, borderColor: colores.borde,
+              }}
+              onPress={() => setShowPickerFinReporte(true)}
+            >
+              <Text style={{ color: colores.textoGris, fontSize: 10, marginBottom: 2 }}>Hasta</Text>
+              <Text style={{ color: colores.textoBlanco, fontWeight: "bold", fontSize: 13 }}>
+                {fechaFinReporte.toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: colores.primario, paddingHorizontal: 16, paddingVertical: 10,
+                borderRadius: 10, alignItems: "center", justifyContent: "center",
+              }}
+              onPress={cargarReportePorFecha}
+            >
+              <Text style={{ color: colores.textoOscuro, fontWeight: "bold", fontSize: 13 }}>
+                <FontAwesome5 name="receipt" size={12} /> Generar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Date Pickers */}
+      {showPickerInicioReporte && (
+        <DateTimePicker
+          value={fechaInicioReporte}
+          mode="date"
+          display="default"
+          onChange={(_: any, date?: Date) => {
+            setShowPickerInicioReporte(false);
+            if (date) setFechaInicioReporte(date);
+          }}
+        />
+      )}
+      {showPickerFinReporte && (
+        <DateTimePicker
+          value={fechaFinReporte}
+          mode="date"
+          display="default"
+          onChange={(_: any, date?: Date) => {
+            setShowPickerFinReporte(false);
+            if (date) setFechaFinReporte(date);
+          }}
+        />
       )}
 
       <View style={{ marginTop: 40, width: "100%" }}>
@@ -2724,7 +2858,12 @@ export default function PantallaReportes() {
                   <Text style={{ color: colores.textoBlanco, fontSize: 20, fontWeight: "bold", marginTop: 8 }}>
                     REPORTE Z
                   </Text>
-                  <Text style={{ color: colores.textoGris, fontSize: 12, marginTop: 2 }}>
+                  {reportePorFecha && (
+                    <Text style={{ color: colores.primario, fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
+                      Por Fechas — {reporteData.cantidad_sesiones || 0} sesión(es)
+                    </Text>
+                  )}
+                  <Text style={{ color: colores.textoGris, fontSize: 12, marginTop: reportePorFecha ? 0 : 2 }}>
                     {formatearFechaHora(reporteData.fecha_apertura)} — {reporteData.fecha_cierre ? formatearFechaHora(reporteData.fecha_cierre) : "Abierta"}
                   </Text>
                 </View>
@@ -2734,10 +2873,12 @@ export default function PantallaReportes() {
                     <Text style={{ color: colores.textoGris, fontSize: 12 }}>Vendedor</Text>
                     <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "bold" }}>{reporteData.vendedor_nombre || "—"}</Text>
                   </View>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                    <Text style={{ color: colores.textoGris, fontSize: 12 }}>Base inicial</Text>
-                    <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{formatearMoneda(reporteData.monto_inicial || 0)}</Text>
-                  </View>
+                  {!reportePorFecha && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                      <Text style={{ color: colores.textoGris, fontSize: 12 }}>Base inicial</Text>
+                      <Text style={{ color: colores.textoBlanco, fontSize: 13 }}>{formatearMoneda(reporteData.monto_inicial || 0)}</Text>
+                    </View>
+                  )}
                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
                     <Text style={{ color: colores.textoGris, fontSize: 12 }}>Total ventas</Text>
                     <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "bold" }}>{formatearMoneda(reporteData.total_ventas_sistema || 0)}</Text>
@@ -2760,6 +2901,7 @@ export default function PantallaReportes() {
                     { label: "Pago Móvil", value: reporteData.total_pago_movil },
                     { label: "Crédito", value: reporteData.total_credito },
                     { label: "Otros", value: reporteData.total_otros },
+                    { label: "Gastos", value: reporteData.total_gastos },
                   ].map((item) => (
                     <View key={item.label} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
                       <Text style={{ color: colores.textoGris, fontSize: 13 }}>{item.label}</Text>

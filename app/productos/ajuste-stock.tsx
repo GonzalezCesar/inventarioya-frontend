@@ -217,7 +217,7 @@ export default function PantallaAjusteStock() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior="padding"
       style={estilos.contenedor}
     >
       <View style={estilos.encabezado}>
@@ -520,7 +520,6 @@ export default function PantallaAjusteStock() {
           </Text>
         )}
 
-        <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -547,7 +546,7 @@ const crearEstilos = (c: any, isDark: boolean) =>
       alignItems: "flex-start",
     },
     titulo: { fontSize: 20, fontWeight: "bold", color: c.textoBlanco },
-    contenido: { padding: 20 },
+    contenido: { padding: 20, paddingBottom: 40, flexGrow: 1 },
 
     cardFormulario: {
       backgroundColor: c.fondoTarjeta,

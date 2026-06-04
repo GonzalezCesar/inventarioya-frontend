@@ -314,7 +314,7 @@ export default function PantallaNuevaVenta() {
     );
   };
 
-  const planUsaCaja = user?.plan?.usa_caja === 1;
+  const planUsaCaja = user?.rol === "superadmin" || user?.plan?.usa_caja === 1;
   const planPermiteCredito = user?.plan?.permite_credito === 1;
 
   const abrirModalPago = () => {
