@@ -101,6 +101,7 @@ export default function PantallaReportes() {
   const [reporteData, setReporteData] = useState<any>(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
   const [reportePorFecha, setReportePorFecha] = useState(false);
+  const [expandTransacciones, setExpandTransacciones] = useState(false);
 
   const [fechaInicioReporte, setFechaInicioReporte] = useState(new Date());
   const [fechaFinReporte, setFechaFinReporte] = useState(new Date());
@@ -110,6 +111,7 @@ export default function PantallaReportes() {
   const cargarReporte = async (sessionId: string) => {
     setCargandoReporte(true);
     setReportePorFecha(false);
+    setExpandTransacciones(false);
     setModalReporteVisible(true);
     try {
       const res: any = await api.get(`/caja/reporte?id=${sessionId}`);
@@ -126,6 +128,7 @@ export default function PantallaReportes() {
   const cargarReportePorFecha = async () => {
     setCargandoReporte(true);
     setReportePorFecha(true);
+    setExpandTransacciones(false);
     setModalReporteVisible(true);
     try {
       const inicio = fechaInicioReporte.toISOString().split("T")[0];
@@ -493,6 +496,87 @@ export default function PantallaReportes() {
     } catch (e: any) {
       Alert.alert("Error", e.message || "No se pudo cerrar la caja");
       setCargando(false);
+    }
+  };
+
+  const generarReporteParcial = async () => {
+    if (!cajaActual) return;
+
+    try {
+      const resVentas: any = await api.get("/ventas").catch(() => []);
+      const ventasActualizadas: any[] = resVentas || [];
+
+      const fApertura = new Date(cajaActual.fecha_apertura);
+      const ventasDelPeriodo = ventasActualizadas.filter(
+        (v) => new Date(v.fecha) >= fApertura,
+      );
+
+      let ventasEf = 0,
+        ventasTransferencia = 0,
+        ventasPunto = 0,
+        ventasPm = 0,
+        ventasCr = 0,
+        ventasOtros = 0;
+      let countEf = 0,
+        countBanco = 0,
+        countPm = 0,
+        countCr = 0;
+
+      ventasDelPeriodo.forEach((v: any) => {
+        const m = v.metodoPago || v.metodo_pago;
+        const totalVenta = Number(v.total || 0);
+        if (m === "efectivo") { ventasEf += totalVenta; countEf++; }
+        else if (m === "transferencia") { ventasTransferencia += totalVenta; countBanco++; }
+        else if (m === "tarjeta") { ventasPunto += totalVenta; countBanco++; }
+        else if (m === "pago_movil") { ventasPm += totalVenta; countPm++; }
+        else if (m === "credito" || v.estadoPago === "pendiente" || v.estado_pago === "pendiente") {
+          ventasCr += Number(v.montoRestante || v.monto_restante || v.total);
+          countCr++;
+        } else { ventasOtros += totalVenta; }
+      });
+
+      let ing = 0, gas = 0;
+      movimientosCaja.forEach((m: any) => {
+        if (m.tipo === "ingreso") ing += parseFloat(m.monto);
+        if (m.tipo === "egreso") gas += parseFloat(m.monto);
+      });
+
+      const base = parseFloat(cajaActual.monto_inicial || 0);
+      const totalVentasSistema = ventasEf + ventasTransferencia + ventasPunto + ventasPm + ventasOtros;
+      const esperado = base + ventasEf + ing - gas;
+      const totalVentas = countEf + countBanco + countPm + countCr;
+
+      setReporteData({
+        id: cajaActual.id,
+        vendedor_nombre: user?.nombre || user?.email || "—",
+        monto_inicial: base,
+        fecha_apertura: cajaActual.fecha_apertura,
+        fecha_cierre: null,
+        total_ventas_sistema: totalVentasSistema,
+        total_ventas: totalVentas,
+        total_efectivo: esperado,
+        efectivo_facturado: ventasEf,
+        total_transferencia: ventasTransferencia,
+        total_punto: ventasPunto,
+        total_pago_movil: ventasPm,
+        total_credito: ventasCr,
+        total_otros: ventasOtros,
+        total_gastos: gas,
+        ventas: ventasDelPeriodo,
+        movimientos: movimientosCaja,
+        monto_final_declarado: null,
+        diferencia: null,
+      });
+      setReportePorFecha(false);
+      setExpandTransacciones(false);
+      setModalReporteVisible(true);
+
+      Alert.alert(
+        "Reporte Parcial",
+        "Este reporte refleja el estado actual de la caja. Para guardarlo en el historial, debes realizar el cierre completo desde el botón REALIZAR CORTE DE CAJA.",
+      );
+    } catch (e) {
+      Alert.alert("Error", "No se pudieron cargar los datos actualizados.");
     }
   };
 
@@ -2773,9 +2857,35 @@ export default function PantallaReportes() {
                         >
                           <Text style={{ color: colores.primario, fontWeight: "bold", fontSize: 14 }}>
                             <FontAwesome5 name="image" size={13} /> {c.label}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "transparent",
+              marginTop: 12,
+              borderRadius: 12,
+              paddingVertical: 14,
+              gap: 10,
+              borderWidth: 1,
+              borderColor: colores.primario,
+            }}
+            onPress={generarReporteParcial}
+          >
+            <FontAwesome5 name="file-invoice" size={16} color={colores.primario} />
+            <Text
+              style={{
+                color: colores.primario,
+                fontSize: 14,
+                fontWeight: "bold",
+              }}
+            >
+              Reporte Parcial (En Curso)
+            </Text>
+          </TouchableOpacity>
+        </View>
                     ));
                   })()}
                 </>
@@ -2857,7 +2967,7 @@ export default function PantallaReportes() {
                 <View style={{ alignItems: "center", marginBottom: 20 }}>
                   <FontAwesome5 name="receipt" size={28} color={colores.textoResaltado} />
                   <Text style={{ color: colores.textoBlanco, fontSize: 20, fontWeight: "bold", marginTop: 8 }}>
-                    REPORTE Z
+                    {reporteData.fecha_cierre ? "REPORTE Z" : "REPORTE PARCIAL"}
                   </Text>
                   {reportePorFecha && (
                     <Text style={{ color: colores.textoResaltado, fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
@@ -2896,7 +3006,7 @@ export default function PantallaReportes() {
                 </Text>
                 <View style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
                   {[
-                    { label: "Efectivo", value: reporteData.total_efectivo },
+                    { label: "Efectivo", value: reporteData.efectivo_facturado ?? reporteData.total_efectivo },
                     { label: "Transferencia", value: reporteData.total_transferencia },
                     { label: "Punto", value: reporteData.total_punto },
                     { label: "Pago Móvil", value: reporteData.total_pago_movil },
@@ -2914,14 +3024,24 @@ export default function PantallaReportes() {
                 {/* TRANSACCIONES */}
                 {reporteData.ventas?.length > 0 && (
                   <>
-                    <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "bold", marginBottom: 10 }}>
-                      <FontAwesome5 name="clipboard-list" size={14} /> Transacciones ({reporteData.ventas.length})
-                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setExpandTransacciones(!expandTransacciones)}
+                      style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}
+                    >
+                      <Text style={{ color: colores.textoBlanco, fontSize: 15, fontWeight: "bold", flex: 1 }}>
+                        <FontAwesome5 name="clipboard-list" size={14} /> Transacciones ({reporteData.ventas.length})
+                      </Text>
+                      <FontAwesome5
+                        name={expandTransacciones ? "chevron-up" : "chevron-down"}
+                        size={14}
+                        color={colores.textoGris}
+                      />
+                    </TouchableOpacity>
                     <View style={{ marginBottom: 16 }}>
-                      {reporteData.ventas.slice(0, 50).map((v: any, i: number) => (
+                      {(expandTransacciones ? reporteData.ventas.slice(0, 50) : reporteData.ventas.slice(-1)).map((v: any, i: number) => (
                         <View key={v.id} style={{ backgroundColor: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
                           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                            <Text style={{ color: colores.textoBlanco, fontSize: 12 }}>#{i + 1}</Text>
+                            <Text style={{ color: colores.textoBlanco, fontSize: 12 }}>#{expandTransacciones ? i + 1 : reporteData.ventas.length}</Text>
                             <Text style={{ color: colores.textoGris, fontSize: 11 }}>{v.fecha ? new Date(v.fecha).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</Text>
                           </View>
                           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
@@ -2970,12 +3090,14 @@ export default function PantallaReportes() {
                   </View>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
                     <Text style={{ color: colores.textoGris, fontSize: 13 }}>Declarado</Text>
-                    <Text style={{ color: colores.textoBlanco, fontSize: 14, fontWeight: "bold" }}>{formatearMoneda(reporteData.monto_final_declarado || 0)}</Text>
+                    <Text style={{ color: colores.textoBlanco, fontSize: 14, fontWeight: "bold" }}>
+                      {reporteData.monto_final_declarado != null ? formatearMoneda(reporteData.monto_final_declarado) : "N/A"}
+                    </Text>
                   </View>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.1)" }}>
                     <Text style={{ color: colores.textoGris, fontSize: 14, fontWeight: "bold" }}>Diferencia</Text>
-                    <Text style={{ color: (reporteData.diferencia || 0) >= 0 ? colores.exito : colores.error, fontSize: 16, fontWeight: "bold" }}>
-                      {(reporteData.diferencia || 0) >= 0 ? "+" : ""}{formatearMoneda(parseFloat(reporteData.diferencia || 0))}
+                    <Text style={{ color: reporteData.diferencia != null ? ((reporteData.diferencia || 0) >= 0 ? colores.exito : colores.error) : colores.textoGris, fontSize: 16, fontWeight: "bold" }}>
+                      {reporteData.diferencia != null ? ((reporteData.diferencia || 0) >= 0 ? "+" : "") + formatearMoneda(parseFloat(reporteData.diferencia || 0)) : "N/A"}
                     </Text>
                   </View>
                 </View>
