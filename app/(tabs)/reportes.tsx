@@ -673,13 +673,13 @@ export default function PantallaReportes() {
             },
           ]}
         >
-          <Text style={[estilos.tituloKPI, { color: colores.primario }]}>
+          <Text style={[estilos.tituloKPI, { color: colores.textoResaltado }]}>
             UTILIDAD NETA
           </Text>
-          <Text style={[estilos.valorKPI, { color: colores.primario }]}>
+          <Text style={[estilos.valorKPI, { color: colores.textoResaltado }]}>
             {formatearMoneda(kpis.utilidad)}
           </Text>
-          <Text style={{ color: colores.primario, fontSize: 12, marginTop: 5 }}>
+          <Text style={{ color: colores.textoResaltado, fontSize: 12, marginTop: 5 }}>
             Margen: {kpis.margen.toFixed(1)}%
           </Text>
         </View>
@@ -763,7 +763,7 @@ export default function PantallaReportes() {
               >
                 <Text
                   style={{
-                    color: colores.primario,
+                    color: colores.textoResaltado,
                     fontWeight: "bold",
                     fontSize: 16,
                   }}
@@ -779,7 +779,7 @@ export default function PantallaReportes() {
               </View>
               <Text
                 style={{
-                  color: colores.primario,
+                  color: colores.textoResaltado,
                   fontWeight: "bold",
                   fontSize: 16,
                   marginLeft: 10,
@@ -1055,6 +1055,7 @@ export default function PantallaReportes() {
                 { id: "pago_movil", label: "Pago Móvil" },
                 { id: "transferencia", label: "Transferencia" },
                 { id: "credito", label: "Crédito / Mixto" },
+                { id: "otros", label: "Otros" },
               ].map((p) => (
                 <TouchableOpacity
                   key={p.id}
@@ -1158,7 +1159,7 @@ export default function PantallaReportes() {
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Text
                 style={{
-                  color: colores.primario,
+                  color: colores.textoResaltado,
                   fontWeight: "bold",
                   fontSize: 16,
                 }}
@@ -1769,7 +1770,7 @@ export default function PantallaReportes() {
       )}
 
       {esAdmin() && (
-        <View style={{ marginBottom: 20, width: "100%" }}>
+        <View style={{ marginBottom: 20, marginTop: 25, width: "100%" }}>
           <Text style={{ color: colores.textoBlanco, fontSize: 14, fontWeight: "bold", marginBottom: 10 }}>
             <FontAwesome5 name="chart-line" size={13} /> Reporte Z por Fechas
           </Text>
@@ -2701,7 +2702,7 @@ export default function PantallaReportes() {
           <View style={{ backgroundColor: colores.fondoInput, borderRadius: 16, padding: 24, maxHeight: "85%" }}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <Text style={{ color: colores.primario, fontSize: 22, fontWeight: "bold" }}>
+                <Text style={{ color: colores.textoResaltado, fontSize: 22, fontWeight: "bold" }}>
                   Venta #{ventaDetalle?.id?.toString().slice(-6)}
                 </Text>
                 <TouchableOpacity onPress={() => setModalDetalleVisible(false)} style={{ padding: 5 }}>
@@ -2749,8 +2750,8 @@ export default function PantallaReportes() {
                   </View>
 
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: colores.primario, paddingTop: 12, marginBottom: 16 }}>
-                    <Text style={{ color: colores.primario, fontSize: 18, fontWeight: "bold" }}>Total</Text>
-                    <Text style={{ color: colores.primario, fontSize: 22, fontWeight: "900" }}>
+                    <Text style={{ color: colores.textoResaltado, fontSize: 18, fontWeight: "bold" }}>Total</Text>
+                    <Text style={{ color: colores.textoResaltado, fontSize: 22, fontWeight: "900" }}>
                       {formatearMoneda(ventaDetalle.total)}
                     </Text>
                   </View>
@@ -2854,12 +2855,12 @@ export default function PantallaReportes() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* HEADER */}
                 <View style={{ alignItems: "center", marginBottom: 20 }}>
-                  <FontAwesome5 name="receipt" size={28} color={colores.primario} />
+                  <FontAwesome5 name="receipt" size={28} color={colores.textoResaltado} />
                   <Text style={{ color: colores.textoBlanco, fontSize: 20, fontWeight: "bold", marginTop: 8 }}>
                     REPORTE Z
                   </Text>
                   {reportePorFecha && (
-                    <Text style={{ color: colores.primario, fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
+                    <Text style={{ color: colores.textoResaltado, fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
                       Por Fechas — {reporteData.cantidad_sesiones || 0} sesión(es)
                     </Text>
                   )}

@@ -240,7 +240,7 @@ export default function PantallaCuenta() {
             <FontAwesome5
               name={esAdmin() ? "star" : "shopping-cart"}
               size={12}
-              color={colores.primario}
+              color={colores.textoResaltado}
               solid={esAdmin()}
             />
             <Text style={estilos.textoRol}>
@@ -439,7 +439,7 @@ export default function PantallaCuenta() {
                   name={opcion.icono}
                   size={16}
                   color={
-                    opcion.destacado ? colores.primario : colores.textoBlanco
+                    opcion.destacado ? colores.textoResaltado : colores.textoBlanco
                   }
                 />
               </View>
@@ -447,7 +447,7 @@ export default function PantallaCuenta() {
                 style={[
                   estilos.tituloOpcion,
                   opcion.destacado && {
-                    color: colores.primario,
+                    color: colores.textoResaltado,
                     fontWeight: "bold",
                   },
                 ]}
@@ -589,7 +589,7 @@ const crearEstilos = (c: any, isDark: boolean) =>
     textoRol: {
       fontSize: 14,
       fontWeight: "bold",
-      color: c.primario,
+      color: c.textoResaltado,
       marginLeft: 8,
     },
     tarjetaInfo: {

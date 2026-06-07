@@ -30,7 +30,14 @@ export default function PantallaDashboard() {
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [datos, setDatos] = useState<any>(null);
-  const [planUsage, setPlanUsage] = useState<any>(null);
+  const [planUsage, setPlanUsage] = useState<{
+    productos: number;
+    clientes: number;
+    proveedores: number;
+    vendedores: number;
+    categorias: number;
+    ventas: number;
+  } | null>(null);
   const [modalLowStock, setModalLowStock] = useState(false);
 
   const esSuperAdmin = user?.rol?.toLowerCase() === "superadmin";
@@ -38,7 +45,7 @@ export default function PantallaDashboard() {
   const rol = user?.rol?.toLowerCase() || "";
   const esAdmin = ["administrador", "admin", "superadmin", "beta_tester"].includes(rol);
 
-  const cargarPlanUsage = async () => {
+  const cargarPlanUsage = async (dashboardData?: any) => {
     try {
       const [resProds, resClis, resProvs, resUsers, resCats]: any = await Promise.all([
         api.get("/productos").catch(() => []),
@@ -47,12 +54,19 @@ export default function PantallaDashboard() {
         api.get("/usuarios").catch(() => []),
         api.get("/categorias").catch(() => []),
       ]);
+      const ventasCount = dashboardData?.ventas_por_dia
+        ? dashboardData.ventas_por_dia.reduce(
+            (sum: number, d: any) => sum + (d.cantidad || 0),
+            0,
+          )
+        : 0;
       setPlanUsage({
         productos: (resProds || []).length,
         clientes: (resClis || []).length,
         proveedores: (resProvs || []).length,
         vendedores: (resUsers || []).filter((u: any) => u.rol === "vendedor" || u.rol === "vendedor_beta").length,
         categorias: (resCats || []).length,
+        ventas: ventasCount,
       });
     } catch (e) {
       console.error("Error cargando uso del plan:", e);
@@ -63,7 +77,7 @@ export default function PantallaDashboard() {
     try {
       const respuesta: any = await api.get("/dashboard");
       setDatos(respuesta);
-      if (user?.plan) cargarPlanUsage();
+      if (user?.plan) cargarPlanUsage(respuesta);
     } catch (error) {
       console.error("Error cargando dashboard:", error);
     } finally {
@@ -232,8 +246,21 @@ export default function PantallaDashboard() {
                 { label: "Proveedores", actual: planUsage.proveedores, limite: user.plan.limite_proveedores },
                 { label: "Vendedores", actual: planUsage.vendedores, limite: user.plan.limite_vendedores },
                 { label: "Categorías", actual: planUsage.categorias, limite: user.plan.limite_categorias },
+                { label: "Ventas del Mes", actual: planUsage.ventas, limite: user.plan.limite_ventas_mes },
               ].map((item) => {
-                if (!item.limite) return null;
+                if (item.limite === null || item.limite === undefined) {
+                  return (
+                    <View key={item.label} style={{ marginBottom: 12 }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                        <Text style={{ color: colores.textoBlanco, fontSize: 13, fontWeight: "500" }}>{item.label}</Text>
+                        <Text style={{ color: colores.textoGris, fontSize: 13 }}>{item.actual} / Ilimitado</Text>
+                      </View>
+                      <View style={{ height: 6, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
+                        <View style={{ width: "100%", height: "100%", backgroundColor: colores.primario, borderRadius: 3, opacity: 0.5 }} />
+                      </View>
+                    </View>
+                  );
+                }
                 const pct = Math.min((item.actual / item.limite) * 100, 100);
                 const colorBarra = pct >= 90 ? colores.error : pct >= 70 ? "#FF9500" : colores.primario;
                 return (

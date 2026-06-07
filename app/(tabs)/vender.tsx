@@ -73,7 +73,7 @@ export default function PantallaNuevaVenta() {
   const [cargando, setCargando] = useState(false);
 
   const [clienteSeleccionado, setClienteSeleccionado] = useState<string | null>(
-    null,
+    "mostrador",
   );
   const [busquedaCliente, setBusquedaCliente] = useState("");
 
@@ -87,6 +87,7 @@ export default function PantallaNuevaVenta() {
   const [metodoAbono, setMetodoAbono] = useState("efectivo"); // 🔥 Método del abono inicial
   const [montoRecibido, setMontoRecibido] = useState("");
   const [montoCreditoInicial, setMontoCreditoInicial] = useState("");
+  const [descripcionOtros, setDescripcionOtros] = useState("");
 
   const [fotoComprobante, setFotoComprobante] = useState<string | null>(null);
   const [faseModal, setFaseModal] = useState<"pago" | "confirmacion" | "exito">(
@@ -329,6 +330,7 @@ export default function PantallaNuevaVenta() {
     setFaseModal("pago");
     setMontoRecibido("");
     setMontoCreditoInicial("");
+    setDescripcionOtros("");
     setFotoComprobante(null);
     setMetodoPago("efectivo");
     setMetodoAbono("efectivo");
@@ -389,6 +391,16 @@ export default function PantallaNuevaVenta() {
       );
     }
 
+    if (
+      metodoPago === "otros" &&
+      (!montoRecibido || parseFloat(montoRecibido.replace(",", ".")) <= 0)
+    ) {
+      return Alert.alert(
+        "Monto Requerido",
+        "Por favor ingresa el monto recibido para el pago.",
+      );
+    }
+
     setCargando(true);
     try {
       const tzOffset = new Date().getTimezoneOffset() * 60000;
@@ -400,7 +412,7 @@ export default function PantallaNuevaVenta() {
 
       const payload: any = {
         fecha: fechaLocalMySQL,
-        clienteId: clienteSeleccionado,
+        clienteId: clienteSeleccionado === "mostrador" ? null : clienteSeleccionado,
         total: granTotal,
         subtotal: subtotalBase,
         montoIVA: montoIVA,
@@ -409,7 +421,12 @@ export default function PantallaNuevaVenta() {
           metodoPago === "credito" && abonoInicial > 0
             ? metodoAbono
             : metodoPago,
-        metodoPago2: metodoPago === "credito" ? "mixto" : null,
+        metodoPago2:
+          metodoPago === "credito"
+            ? "mixto"
+            : metodoPago === "otros"
+            ? descripcionOtros || null
+            : null,
         montoPagado: metodoPago === "credito" ? abonoInicial : recibidoFloat,
         estadoPago:
           metodoPago === "credito"
@@ -436,9 +453,11 @@ export default function PantallaNuevaVenta() {
       setVentaRealizada({
         ...payload,
         id: response?.id || Date.now().toString(),
-        clienteNombre: clienteSeleccionado
-          ? clientesBD.find((c) => c.id === clienteSeleccionado)?.nombre
-          : "Mostrador",
+        clienteNombre:
+          clienteSeleccionado === "mostrador"
+            ? "Mostrador"
+            : clientesBD.find((c) => c.id === clienteSeleccionado)?.nombre ||
+              "Mostrador",
       });
 
       setFaseModal("exito");
@@ -449,7 +468,8 @@ export default function PantallaNuevaVenta() {
         useNativeDriver: true,
       }).start();
       setCarrito([]);
-      setClienteSeleccionado(null);
+      setClienteSeleccionado("mostrador");
+      setDescripcionOtros("");
       cargarDatos();
     } catch (error: any) {
       const mensajeBackend = error.response?.data?.error || error.message || "";
@@ -757,14 +777,17 @@ export default function PantallaNuevaVenta() {
                       marginBottom: 15,
                     }}
                   >
-                    <Text style={estilos.seccionTitulo}>Cliente *</Text>
+                    <Text style={estilos.seccionTitulo}>Cliente</Text>
                     {!mostrarNuevoCliente && !clienteSeleccionado && (
                       <TouchableOpacity
-                        onPress={() => setMostrarNuevoCliente(true)}
+                        onPress={() => {
+                          setClienteSeleccionado(null);
+                          setMostrarNuevoCliente(true);
+                        }}
                       >
                         <Text
                           style={{
-                            color: colores.primario,
+                            color: colores.textoResaltado,
                             fontWeight: "bold",
                             fontSize: 14,
                           }}
@@ -863,7 +886,11 @@ export default function PantallaNuevaVenta() {
                           }}
                         >
                           <FontAwesome5
-                            name="user-check"
+                            name={
+                              clienteSeleccionado === "mostrador"
+                                ? "store"
+                                : "user-check"
+                            }
                             size={16}
                             color={colores.textoOscuro}
                           />
@@ -874,11 +901,11 @@ export default function PantallaNuevaVenta() {
                               fontSize: 16,
                             }}
                           >
-                            {
-                              clientesBD.find(
-                                (c) => c.id === clienteSeleccionado,
-                              )?.nombre
-                            }
+                            {clienteSeleccionado === "mostrador"
+                              ? "Mostrador"
+                              : clientesBD.find(
+                                  (c) => c.id === clienteSeleccionado,
+                                )?.nombre}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -909,13 +936,49 @@ export default function PantallaNuevaVenta() {
                           onChangeText={setBusquedaCliente}
                         />
                       </View>
-                      {busquedaCliente.trim().length > 0 && (
+                      {!clienteSeleccionado && (
                         <View style={estilos.contenedorListaClientes}>
                           <ScrollView
                             nestedScrollEnabled
                             showsVerticalScrollIndicator
                           >
-                            {clientesFiltrados.map((c) => (
+                            <TouchableOpacity
+                              style={estilos.itemClienteList}
+                              onPress={() => {
+                                setClienteSeleccionado("mostrador");
+                                setBusquedaCliente("");
+                              }}
+                            >
+                              <View style={estilos.iconoClienteAvatar}>
+                                <FontAwesome5
+                                  name="store"
+                                  size={14}
+                                  color={colores.textoGris}
+                                />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    estilos.textoItemCliente,
+                                    { fontWeight: "bold" },
+                                  ]}
+                                >
+                                  Mostrador
+                                </Text>
+                                <Text
+                                  style={{
+                                    color: colores.textoGris,
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  Cliente por defecto
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                            {(busquedaCliente.trim()
+                              ? clientesFiltrados
+                              : clientesBD
+                            ).map((c) => (
                               <TouchableOpacity
                                 key={c.id}
                                 style={estilos.itemClienteList}
@@ -994,7 +1057,7 @@ export default function PantallaNuevaVenta() {
                         size={24}
                         color={
                           metodoPago === metodo.id
-                            ? colores.primario
+                            ? colores.textoResaltado
                             : colores.textoGris
                         }
                       />
@@ -1034,6 +1097,21 @@ export default function PantallaNuevaVenta() {
                           )}
                         </Text>
                       )}
+                  </View>
+                )}
+
+                {metodoPago === "otros" && (
+                  <View style={{ marginTop: 15 }}>
+                    <Text style={estilos.labelInput}>
+                      Descripción del pago
+                    </Text>
+                    <TextInput
+                      style={estilos.inputDinero}
+                      placeholder="Ej: Transferencia, Efectivo USD..."
+                      placeholderTextColor={colores.textoGris}
+                      value={descripcionOtros}
+                      onChangeText={setDescripcionOtros}
+                    />
                   </View>
                 )}
 
@@ -1095,7 +1173,7 @@ export default function PantallaNuevaVenta() {
                                   fontWeight: "bold",
                                   color:
                                     metodoAbono === m.id
-                                      ? colores.primario
+                                      ? colores.textoResaltado
                                       : colores.textoGris,
                                 }}
                               >
@@ -1167,11 +1245,6 @@ export default function PantallaNuevaVenta() {
                 <TouchableOpacity
                   style={[estilos.botonPrimario, { marginTop: 30 }]}
                   onPress={() => {
-                    if (!clienteSeleccionado)
-                      return Alert.alert(
-                        "Cliente Requerido",
-                        "Por favor selecciona un cliente.",
-                      );
                     setFaseModal("confirmacion");
                   }}
                 >
@@ -1259,7 +1332,7 @@ export default function PantallaNuevaVenta() {
                   <FontAwesome5
                     name="check"
                     size={60}
-                    color={colores.primario}
+                    color={colores.textoResaltado}
                   />
                 </Animated.View>
                 <Text style={estilos.tituloExito}>¡Venta Exitosa!</Text>
@@ -1389,7 +1462,7 @@ const crearEstilos = (c: any) =>
     skuProductoBusqueda: { fontSize: 12, color: c.textoGris, marginTop: 2 },
     precioProductoBusqueda: {
       fontSize: 16,
-      color: c.primario,
+      color: c.textoResaltado,
       fontWeight: "bold",
     },
     textoVacio: { color: c.textoGris, padding: 20, textAlign: "center" },
@@ -1425,7 +1498,7 @@ const crearEstilos = (c: any) =>
       marginBottom: 2,
     },
     precioItem: { fontSize: 14, color: c.textoGris },
-    subtotalItem: { fontSize: 20, color: c.primario, fontWeight: "900" },
+    subtotalItem: { fontSize: 20, color: c.textoResaltado, fontWeight: "900" },
     controlesCarrito: { flexDirection: "row", alignItems: "center" },
     btnCant: {
       backgroundColor: c.fondoOscuro,
@@ -1438,7 +1511,7 @@ const crearEstilos = (c: any) =>
       borderColor: c.borde,
     },
     txtCant: {
-      color: c.primario,
+      color: c.textoResaltado,
       fontSize: 20,
       fontWeight: "bold",
       marginTop: -2,
@@ -1464,7 +1537,7 @@ const crearEstilos = (c: any) =>
       marginBottom: 15,
     },
     textoTotal: { fontSize: 16, color: c.textoGris, fontWeight: "bold" },
-    montoTotal: { fontSize: 32, color: c.primario, fontWeight: "900" },
+    montoTotal: { fontSize: 32, color: c.textoResaltado, fontWeight: "900" },
     botonPrimario: {
       backgroundColor: c.primario,
       padding: 18,
@@ -1506,7 +1579,7 @@ const crearEstilos = (c: any) =>
       marginBottom: 25,
     },
     totalLabel: { color: c.textoGris, fontSize: 16, marginBottom: 5 },
-    totalValue: { color: c.primario, fontSize: 45, fontWeight: "900" },
+    totalValue: { color: c.textoResaltado, fontSize: 45, fontWeight: "900" },
     seccion: { marginBottom: 25 },
     seccionTitulo: {
       fontSize: 18,
@@ -1611,7 +1684,7 @@ const crearEstilos = (c: any) =>
       backgroundColor: c.fondoInput,
     },
     textoPago: { color: c.textoGris, fontSize: 14, marginTop: 10 },
-    textoPagoActivo: { color: c.primario, fontWeight: "bold" },
+    textoPagoActivo: { color: c.textoResaltado, fontWeight: "bold" },
     labelInput: { color: c.textoBlanco, marginBottom: 10, fontWeight: "bold" },
     inputDinero: {
       backgroundColor: c.fondoOscuro,
@@ -1667,7 +1740,7 @@ const crearEstilos = (c: any) =>
       marginTop: 5,
     },
     textoTotalResumen: { color: c.textoGris, fontWeight: "bold", fontSize: 16 },
-    valorTotalResumen: { color: c.primario, fontWeight: "900", fontSize: 26 },
+    valorTotalResumen: { color: c.textoResaltado, fontWeight: "900", fontSize: 26 },
     filaBotonesAccion: { flexDirection: "row", gap: 15, width: "100%" },
     botonVolverAccion: {
       flex: 1,
