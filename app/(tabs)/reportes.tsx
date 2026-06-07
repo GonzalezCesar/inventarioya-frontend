@@ -34,7 +34,8 @@ export default function PantallaReportes() {
   const esAdmin = () =>
     user?.rol === "admin" ||
     user?.rol === "administrador" ||
-    user?.rol === "superadmin";
+    user?.rol === "superadmin" ||
+    user?.rol === "beta_tester";
 
   const { colores, isDark } = useTheme();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
@@ -240,8 +241,7 @@ export default function PantallaReportes() {
       .filter((v) => {
         // 1. Filtro Vendedor
         const vId = v.vendedorId || v.vendedor_id;
-        if (!esAdmin() && vId !== user?.id) return false;
-        if (esAdmin() && filtroVendedor !== "todos" && vId !== filtroVendedor)
+        if (filtroVendedor !== "todos" && vId !== filtroVendedor)
           return false;
 
         // 2. Filtro Método de Pago (AQUÍ ESTÁ LA MAGIA PARA EL CRÉDITO)
@@ -1355,11 +1355,10 @@ export default function PantallaReportes() {
   const renderVistaCreditos = () => {
     const creditos = ventas.filter(
       (v) =>
-        (v.estadoPago === "pendiente" ||
-          v.estado_pago === "pendiente" ||
-          v.estadoPago === "parcial" ||
-          v.estado_pago === "parcial") &&
-        (esAdmin() || v.vendedorId === user?.id || v.vendedor_id === user?.id),
+        v.estadoPago === "pendiente" ||
+        v.estado_pago === "pendiente" ||
+        v.estadoPago === "parcial" ||
+        v.estado_pago === "parcial",
     );
     const totalCobrar = creditos.reduce(
       (acc, v) => acc + Number(v.montoRestante || v.monto_restante || 0),
