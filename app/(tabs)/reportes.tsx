@@ -390,7 +390,24 @@ export default function PantallaReportes() {
       .forEach((v) => {
         const m = v.metodoPago || v.metodo_pago;
         const totalVenta = Number(v.total || 0);
-        if (m === "efectivo") {
+        const esCreditoPendiente =
+          m === "credito" ||
+          v.estadoPago === "pendiente" ||
+          v.estado_pago === "pendiente";
+
+        if (esCreditoPendiente) {
+          const restante = Number(v.montoRestante || v.monto_restante || totalVenta);
+          const pagado = totalVenta - restante;
+          ventasCr += restante;
+          countCr++;
+          if (pagado > 0 && m !== "credito") {
+            if (m === "efectivo") { ventasEf += pagado; countEf++; }
+            else if (m === "transferencia") { ventasTransferencia += pagado; countBanco++; }
+            else if (m === "tarjeta") { ventasPunto += pagado; countBanco++; }
+            else if (m === "pago_movil") { ventasPm += pagado; countPm++; }
+            else { ventasOtros += pagado; countOtros++; }
+          }
+        } else if (m === "efectivo") {
           ventasEf += totalVenta;
           countEf++;
         } else if (m === "transferencia") {
@@ -402,13 +419,6 @@ export default function PantallaReportes() {
         } else if (m === "pago_movil") {
           ventasPm += totalVenta;
           countPm++;
-        } else if (
-          m === "credito" ||
-          v.estadoPago === "pendiente" ||
-          v.estado_pago === "pendiente"
-        ) {
-          ventasCr += Number(v.montoRestante || v.monto_restante || v.total);
-          countCr++;
         } else {
           ventasOtros += totalVenta;
           countOtros++;
@@ -528,14 +538,28 @@ export default function PantallaReportes() {
       ventasDelPeriodo.forEach((v: any) => {
         const m = v.metodoPago || v.metodo_pago;
         const totalVenta = Number(v.total || 0);
-        if (m === "efectivo") { ventasEf += totalVenta; countEf++; }
+        const esCreditoPendiente =
+          m === "credito" ||
+          v.estadoPago === "pendiente" ||
+          v.estado_pago === "pendiente";
+
+        if (esCreditoPendiente) {
+          const restante = Number(v.montoRestante || v.monto_restante || totalVenta);
+          const pagado = totalVenta - restante;
+          ventasCr += restante;
+          countCr++;
+          if (pagado > 0 && m !== "credito") {
+            if (m === "efectivo") { ventasEf += pagado; countEf++; }
+            else if (m === "transferencia") { ventasTransferencia += pagado; countBanco++; }
+            else if (m === "tarjeta") { ventasPunto += pagado; countBanco++; }
+            else if (m === "pago_movil") { ventasPm += pagado; countPm++; }
+            else { ventasOtros += pagado; countOtros++; }
+          }
+        } else if (m === "efectivo") { ventasEf += totalVenta; countEf++; }
         else if (m === "transferencia") { ventasTransferencia += totalVenta; countBanco++; }
         else if (m === "tarjeta") { ventasPunto += totalVenta; countBanco++; }
         else if (m === "pago_movil") { ventasPm += totalVenta; countPm++; }
-        else if (m === "credito" || v.estadoPago === "pendiente" || v.estado_pago === "pendiente") {
-          ventasCr += Number(v.montoRestante || v.monto_restante || v.total);
-          countCr++;
-        } else { ventasOtros += totalVenta; countOtros++; }
+        else { ventasOtros += totalVenta; countOtros++; }
       });
 
       let ing = 0, gas = 0;
