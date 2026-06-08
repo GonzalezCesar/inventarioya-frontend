@@ -34,8 +34,7 @@ export default function PantallaReportes() {
   const esAdmin = () =>
     user?.rol === "admin" ||
     user?.rol === "administrador" ||
-    user?.rol === "superadmin" ||
-    user?.rol === "beta_tester";
+    user?.rol === "superadmin";
 
   const { colores, isDark } = useTheme();
   const estilos = useMemo(() => crearEstilos(colores), [colores]);
@@ -382,7 +381,8 @@ export default function PantallaReportes() {
     let countEf = 0,
       countBanco = 0,
       countPm = 0,
-      countCr = 0;
+      countCr = 0,
+      countOtros = 0;
     const fApertura = new Date(cajaActual.fecha_apertura);
 
     ventas
@@ -411,6 +411,7 @@ export default function PantallaReportes() {
           countCr++;
         } else {
           ventasOtros += totalVenta;
+          countOtros++;
         }
       });
 
@@ -437,6 +438,7 @@ export default function PantallaReportes() {
       ventasCr,
       countCr,
       ventasOtros,
+      countOtros,
       ingresosExtra: ing,
       gastos: gas,
       esperado,
@@ -520,7 +522,8 @@ export default function PantallaReportes() {
       let countEf = 0,
         countBanco = 0,
         countPm = 0,
-        countCr = 0;
+        countCr = 0,
+        countOtros = 0;
 
       ventasDelPeriodo.forEach((v: any) => {
         const m = v.metodoPago || v.metodo_pago;
@@ -532,7 +535,7 @@ export default function PantallaReportes() {
         else if (m === "credito" || v.estadoPago === "pendiente" || v.estado_pago === "pendiente") {
           ventasCr += Number(v.montoRestante || v.monto_restante || v.total);
           countCr++;
-        } else { ventasOtros += totalVenta; }
+        } else { ventasOtros += totalVenta; countOtros++; }
       });
 
       let ing = 0, gas = 0;
@@ -1720,6 +1723,17 @@ export default function PantallaReportes() {
                   style={{ color: colores.error, fontSize: 10, marginTop: 4 }}
                 >
                   {calculosCaja?.countCr || 0} transacciones
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={estilos.cardCaja}>
+                <Text style={estilos.labelCaja}>OTROS</Text>
+                <Text style={estilos.montoCaja}>
+                  {formatearMoneda(calculosCaja?.ventasOtros || 0)}
+                </Text>
+                <Text style={{ color: colores.textoGris, fontSize: 10, marginTop: 4 }}>
+                  {calculosCaja?.countOtros || 0} transacciones
                 </Text>
               </View>
             </View>
